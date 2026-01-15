@@ -1,0 +1,72 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.env/
+.env.*
+!.env.example
+
+# =========================
+# Node / JavaScript
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+
+# =========================
+# Frontend tooling
+# =========================
+.vite/
+.cache/
+.eslintcache
+
+# =========================
+# OS / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Runtime / temp files
+# =========================
+*.tmp
+*.swp
+*.swo
+
+# =========================
+# Optional: local databases
+# =========================
+*.sqlite
+*.db
+
+# =========================
+# Optional: uploads / generated assets
+# =========================
+uploads/
+generated/
