@@ -27,7 +27,7 @@ This dashboard provides a unified interface to visualize the performance of your
 Clone the repository and install frontend dependencies:
 ```bash
 git clone https://github.com/deduu/auditi
-cd ai-agent-monitor
+cd auditi
 npm install
 ```
 

@@ -4,9 +4,9 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  DollarSign,
 } from "lucide-react";
 import { useMetrics } from "../../hooks/useMetrics";
+import { Card } from "../ui/Card";
 
 const Spinner = ({ size = "md" }) => {
   const sizes = {
@@ -18,7 +18,7 @@ const Spinner = ({ size = "md" }) => {
   return (
     <div className="flex items-center justify-center">
       <div
-        className={`animate-spin rounded-full border-b-2 border-blue-600 ${sizes[size]}`}
+        className={`animate-spin rounded-full border-b-2 border-blue-500 ${sizes[size]}`}
       />
     </div>
   );
@@ -26,27 +26,35 @@ const Spinner = ({ size = "md" }) => {
 
 const MetricCard = ({ title, value, unit = "", trend, icon: Icon }) => {
   const getTrendColor = (trend) => {
-    if (!trend) return "text-gray-500";
-    return trend.direction === "up" ? "text-green-600" : "text-red-600";
+    if (!trend) return "text-slate-500";
+    return trend.direction === "up" ? "text-emerald-400" : "text-rose-400";
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-600 mb-2">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {value} {unit}
-          </p>
+          <p className="text-sm text-slate-400 mb-2 font-medium">{title}</p>
+          <div className="flex items-baseline space-x-1">
+            <h3 className="text-2xl font-bold text-white">
+              {value}
+            </h3>
+            {unit && <span className="text-sm text-slate-500 font-medium">{unit}</span>}
+          </div>
           {trend && (
-            <p className={`text-sm mt-2 ${getTrendColor(trend)}`}>
-              {trend.direction === "up" ? "↑" : "↓"} {Math.abs(trend.value)}%
+            <p className={`text-sm mt-2 flex items-center font-medium ${getTrendColor(trend)}`}>
+              <span className="mr-1">{trend.direction === "up" ? "↑" : "↓"}</span>
+              {Math.abs(trend.value)}%
             </p>
           )}
         </div>
-        {Icon && <Icon className="w-8 h-8 text-gray-400" />}
+        {Icon && (
+          <div className="p-3 rounded-lg bg-slate-800/50">
+            <Icon className="w-6 h-6 text-slate-400" />
+          </div>
+        )}
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -55,7 +63,7 @@ export const MetricsOverview = ({ timeRange = "7d" }) => {
 
   if (loading) return <Spinner />;
   if (error)
-    return <div className="text-red-600">Error loading metrics: {error}</div>;
+    return <div className="text-red-400">Error loading metrics: {error}</div>;
   if (!metrics) return null;
 
   return (

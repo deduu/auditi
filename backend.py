@@ -532,15 +532,29 @@ async def get_metrics(timeRange: str = "7d"):
 
 
 @app.get("/conversations")
-async def get_conversations(skip: int = 0, limit: int = 100):
+async def get_conversations(
+    status: Optional[str] = None, 
+    model: Optional[str] = None, 
+    range: str = "7d",
+    skip: int = 0, 
+    limit: int = 100
+):
     """
-    Get list of user sessions
+    Get list of user sessions with filtering support
+    """
+    filtered_sessions = MOCK_SESSIONS
     
-    TODO: Replace with:
-    - SELECT * FROM sessions LIMIT limit OFFSET skip
-    - Add filters support
-    """
-    return MOCK_SESSIONS[skip : skip + limit]
+    if status:
+        filtered_sessions = [s for s in filtered_sessions if s["overallStatus"] == status]
+        
+    if model:
+        filtered_sessions = [s for s in filtered_sessions if model in s["models"]]
+        
+    # Range is mocked for now as data is static
+    if range == "24h":
+        filtered_sessions = filtered_sessions[:2]
+
+    return filtered_sessions[skip : skip + limit]
 
 
 @app.get("/conversations/{session_id}")

@@ -94,8 +94,25 @@ export const useConversations = (initialFilters = {}) => {
       setError(null);
     } catch (err) {
       console.error("Failed to fetch conversations:", err);
-      // Use mock sessions data as fallback
-      setConversations(mockSessions);
+      
+      // Apply local filtering to mock data for a better UX when API fails
+      let filtered = [...mockSessions];
+      
+      if (filters.status) {
+        filtered = filtered.filter(s => s.overallStatus === filters.status);
+      }
+      
+      if (filters.model) {
+        filtered = filtered.filter(s => s.models.includes(filters.model));
+      }
+      
+      // Simple range check (mock data is static, so we just simulate)
+      if (filters.range === '24h') {
+          // In a real app we'd filter by timestamp. Here we just show a subset.
+          filtered = filtered.slice(0, 2); 
+      }
+
+      setConversations(filtered);
       setError(null);
     } finally {
       setLoading(false);

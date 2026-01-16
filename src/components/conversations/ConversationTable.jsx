@@ -1,5 +1,6 @@
 import React from "react";
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Badge } from "../ui/Badge";
 
 const Spinner = ({ size = "md" }) => {
   const sizes = {
@@ -11,7 +12,7 @@ const Spinner = ({ size = "md" }) => {
   return (
     <div className="flex items-center justify-center p-12">
       <div
-        className={`animate-spin rounded-full border-b-2 border-blue-600 ${sizes[size]}`}
+        className={`animate-spin rounded-full border-b-2 border-blue-500 ${sizes[size]}`}
       />
     </div>
   );
@@ -20,24 +21,24 @@ const Spinner = ({ size = "md" }) => {
 const getStatusBadge = (status, passCount, failCount) => {
   if (status === "pass") {
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+      <Badge variant="success">
         <CheckCircle className="w-3 h-3 mr-1" />
         Pass ({passCount}/{passCount + failCount})
-      </span>
+      </Badge>
     );
   } else if (status === "fail") {
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+      <Badge variant="error">
         <XCircle className="w-3 h-3 mr-1" />
         Fail ({passCount}/{passCount + failCount})
-      </span>
+      </Badge>
     );
   } else {
     return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+      <Badge variant="warning">
         <AlertCircle className="w-3 h-3 mr-1" />
         Review ({passCount}/{passCount + failCount})
-      </span>
+      </Badge>
     );
   }
 };
@@ -45,38 +46,38 @@ const getStatusBadge = (status, passCount, failCount) => {
 const SessionRow = ({ session, onClick }) => {
   return (
     <tr
-      className="hover:bg-blue-50 cursor-pointer transition-colors"
+      className="hover:bg-slate-800/50 cursor-pointer transition-colors border-b border-slate-800 last:border-0"
       onClick={() => onClick(session.id)}
     >
       <td className="px-6 py-4 whitespace-nowrap">
-        <div className="text-sm font-medium text-gray-900">
+        <div className="text-sm font-medium text-white">
           {new Date(session.startTime).toLocaleDateString()}
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-slate-500">
           {new Date(session.startTime).toLocaleTimeString()}
         </div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">
+        <span className="text-sm font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded border border-slate-700">
           {session.userId}
         </span>
       </td>
       <td className="px-6 py-4">
-        <div className="text-sm text-gray-900 max-w-xs truncate">
+        <div className="text-sm text-slate-300 max-w-xs truncate">
           {session.objective}
         </div>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-slate-400">
           {session.totalTurns} turns
         </span>
       </td>
-      <td className="px-6 py-4 text-sm text-gray-600">
+      <td className="px-6 py-4 text-sm text-slate-400">
         <div className="flex flex-wrap gap-1">
           {session.models?.map((model, idx) => (
             <span
               key={idx}
-              className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs"
+              className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-xs border border-slate-700"
             >
               {model}
             </span>
@@ -85,12 +86,12 @@ const SessionRow = ({ session, onClick }) => {
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <span
-          className={`text-sm font-semibold ${
+          className={`text-sm font-bold ${
             session.avgScore >= 8
-              ? "text-green-600"
+              ? "text-emerald-400"
               : session.avgScore >= 6
-              ? "text-yellow-600"
-              : "text-red-600"
+              ? "text-amber-400"
+              : "text-rose-400"
           }`}
         >
           {session.avgScore?.toFixed(1)}
@@ -99,10 +100,10 @@ const SessionRow = ({ session, onClick }) => {
       <td className="px-6 py-4 whitespace-nowrap">
         {getStatusBadge(session.overallStatus, session.passCount, session.failCount)}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
         {session.latency}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
         {session.cost}
       </td>
     </tr>
@@ -120,7 +121,7 @@ export const ConversationTable = ({
 
   if (!conversations || conversations.length === 0) {
     return (
-      <div className="p-12 text-center text-gray-500">
+      <div className="p-12 text-center text-slate-500">
         No sessions found
       </div>
     );
@@ -128,39 +129,39 @@ export const ConversationTable = ({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+      <table className="min-w-full">
+        <thead className="bg-slate-900/50 border-b border-slate-800">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Date/Time
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               User
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Objective
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Turns
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Models
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Avg Score
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Latency
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Cost
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-transparent divide-y divide-slate-800">
           {conversations.map((session) => (
             <SessionRow
               key={session.id}
