@@ -70,3 +70,5 @@ Thumbs.db
 # =========================
 uploads/
 generated/
+
+frontend/node_modules/

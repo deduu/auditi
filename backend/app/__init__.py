@@ -1,0 +1,1 @@
+"""Auditi Backend - FastAPI Application"""
