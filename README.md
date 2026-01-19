@@ -1,4 +1,4 @@
-# AI Agent Monitor
+# Auditi
 
 A standardized (frontend-first) dashboard for monitoring, evaluating, and improving AI Agents.
 
