@@ -17,36 +17,106 @@ This dashboard provides a unified interface to visualize the performance of your
 
 ---
 
+## 📂 Project Structure
+
+This project is organized into three main packages:
+
+```
+├── backend/           # FastAPI backend server
+│   ├── app/           # Application code (routes, models, services)
+│   ├── Dockerfile     # Container configuration
+│   └── requirements.txt
+│
+├── frontend/          # React + Vite dashboard
+│   ├── src/           # Components, pages, services
+│   ├── Dockerfile     # Container configuration
+│   └── package.json
+│
+├── sdk/               # Python SDK for tracing
+│   ├── auditi/        # Core SDK package
+│   ├── examples/      # Usage examples
+│   └── pyproject.toml
+│
+├── docker-compose.yml # Orchestration for all services
+└── README.md          # This file
+```
+
+---
+
 ## 🛠️ Getting Started
 
 ### Prerequisites
 - Node.js (v18+)
-- Python 3.10+ (Optional, only for the reference backend)
+- Python 3.10+
+- Docker & Docker Compose (recommended)
 
-### 1. Installation
-Clone the repository and install frontend dependencies:
+### Option 1: Run with Docker Compose (Recommended)
+
+The easiest way to get started is using Docker Compose:
+
 ```bash
-git clone https://github.com/deduu/auditi
-cd auditi
-npm install
+docker-compose up --build
 ```
 
-### 2. Run Locally (with Reference Backend)
-We provide a Python `FastAPI` backend that generates mock data so you can explore the UI immediately.
+This will start:
+- **Backend**: http://localhost:8000
+- **Frontend**: http://localhost:5173
+- **PostgreSQL**: localhost:5432
 
-**Terminal 1 (Frontend):**
+### Option 2: Run Locally (Development)
+
+**Terminal 1 (Backend):**
 ```bash
+cd backend
+pip install -r requirements.txt
+py -m app.main
+# Running on http://localhost:8000
+```
+
+**Terminal 2 (Frontend):**
+```bash
+cd frontend
+npm install
 npm run dev
 # Running on http://localhost:5173
 ```
 
-**Terminal 2 (Reference Backend):**
+---
+
+## 📦 SDK Installation
+
+The Auditi SDK provides decorators for tracing LLM calls and agent executions.
+
+### Installation
+
 ```bash
-# Create/Activate virtual env (optional but recommended)
-py backend.py
-# Running on http://localhost:3000
+pip install auditi-sdk
+# or install from local source
+pip install -e ./sdk
 ```
-*Note: The frontend is configured to look for the backend at `http://localhost:3000/api/v1` by default.*
+
+### Quick Start
+
+```python
+from auditi import trace_llm, trace_agent, AuditiClient
+
+# Initialize the client
+client = AuditiClient(base_url="http://localhost:8000")
+
+# Trace an LLM call
+@trace_llm(model="gpt-4")
+def my_llm_call(prompt: str) -> str:
+    # Your LLM logic here
+    return response
+
+# Trace an agent execution
+@trace_agent(agent_name="my-agent")
+def my_agent(query: str) -> str:
+    # Your agent logic here
+    return result
+```
+
+For more examples, see the [SDK documentation](./sdk/README.md).
 
 ---
 
@@ -54,41 +124,40 @@ py backend.py
 
 **Want to use this dashboard with your REAL AI Agent?**
 
-You do not need to rewrite your agent. You only need to expose a few API endpoints that this dashboard can consume.
+You do not need to rewrite your agent. You only need to:
 
-1.  **Read the Specification**: See [API_SPEC.md](./API_SPEC.md) for the JSON contract.
-2.  **Implement Routes**: Add endpoints like `/metrics`, `/conversations`, and `/evaluations` to your agent's backend.
-3.  **Configure Frontend**:
-    Create a `.env` file in the root directory:
-    ```env
-    VITE_API_BASE_URL=http://your-production-api.com/api/v1
-    ```
-4.  **Build**:
-    ```bash
-    npm run build
-    # Deploy the 'dist' folder to any static host (Vercel, S3, Netlify)
-    ```
+1.  **Install the SDK**: Add `auditi-sdk` to your project.
+2.  **Decorate your functions**: Use `@trace_llm` and `@trace_agent` decorators.
+3.  **Configure the endpoint**: Point the SDK to your Auditi backend.
 
 For detailed instructions, see the **[Integration Guide](./INTEGRATION_GUIDE.md)**.
 
 ---
 
-## 📂 Project Structure
+## 🔧 Configuration
 
+### Backend
+
+Create a `.env` file in the `backend/` directory:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/auditi
 ```
-├── src/
-│   ├── components/      # Reusable UI components
-│   ├── pages/           # Dashboard views (Evaluations, Models, etc.)
-│   ├── services/        # API client (api.js)
-│   └── App.jsx          # Main routing logic
-├── backend.py           # Reference FastAPI backend (Simulator)
-├── API_SPEC.md          # Protocol definition
-├── INTEGRATION_GUIDE.md # How to connect your agent
-└── README.md            # This file
+
+### Frontend
+
+Create a `.env` file in the `frontend/` directory:
+
+```env
+VITE_API_BASE_URL=http://localhost:8000/api/v1
 ```
+
+---
 
 ## 🤝 Contributing
+
 Contributions are welcome! Please open an issue or submit a PR for any new features or bug fixes.
 
 ## 📄 License
+
 MIT
