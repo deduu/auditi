@@ -5,13 +5,12 @@ import functools
 from datetime import datetime
 from uuid import uuid4
 from typing import Optional, Callable, Any
-from contextlib import contextmanager
 
 from .types import TraceInput, SpanInput
 from .context import (
     get_current_trace, set_current_trace,
     get_current_span, push_span, pop_span,
-    get_context, clear_current_trace
+    get_context
 )
 from .client import get_client
 from .evaluator import BaseEvaluator
@@ -76,43 +75,6 @@ def _apply_usage_to_trace(trace: TraceInput, usage: Any) -> None:
         return
     trace.total_tokens = (trace.total_tokens or 0) + total_tokens
     trace.cost = (trace.cost or 0.0) + (total_tokens * 0.00003)
-
-
-@contextmanager
-def trace_session(
-    name: Optional[str] = None,
-    user_id: Optional[str] = None,
-    conversation_id: Optional[str] = None,
-    user_input: str = "",
-    tags: Optional[list[str]] = None,
-) -> TraceInput:
-    """
-    Context manager for manual trace scoping when a decorator is not viable.
-    """
-    client = get_client()
-    trace_id = uuid4()
-    start_time = datetime.utcnow()
-
-    trace = TraceInput(
-        id=trace_id,
-        user_id=user_id,
-        conversation_id=conversation_id,
-        start_time=start_time,
-        user_input=user_input,
-        name=name,
-        tags=tags or [],
-    )
-    set_current_trace(trace)
-
-    try:
-        yield trace
-    except Exception as e:
-        trace.error = str(e)
-        raise
-    finally:
-        trace.end_time = datetime.utcnow()
-        client.transport.send_trace(trace.model_dump(mode="json"))
-        clear_current_trace()
 
 
 def trace_agent(
@@ -245,7 +207,6 @@ def trace_agent(
 
                 # Send Trace
                 client.transport.send_trace(trace.model_dump(mode='json'))
-                clear_current_trace()
                 
             return result
         return wrapper
