@@ -71,6 +71,10 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
             end_time=span.end_time,
             inputs=span.inputs,
             outputs=span.outputs,
+            input_tokens=span.input_tokens,
+            output_tokens=span.output_tokens,
+            tokens=span.tokens,
+            cost=span.cost,
             status=span.status,
             error=span.error
         )

@@ -21,6 +21,8 @@ class Span(Base):
     end_time = Column(DateTime, nullable=True)
     inputs = Column(JSON, nullable=True)
     outputs = Column(Text, nullable=True)
+    input_tokens = Column(Integer, default=0)
+    output_tokens = Column(Integer, default=0)
     tokens = Column(Integer, default=0)
     cost = Column(Float, default=0.0)
     status = Column(String, default="ok")

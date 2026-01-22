@@ -5,15 +5,114 @@ import functools
 from datetime import datetime
 from uuid import uuid4
 from typing import Optional, Callable, Any
+from contextlib import contextmanager
 
 from .types import TraceInput, SpanInput
 from .context import (
     get_current_trace, set_current_trace,
     get_current_span, push_span, pop_span,
-    get_context
+    get_context, clear_current_trace
 )
 from .client import get_client
 from .evaluator import BaseEvaluator
+
+
+def _coerce_int(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_usage_fields(usage: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    if usage is None:
+        return None, None, None
+
+    if isinstance(usage, dict):
+        if "input_tokens" in usage or "output_tokens" in usage or "total_tokens" in usage:
+            input_tokens = _coerce_int(usage.get("input_tokens"))
+            output_tokens = _coerce_int(usage.get("output_tokens"))
+            total_tokens = _coerce_int(usage.get("total_tokens"))
+        else:
+            input_tokens = _coerce_int(usage.get("prompt_tokens"))
+            output_tokens = _coerce_int(usage.get("completion_tokens"))
+            total_tokens = _coerce_int(usage.get("total_tokens"))
+    else:
+        if hasattr(usage, "input_tokens") or hasattr(usage, "output_tokens") or hasattr(usage, "total_tokens"):
+            input_tokens = _coerce_int(getattr(usage, "input_tokens", None))
+            output_tokens = _coerce_int(getattr(usage, "output_tokens", None))
+            total_tokens = _coerce_int(getattr(usage, "total_tokens", None))
+        else:
+            input_tokens = _coerce_int(getattr(usage, "prompt_tokens", None))
+            output_tokens = _coerce_int(getattr(usage, "completion_tokens", None))
+            total_tokens = _coerce_int(getattr(usage, "total_tokens", None))
+
+    if total_tokens is None and (input_tokens is not None or output_tokens is not None):
+        total_tokens = (input_tokens or 0) + (output_tokens or 0)
+
+    return input_tokens, output_tokens, total_tokens
+
+
+def _apply_usage_to_span(span: SpanInput, usage: Any) -> None:
+    input_tokens, output_tokens, total_tokens = _extract_usage_fields(usage)
+    if input_tokens is None and output_tokens is None and total_tokens is None:
+        return
+
+    if input_tokens is not None:
+        span.input_tokens = input_tokens
+    if output_tokens is not None:
+        span.output_tokens = output_tokens
+    if total_tokens is None:
+        total_tokens = (input_tokens or 0) + (output_tokens or 0)
+    span.tokens = total_tokens
+    span.cost = total_tokens * 0.00003
+
+
+def _apply_usage_to_trace(trace: TraceInput, usage: Any) -> None:
+    _, _, total_tokens = _extract_usage_fields(usage)
+    if total_tokens is None:
+        return
+    trace.total_tokens = (trace.total_tokens or 0) + total_tokens
+    trace.cost = (trace.cost or 0.0) + (total_tokens * 0.00003)
+
+
+@contextmanager
+def trace_session(
+    name: Optional[str] = None,
+    user_id: Optional[str] = None,
+    conversation_id: Optional[str] = None,
+    user_input: str = "",
+    tags: Optional[list[str]] = None,
+) -> TraceInput:
+    """
+    Context manager for manual trace scoping when a decorator is not viable.
+    """
+    client = get_client()
+    trace_id = uuid4()
+    start_time = datetime.utcnow()
+
+    trace = TraceInput(
+        id=trace_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        start_time=start_time,
+        user_input=user_input,
+        name=name,
+        tags=tags or [],
+    )
+    set_current_trace(trace)
+
+    try:
+        yield trace
+    except Exception as e:
+        trace.error = str(e)
+        raise
+    finally:
+        trace.end_time = datetime.utcnow()
+        client.transport.send_trace(trace.model_dump(mode="json"))
+        clear_current_trace()
 
 
 def trace_agent(
@@ -99,6 +198,8 @@ def trace_agent(
             
             try:
                 result = func(*args, **kwargs)
+                print("[Auditi] Trace captured.")
+                print(f"result: {result}")
                 # Smart extraction of assistant output
                 if isinstance(result, str):
                     trace.assistant_output = result
@@ -107,31 +208,25 @@ def trace_agent(
                     
                     # EXTRACT METRICS from result dict if available
                     if "usage" in result:
-                        usage = result["usage"]
-                        # Handle OpenAI format
-                        if isinstance(usage, dict):
-                            total_tokens = usage.get("total_tokens", 0)
-                            trace.total_tokens = (trace.total_tokens or 0) + total_tokens
-                            # Simple cost estimation (mock logic for now - could be smarter)
-                            trace.cost = (trace.cost or 0.0) + (total_tokens * 0.00003) 
+                        _apply_usage_to_trace(trace, result["usage"])
 
                 elif hasattr(result, "content"):
                     trace.assistant_output = str(result.content)
                     
                     # Check for usage on object
                     if hasattr(result, "usage"):
-                        # Attempt to parse usage object
                         try:
-                            usage = result.usage
-                            if hasattr(usage, "total_tokens"):
-                                total = usage.total_tokens
-                                trace.total_tokens = (trace.total_tokens or 0) + total
-                                trace.cost = (trace.cost or 0.0) + (total * 0.00003)
+                            _apply_usage_to_trace(trace, result.usage)
                         except:
                             pass
                             
                 else:
                     trace.assistant_output = str(result) if result else ""
+                    if hasattr(result, "usage"):
+                        try:
+                            _apply_usage_to_trace(trace, result.usage)
+                        except:
+                            pass
             except Exception as e:
                 error_msg = str(e)
                 trace.assistant_output = f"Error: {e}"
@@ -150,6 +245,7 @@ def trace_agent(
 
                 # Send Trace
                 client.transport.send_trace(trace.model_dump(mode='json'))
+                clear_current_trace()
                 
             return result
         return wrapper
@@ -218,25 +314,32 @@ def _trace_span(
                     span.outputs = result[:2000]  # Truncate long outputs
                 elif hasattr(result, "content"):
                     span.outputs = str(result.content)[:2000]
+                    if not span.model and hasattr(result, "model"):
+                        span.model = str(result.model)
                     # Try to get usage from object
                     if hasattr(result, "usage"):
-                         try:
-                            usage = result.usage
-                            if hasattr(usage, "total_tokens"):
-                                span.tokens = usage.total_tokens
-                                span.cost = span.tokens * 0.00003
-                         except:
+                        try:
+                            _apply_usage_to_span(span, result.usage)
+                        except:
                             pass
                 elif isinstance(result, dict):
-                     span.outputs = str(result)[:2000]
-                     if "usage" in result:
-                        usage = result["usage"]
-                        if isinstance(usage, dict):
-                            span.tokens = usage.get("total_tokens", 0)
-                            span.cost = span.tokens * 0.00003
+                    span.outputs = str(result)[:2000]
+                    if not span.model:
+                        model_name = result.get("model") or result.get("model_name")
+                        if model_name:
+                            span.model = str(model_name)
+                    if "usage" in result:
+                        _apply_usage_to_span(span, result["usage"])
 
                 else:
                     span.outputs = str(result)[:2000]
+                    if not span.model and hasattr(result, "model"):
+                        span.model = str(result.model)
+                    if hasattr(result, "usage"):
+                        try:
+                            _apply_usage_to_span(span, result.usage)
+                        except:
+                            pass
                 span.status = "ok"
                 return result
             except Exception as e:

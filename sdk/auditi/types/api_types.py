@@ -24,6 +24,8 @@ class SpanInput(BaseModel):
     status: str = "ok"  # ok, error
     error: Optional[str] = None
     model: Optional[str] = None
+    input_tokens: Optional[int] = 0
+    output_tokens: Optional[int] = 0
     tokens: Optional[int] = 0
     cost: Optional[float] = 0.0
 

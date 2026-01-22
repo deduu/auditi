@@ -1,9 +1,9 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: auditi-db
     environment:
       POSTGRES_USER: postgres
@@ -35,8 +35,14 @@ services:
 
   # React Frontend (development)
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: builder
     container_name: auditi-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host
     ports:
       - "5173:5173"
     environment:

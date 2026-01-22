@@ -23,6 +23,12 @@ from app.routers import (
 )
 from app.services.eval_worker import run_eval_worker
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

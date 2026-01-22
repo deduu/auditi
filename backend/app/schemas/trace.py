@@ -16,6 +16,10 @@ class SpanIngest(BaseModel):
     end_time: Optional[datetime] = None
     inputs: Optional[Dict[str, Any]] = None
     outputs: Optional[str] = None
+    input_tokens: Optional[int] = 0
+    output_tokens: Optional[int] = 0
+    tokens: Optional[int] = 0
+    cost: Optional[float] = 0.0
     status: str = "ok"
     error: Optional[str] = None
 

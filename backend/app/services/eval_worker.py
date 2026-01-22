@@ -58,7 +58,7 @@ async def process_evaluation(
     db: Session = db_session_factory()
     try:
         # Import here to avoid circular imports
-        from app.models import Trace
+        from app.models import Trace, Span
         
         trace = db.query(Trace).filter(Trace.id == job.trace_id).first()
         
@@ -77,9 +77,20 @@ async def process_evaluation(
         context = {"api_key": job.api_key} if job.api_key else None
         
         # Run LLM evaluation
+        assistant_output = trace.assistant_output or ""
+        if not assistant_output:
+            llm_span = (
+                trace.spans
+                .filter(Span.span_type == "llm", Span.outputs.isnot(None))
+                .order_by(Span.end_time.desc(), Span.start_time.desc())
+                .first()
+            )
+            if llm_span and llm_span.outputs:
+                assistant_output = llm_span.outputs
+
         result = await evaluator.evaluate(
             user_input=trace.user_input or "",
-            assistant_output=trace.assistant_output or "",
+            assistant_output=assistant_output,
             context=context
         )
         

@@ -55,6 +55,7 @@ class SyncHttpTransport(BaseTransport):
     def send_trace(self, trace_data: Dict[str, Any]) -> None:
         """Send trace data via HTTP POST."""
         url = f"{self.base_url}/api/v1/ingest"
+        print(f"url: {url}")
         try:
             with httpx.Client() as client:
                 response = client.post(

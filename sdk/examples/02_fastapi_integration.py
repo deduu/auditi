@@ -18,7 +18,7 @@ app = FastAPI(title="AI Assistant API")
 # Initialize Auditi ONCE at app startup
 auditi.init(
     api_key="your-auditi-api-key",
-    base_url="https://your-auditi-backend.com"
+    base_url="http://localhost:8000"  # Optional custom URL
 )
 
 

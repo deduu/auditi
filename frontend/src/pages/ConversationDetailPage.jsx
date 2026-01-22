@@ -47,6 +47,16 @@ const SpanItem = ({ span }) => {
   const isLLM = span.type === "llm";
   const isTool = span.type === "tool";
   const isError = span.status === "error";
+  const inputTokens = span.input_tokens ?? span.inputTokens;
+  const outputTokens = span.output_tokens ?? span.outputTokens;
+  const totalTokens = span.tokens ?? span.total_tokens ?? span.totalTokens;
+  const hasTokens = Boolean(inputTokens) || Boolean(outputTokens) || Boolean(totalTokens);
+  const resolvedTotalTokens = totalTokens ?? ((inputTokens || 0) + (outputTokens || 0));
+  const tokenParts = [];
+
+  if (inputTokens) tokenParts.push(`in ${inputTokens}`);
+  if (outputTokens) tokenParts.push(`out ${outputTokens}`);
+  if (resolvedTotalTokens) tokenParts.push(`total ${resolvedTotalTokens}`);
 
   return (
     <div className={`ml-4 pl-4 border-l-2 ${isError ? "border-rose-500/30" : "border-slate-800"} py-2`}>
@@ -62,6 +72,9 @@ const SpanItem = ({ span }) => {
           {span.model && <span className="text-xs text-slate-500">({span.model})</span>}
         </div>
         <div className="flex items-center space-x-3 opacity-60 group-hover:opacity-100 transition-opacity">
+          {hasTokens && tokenParts.length > 0 && (
+            <span className="text-xs text-slate-500">{tokenParts.join(" / ")}</span>
+          )}
           <span className="text-xs text-slate-500">{span.duration}</span>
           {isError && <Badge variant="error" className="bg-rose-500/10 text-rose-400 border-rose-500/20">Error</Badge>}
         </div>

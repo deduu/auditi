@@ -21,6 +21,7 @@ class SyncHttpTransport(BaseTransport):
 
     def send_trace(self, trace_data: Dict[str, Any]):
         url = f"{self.base_url}/v1/ingest"
+        print(f"url: {url}")
         try:
             with httpx.Client() as client:
                 response = client.post(url, json=trace_data, headers=self.headers, timeout=5.0)
