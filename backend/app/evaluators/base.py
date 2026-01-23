@@ -2,15 +2,50 @@
 Abstract base class for backend evaluators.
 """
 from abc import ABC, abstractmethod
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+
+class SpanEvaluation(BaseModel):
+    """Evaluation result for a single span."""
+    span_id: str
+    step_number: int
+    step_type: str
+    step_name: str
+    relevant: bool = True
+    quality_score: float = Field(ge=0.0, le=1.0)
+    issues: List[str] = Field(default_factory=list)
+    reasoning: str = ""
 
 
-class EvalResult(TypedDict):
-    """Result of evaluating a trace."""
-    status: str           # "pass", "fail", "review"
-    score: float          # 0.0 - 1.0
-    failure_mode: Optional[str]   # hallucination, off_topic, harmful, incomplete, other
-    reason: Optional[str]         # Brief explanation
+class EvalResult(BaseModel):
+    """
+    Comprehensive evaluation result for a trace.
+    
+    Includes both overall trace evaluation AND individual span evaluations.
+    """
+    # Overall trace evaluation
+    status: str  # "pass", "fail", or "review"
+    score: float = Field(ge=0.0, le=1.0)
+    failure_mode: Optional[str] = None
+    reason: str = ""
+    recommended_action: Optional[str] = None 
+    
+    # NEW: Span-level evaluations
+    span_evaluations: List[SpanEvaluation] = Field(default_factory=list)
+    
+    # Optional metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Override to ensure proper serialization."""
+        data = super().model_dump(**kwargs)
+        # Convert SpanEvaluation objects to dicts
+        if "span_evaluations" in data:
+            data["span_evaluations"] = [
+                se if isinstance(se, dict) else se.model_dump()
+                for se in data["span_evaluations"]
+            ]
+        return data
 
 
 class BaseBackendEvaluator(ABC):

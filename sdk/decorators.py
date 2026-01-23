@@ -20,6 +20,21 @@ from .context import (
 from .client import get_client
 from .evaluator import BaseEvaluator
 
+# Global counter for span execution order
+_span_sequence_counter = 0
+
+
+def _get_next_sequence() -> int:
+    """Get next sequence number for span ordering."""
+    global _span_sequence_counter
+    _span_sequence_counter += 1
+    return _span_sequence_counter
+
+
+def _reset_sequence_counter() -> None:
+    """Reset sequence counter (called at start of each trace)."""
+    global _span_sequence_counter
+    _span_sequence_counter = 0
 
 def _coerce_int(value: Any) -> Optional[int]:
     if value is None:
@@ -136,6 +151,9 @@ def trace_agent(
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
+            # Reset sequence counter at start of new trace
+            _reset_sequence_counter()
+
             client = get_client()
             trace_id = uuid4()
             start_time = datetime.utcnow()
@@ -226,7 +244,9 @@ def trace_agent(
                 raise
             finally:
                 trace.end_time = datetime.utcnow()
-                
+                # CRITICAL FIX: Sort spans by execution sequence before evaluation/sending
+                # This ensures spans are in the order they were executed
+                trace.spans.sort(key=lambda s: s.metadata.get("_sequence", 0))
                 # Run Evaluator if provided and no error
                 if evaluator and not error_msg:
                     try:
@@ -268,6 +288,9 @@ def _trace_span(
             span_name = name or func.__name__
 
             print(f"\n[SPAN START] {span_type.upper()}: {span_name}")
+             
+            # CRITICAL: Capture execution sequence number
+            execution_sequence = _get_next_sequence()
 
             # Auto-detect model if not provided
             effective_model = model
@@ -298,7 +321,11 @@ def _trace_span(
                 span_type=span_type,
                 start_time=start_time,
                 inputs=inputs,
-                model=effective_model
+                model=effective_model,
+                metadata={
+                    "_sequence": execution_sequence,  # Store execution order
+                    "_depth": len(_span_stack.get()) if parent else 0  # Store nesting depth
+                }
             )
             
             push_span(span)
@@ -306,20 +333,15 @@ def _trace_span(
             try:
                 result = func(*args, **kwargs)
                 
-                # Calculate processing time
-                span.end_time = datetime.utcnow()
-                processing_time = (span.end_time - span.start_time).total_seconds()
-                span.processing_time = processing_time
-                
                 print(f"[SPAN END] {span_type.upper()}: {span_name} (took {processing_time:.3f}s)")
                 
                 # Smart output capture
                 if isinstance(result, str):
-                    span.outputs = result[:2000]
+                    span.outputs = result
                     print(f"[SPAN OUTPUT] String result: {len(result)} chars")
                     
                 elif hasattr(result, "content"):
-                    span.outputs = str(result.content)[:2000]
+                    span.outputs = str(result.content)
                     print(f"[SPAN OUTPUT] Object with content attribute")
                     
                     if not span.model and hasattr(result, "model"):
@@ -341,7 +363,7 @@ def _trace_span(
                             traceback.print_exc()
                             
                 elif isinstance(result, dict):
-                    span.outputs = str(result)[:2000]
+                    span.outputs = str(result)
                     print(f"[SPAN OUTPUT] Dict result")
                     
                     if not span.model:
@@ -364,7 +386,7 @@ def _trace_span(
                             traceback.print_exc()
 
                 else:
-                    span.outputs = str(result)[:2000]
+                    span.outputs = str(result)
                     print(f"[SPAN OUTPUT] Generic result: {type(result)}")
                     
                     if not span.model and hasattr(result, "model"):
@@ -384,16 +406,23 @@ def _trace_span(
                 span.status = "ok"
                 return result
                 
-            except Exception as e:
-                span.end_time = datetime.utcnow()
-                processing_time = (span.end_time - span.start_time).total_seconds()
-                span.processing_time = processing_time
-                
+            except Exception as e: 
                 span.error = str(e)
                 span.status = "error"
-                print(f"[SPAN ERROR] {span_type.upper()}: {span_name} failed after {processing_time:.3f}s: {e}")
+                
                 raise
             finally:
+                span.end_time = datetime.utcnow()
+                # Calculate processing time ONCE in finally block
+                if span.end_time and span.start_time:
+                    span.processing_time = (span.end_time - span.start_time).total_seconds()
+                
+                # Log based on status
+                if span.status == "error":
+                    print(f"[SPAN ERROR] {span_type.upper()}: {span_name} failed after {span.processing_time:.3f}s: {span.error}")
+                else:
+                    print(f"[SPAN END] {span_type.upper()}: {span_name} (took {span.processing_time:.3f}s)")
+                
                 pop_span()
                 trace.spans.append(span)
         return wrapper

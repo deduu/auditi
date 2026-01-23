@@ -23,17 +23,25 @@ const EvaluationBadge = ({ status, score }) => {
   if (status === "pass") {
     return (
       <div className="flex items-center space-x-2">
-        <Badge variant="success" className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <Badge
+          variant="success"
+          className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+        >
           <CheckCircle className="w-3.5 h-3.5 mr-1" />
           Pass
         </Badge>
-        <span className="text-sm font-semibold text-emerald-400">{score}/10</span>
+        <span className="text-sm font-semibold text-emerald-400">
+          {score}/10
+        </span>
       </div>
     );
   } else {
     return (
       <div className="flex items-center space-x-2">
-        <Badge variant="error" className="bg-rose-500/10 text-rose-400 border border-rose-500/20">
+        <Badge
+          variant="error"
+          className="bg-rose-500/10 text-rose-400 border border-rose-500/20"
+        >
           <XCircle className="w-3.5 h-3.5 mr-1" />
           Fail
         </Badge>
@@ -44,53 +52,253 @@ const EvaluationBadge = ({ status, score }) => {
 };
 
 const SpanItem = ({ span }) => {
-  const isLLM = span.type === "llm";
-  const isTool = span.type === "tool";
-  const isError = span.status === "error";
-  const inputTokens = span.input_tokens ?? span.inputTokens;
-  const outputTokens = span.output_tokens ?? span.outputTokens;
-  const totalTokens = span.tokens ?? span.total_tokens ?? span.totalTokens;
-  const hasTokens = Boolean(inputTokens) || Boolean(outputTokens) || Boolean(totalTokens);
-  const resolvedTotalTokens = totalTokens ?? ((inputTokens || 0) + (outputTokens || 0));
-  const tokenParts = [];
+  const [showDetails, setShowDetails] = useState(false);
 
-  if (inputTokens) tokenParts.push(`in ${inputTokens}`);
-  if (outputTokens) tokenParts.push(`out ${outputTokens}`);
-  if (resolvedTotalTokens) tokenParts.push(`total ${resolvedTotalTokens}`);
+  const spanType = (
+    span?.type ??
+    span?.spanType ??
+    span?.span_type ??
+    "unknown"
+  ).toString();
+  const isLLM = spanType === "llm";
+  const isTool = spanType === "tool";
+
+  // ✅ Normalize status
+  const spanStatus = (span?.status ?? "ok").toString();
+  const isError = spanStatus === "error";
+
+  // ✅ Normalize timing fields (camelCase from API)
+  const startTime = span?.start_time ?? span?.startTime;
+  const endTime = span?.end_time ?? span?.endTime;
+
+  // ✅ Normalize duration (API returns durationMs; old UI used duration string)
+  const durationMs = span?.durationMs ?? span?.duration_ms;
+  const durationLabel =
+    span?.duration ??
+    (typeof durationMs === "number" ? `${durationMs.toFixed(2)}ms` : "0.00ms");
+
+  // ✅ Normalize tokens (API uses inputTokens/outputTokens/tokens)
+  const inputTokens = span?.input_tokens ?? span?.inputTokens;
+  const outputTokens = span?.output_tokens ?? span?.outputTokens;
+  const totalTokens = span?.tokens ?? span?.total_tokens ?? span?.totalTokens;
+
+  const hasTokens =
+    Boolean(inputTokens) || Boolean(outputTokens) || Boolean(totalTokens);
+
+  const resolvedTotalTokens =
+    typeof totalTokens === "number" && totalTokens >= 0
+      ? totalTokens
+      : (inputTokens || 0) + (outputTokens || 0);
+
+  const tokenParts = [];
+  if (typeof inputTokens === "number" && inputTokens > 0)
+    tokenParts.push(`in ${inputTokens}`);
+  if (typeof outputTokens === "number" && outputTokens > 0)
+    tokenParts.push(`out ${outputTokens}`);
+  if (typeof resolvedTotalTokens === "number" && resolvedTotalTokens > 0)
+    tokenParts.push(`total ${resolvedTotalTokens}`);
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return "N/A";
+    return new Date(timestamp).toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      fractionalSecondDigits: 3,
+    });
+  };
+
+  const formatJSONValue = (value) => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") return JSON.stringify(value, null, 2);
+    return String(value);
+  };
 
   return (
-    <div className={`ml-4 pl-4 border-l-2 ${isError ? "border-rose-500/30" : "border-slate-800"} py-2`}>
-      <div className="flex items-center justify-between group">
+    <div
+      className={`ml-4 pl-4 border-l-2 ${
+        isError ? "border-rose-500/30" : "border-slate-800"
+      } py-2`}
+    >
+      <div
+        className="flex items-center justify-between group cursor-pointer hover:bg-slate-800/30 -ml-4 pl-4 pr-2 py-1 rounded-r transition-colors"
+        onClick={() => setShowDetails(!showDetails)}
+      >
         <div className="flex items-center space-x-2">
-          <Badge variant="outline" className={`
-            ${isLLM ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : ""}
-            ${isTool ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : ""}
-          `}>
-            {span.type.toUpperCase()}
+          <Badge
+            variant="outline"
+            className={`
+              ${isLLM ? "bg-purple-500/10 text-purple-400 border-purple-500/20" : ""}
+              ${isTool ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : ""}
+              ${!isLLM && !isTool ? "bg-slate-800/50 text-slate-300 border-slate-700" : ""}
+            `}
+          >
+            {spanType.toUpperCase()}
           </Badge>
-          <span className="text-sm font-medium text-slate-300">{span.name}</span>
-          {span.model && <span className="text-xs text-slate-500">({span.model})</span>}
+
+          <span className="text-sm font-medium text-slate-300">
+            {span?.name ?? "Unnamed span"}
+          </span>
+
+          {span?.model && (
+            <span className="text-xs text-slate-500">({span.model})</span>
+          )}
         </div>
+
         <div className="flex items-center space-x-3 opacity-60 group-hover:opacity-100 transition-opacity">
           {hasTokens && tokenParts.length > 0 && (
-            <span className="text-xs text-slate-500">{tokenParts.join(" / ")}</span>
+            <span className="text-xs text-slate-500">
+              {tokenParts.join(" / ")}
+            </span>
           )}
-          <span className="text-xs text-slate-500">{span.duration}</span>
-          {isError && <Badge variant="error" className="bg-rose-500/10 text-rose-400 border-rose-500/20">Error</Badge>}
+
+          {typeof span?.cost === "number" && span.cost > 0 && (
+            <span className="text-xs text-emerald-400">
+              ${span.cost.toFixed(4)}
+            </span>
+          )}
+
+          <span className="text-xs text-slate-500">{durationLabel}</span>
+
+          {isError && (
+            <Badge
+              variant="error"
+              className="bg-rose-500/10 text-rose-400 border-rose-500/20"
+            >
+              Error
+            </Badge>
+          )}
+
+          {showDetails ? (
+            <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+          )}
         </div>
       </div>
 
-      {/* Inputs/Outputs Collapsible could go here, for now just show if error */}
-      {isError && (
-        <div className="mt-2 text-xs text-red-400 bg-red-900/10 p-2 rounded">
-          {span.error}
-        </div>
-      )}
+      {/* Expanded Details */}
+      {showDetails && (
+        <div className="mt-2 space-y-3 bg-slate-900/50 border border-slate-800 rounded-lg p-3">
+          {/* Timing Information */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <span className="text-slate-500">Start Time:</span>
+              <span className="ml-2 text-slate-300 font-mono">
+                {formatTimestamp(startTime)}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500">End Time:</span>
+              <span className="ml-2 text-slate-300 font-mono">
+                {formatTimestamp(endTime)}
+              </span>
+            </div>
+          </div>
 
-      {/* Show Output snippet for tools */}
-      {isTool && span.outputs && (
-        <div className="mt-1 text-xs text-slate-500 font-mono truncate max-w-lg">
-          {span.outputs}
+          {/* Status and ID */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <span className="text-slate-500">Status:</span>
+              <Badge
+                variant="outline"
+                className={`ml-2 ${
+                  spanStatus === "ok"
+                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                }`}
+              >
+                {spanStatus}
+              </Badge>
+            </div>
+            <div className="truncate">
+              <span className="text-slate-500">ID:</span>
+              <span className="ml-2 text-slate-400 font-mono text-xs">
+                {span?.id ?? "N/A"}
+              </span>
+            </div>
+          </div>
+
+          {/* Error Details */}
+          {isError && span?.error && (
+            <div className="bg-rose-900/20 border border-rose-500/20 rounded p-2">
+              <p className="text-xs font-medium text-rose-400 mb-1">
+                Error Details:
+              </p>
+              <p className="text-xs text-rose-300 font-mono">{span.error}</p>
+            </div>
+          )}
+
+          {/* Inputs */}
+          {span?.inputs && (
+            <div>
+              <p className="text-xs font-medium text-slate-400 mb-1">Inputs:</p>
+              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-y-auto">
+                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">
+                  {formatJSONValue(span.inputs)}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Outputs */}
+          {span?.outputs && (
+            <div>
+              <p className="text-xs font-medium text-slate-400 mb-1">
+                Outputs:
+              </p>
+              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-y-auto">
+                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">
+                  {formatJSONValue(span.outputs)}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Token and Cost Details (for LLM spans) */}
+          {isLLM && hasTokens && (
+            <div className="bg-purple-900/10 border border-purple-500/20 rounded p-2">
+              <p className="text-xs font-medium text-purple-400 mb-2">
+                Resource Usage:
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {typeof inputTokens === "number" && inputTokens > 0 && (
+                  <div>
+                    <span className="text-slate-500">Input Tokens:</span>
+                    <span className="ml-2 text-purple-300 font-mono">
+                      {inputTokens.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {typeof outputTokens === "number" && outputTokens > 0 && (
+                  <div>
+                    <span className="text-slate-500">Output Tokens:</span>
+                    <span className="ml-2 text-purple-300 font-mono">
+                      {outputTokens.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {typeof resolvedTotalTokens === "number" &&
+                  resolvedTotalTokens > 0 && (
+                    <div>
+                      <span className="text-slate-500">Total Tokens:</span>
+                      <span className="ml-2 text-purple-300 font-mono">
+                        {resolvedTotalTokens.toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                {typeof span?.cost === "number" && span.cost > 0 && (
+                  <div>
+                    <span className="text-slate-500">Cost:</span>
+                    <span className="ml-2 text-emerald-300 font-mono">
+                      ${span.cost.toFixed(6)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -98,27 +306,50 @@ const SpanItem = ({ span }) => {
 };
 
 const TurnCard = ({ turn, turnNumber }) => {
-  const [expanded, setExpanded] = useState(turn.assistant.evaluation.status === "fail" || true); // Default expand for visibility
-  const evaluation = turn.assistant.evaluation || {};
-  const isFail = evaluation.status === "fail";
+  const evaluation = turn?.assistant?.evaluation ?? {};
+  const [expanded, setExpanded] = useState(true); // keep your default expanded behavior
+
+  const status = evaluation?.status ?? "review";
+  const isFail = status === "fail";
+
+  const latencyMs = turn?.assistant?.latencyMs ?? turn?.assistant?.latency_ms;
+  const latencyLabel =
+    turn?.assistant?.latency ??
+    (typeof latencyMs === "number"
+      ? `${(latencyMs / 1000).toFixed(1)}s`
+      : "0.0s");
 
   return (
-    <Card className={`p-0 overflow-hidden border ${isFail ? "border-rose-900/50" : "border-slate-800"}`}>
+    <Card
+      className={`p-0 overflow-hidden border ${
+        isFail ? "border-rose-900/50" : "border-slate-800"
+      }`}
+    >
       {/* Turn Header */}
       <div
-        className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-colors ${isFail ? "bg-rose-900/20 hover:bg-rose-900/30" : "bg-slate-900/50 hover:bg-slate-800/50"
-          }`}
+        className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-colors ${
+          isFail
+            ? "bg-rose-900/20 hover:bg-rose-900/30"
+            : "bg-slate-900/50 hover:bg-slate-800/50"
+        }`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center space-x-3">
-          <span className="text-xs font-medium text-slate-400">Turn {turnNumber}</span>
+          <span className="text-xs font-medium text-slate-400">
+            Turn {turnNumber}
+          </span>
           <span className="text-xs text-slate-600">|</span>
-          <span className="text-xs text-slate-400">{turn.assistant.model}</span>
+          <span className="text-xs text-slate-400">
+            {turn?.assistant?.model ?? "Unknown"}
+          </span>
           <span className="text-xs text-slate-600">|</span>
-          <span className="text-xs text-slate-400">{turn.assistant.latency}</span>
+          <span className="text-xs text-slate-400">{latencyLabel}</span>
         </div>
+
         <div className="flex items-center space-x-3">
-          {evaluation.status && <EvaluationBadge status={evaluation.status} score={evaluation.score} />}
+          {status && (
+            <EvaluationBadge status={status} score={evaluation?.score ?? 0} />
+          )}
           {expanded ? (
             <ChevronUp className="w-4 h-4 text-slate-400" />
           ) : (
@@ -137,15 +368,19 @@ const TurnCard = ({ turn, turnNumber }) => {
               </div>
               <div className="flex-1">
                 <p className="text-xs font-medium text-slate-400 mb-1">User</p>
-                <p className="text-sm text-slate-200">{turn.user.content}</p>
+                <p className="text-sm text-slate-200">
+                  {turn?.user?.content ?? ""}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Spans (Execution Path) */}
-          {turn.spans && turn.spans.length > 0 && (
+          {/* Spans */}
+          {Array.isArray(turn?.spans) && turn.spans.length > 0 && (
             <div className="py-2 bg-slate-950/30 border-b border-slate-800/50">
-              <p className="px-4 text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Execution Path</p>
+              <p className="px-4 text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                Execution Path
+              </p>
               {turn.spans.map((span) => (
                 <SpanItem key={span.id} span={span} />
               ))}
@@ -153,15 +388,24 @@ const TurnCard = ({ turn, turnNumber }) => {
           )}
 
           {/* Assistant Message */}
-          <div className={`p-4 ${isFail ? "bg-rose-900/10" : "bg-blue-900/10"}`}>
+          <div
+            className={`p-4 ${isFail ? "bg-rose-900/10" : "bg-blue-900/10"}`}
+          >
             <div className="flex items-start space-x-3">
-              <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${isFail ? "bg-rose-500" : "bg-blue-600"
-                }`}>
+              <div
+                className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
+                  isFail ? "bg-rose-500" : "bg-blue-600"
+                }`}
+              >
                 <Bot className="w-3 h-3 text-white" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-medium text-slate-400 mb-1">Assistant</p>
-                <p className="text-sm text-slate-200 whitespace-pre-wrap">{turn.assistant.content}</p>
+                <p className="text-xs font-medium text-slate-400 mb-1">
+                  Assistant
+                </p>
+                <p className="text-sm text-slate-200 whitespace-pre-wrap">
+                  {turn?.assistant?.content ?? ""}
+                </p>
               </div>
             </div>
           </div>
@@ -169,28 +413,36 @@ const TurnCard = ({ turn, turnNumber }) => {
       )}
 
       {/* Expanded Evaluation Details */}
-      {expanded && evaluation.reason && (
-        <div className={`border-t ${isFail ? "border-rose-900/30 bg-rose-900/10" : "border-slate-800 bg-slate-900/30"}`}>
+      {expanded && evaluation?.reason && (
+        <div
+          className={`border-t ${
+            isFail
+              ? "border-rose-900/30 bg-rose-900/10"
+              : "border-slate-800 bg-slate-900/30"
+          }`}
+        >
           <div className="p-4 space-y-4">
-            {/* Reason */}
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
                 <Target className="w-4 h-4 text-blue-400" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-medium text-slate-400 mb-1">Evaluation Reason</p>
+                <p className="text-xs font-medium text-slate-400 mb-1">
+                  Evaluation Reason
+                </p>
                 <p className="text-sm text-slate-300">{evaluation.reason}</p>
               </div>
             </div>
 
-            {/* Failure Mode (only for failed responses) */}
-            {isFail && evaluation.failureMode && (
+            {isFail && evaluation?.failureMode && (
               <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-rose-500/10 flex items-center justify-center">
                   <AlertTriangle className="w-4 h-4 text-rose-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-slate-400 mb-1">Failure Mode</p>
+                  <p className="text-xs font-medium text-slate-400 mb-1">
+                    Failure Mode
+                  </p>
                   <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-rose-500/10 text-rose-300 border border-rose-500/20">
                     {evaluation.failureMode}
                   </span>
@@ -198,14 +450,15 @@ const TurnCard = ({ turn, turnNumber }) => {
               </div>
             )}
 
-            {/* Recommended Action (only for failed responses) */}
-            {isFail && evaluation.recommendedAction && (
+            {isFail && evaluation?.recommendedAction && (
               <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
                   <Lightbulb className="w-4 h-4 text-amber-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-slate-400 mb-1">Recommended Action</p>
+                  <p className="text-xs font-medium text-slate-400 mb-1">
+                    Recommended Action
+                  </p>
                   <p className="text-sm text-amber-100 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
                     {evaluation.recommendedAction}
                   </p>
@@ -246,8 +499,12 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
     );
   }
 
-  const passCount = detail.turns?.filter((t) => t.assistant.evaluation.status === "pass").length || 0;
-  const failCount = detail.turns?.filter((t) => t.assistant.evaluation.status === "fail").length || 0;
+  const passCount =
+    detail.turns?.filter((t) => t.assistant.evaluation.status === "pass")
+      .length || 0;
+  const failCount =
+    detail.turns?.filter((t) => t.assistant.evaluation.status === "fail")
+      .length || 0;
 
   return (
     <div className="space-y-6">
@@ -262,11 +519,17 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
           Back to Sessions
         </Button>
         <div className="flex items-center space-x-4">
-          <Badge variant="success" className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <Badge
+            variant="success"
+            className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+          >
             <CheckCircle className="w-4 h-4 mr-1" />
             {passCount} Passed
           </Badge>
-          <Badge variant="error" className="bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <Badge
+            variant="error"
+            className="bg-rose-500/10 text-rose-400 border border-rose-500/20"
+          >
             <XCircle className="w-4 h-4 mr-1" />
             {failCount} Failed
           </Badge>
@@ -278,7 +541,9 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">{detail.objective}</h2>
+              <h2 className="text-xl font-semibold text-white">
+                {detail.objective}
+              </h2>
               <div className="flex items-center mt-2 space-x-4 text-blue-100 text-sm">
                 <span className="flex items-center">
                   <Hash className="w-4 h-4 mr-1" />
@@ -296,7 +561,9 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
             </div>
             <div className="text-right">
               <p className="text-blue-100 text-sm">Avg Score</p>
-              <p className="text-3xl font-bold text-white">{detail.avgScore?.toFixed(1)}</p>
+              <p className="text-3xl font-bold text-white">
+                {detail.avgScore?.toFixed(1)}
+              </p>
             </div>
           </div>
         </div>
@@ -317,7 +584,9 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
 
       {/* Conversation Timeline */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-white">Conversation Timeline</h3>
+        <h3 className="text-lg font-semibold text-white">
+          Conversation Timeline
+        </h3>
         <div className="space-y-4">
           {detail.turns?.map((turn, idx) => (
             <TurnCard key={turn.id} turn={turn} turnNumber={idx + 1} />

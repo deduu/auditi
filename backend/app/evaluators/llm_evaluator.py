@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any, List
 
 from openai import AsyncOpenAI
 
-from .base import BaseBackendEvaluator, EvalResult
+from .base import BaseBackendEvaluator, EvalResult, SpanEvaluation
 
 logger = logging.getLogger("auditi.evaluator")
 
@@ -97,6 +97,7 @@ Provide a holistic evaluation considering:
     "score": 0.0 to 1.0 (overall quality score),
     "failure_mode": null or one of ["hallucination", "incorrect_tool_use", "inefficient_execution", "incomplete_answer", "off_topic", "harmful", "poor_step_quality", "other"],
     "reason": "2-3 sentence explanation covering step quality, execution flow, and final output",
+    "recommended_action": null or "specific actionable advice for improvement (1-2 sentences)",
     "step_quality_summary": "1 sentence about individual step quality",
     "efficiency_summary": "1 sentence about execution efficiency"
 }}
@@ -105,6 +106,7 @@ Guidelines:
 - "pass" = Good steps AND efficient execution AND quality output (score >= 0.7)
 - "fail" = Poor steps OR wasteful execution OR bad output (score < 0.5)
 - "review" = Mixed results or borderline quality (0.5 <= score < 0.7)
+- **recommended_action**: Only provide if status is "fail" or "review". Give specific, actionable advice (e.g., "Include pricing information when discussing paid features" or "Verify tool outputs before using them in responses")
 
 Respond ONLY with valid JSON, nothing else."""
 
@@ -241,6 +243,7 @@ class LLMEvaluator(BaseBackendEvaluator):
         processing_time = step.get("processing_time", 0)
         tokens = step.get("tokens", 0)
         model = step.get("model", "")
+        span_id = step.get("span_id")
         
         # Format inputs nicely
         if isinstance(step_input, dict):
@@ -275,6 +278,7 @@ class LLMEvaluator(BaseBackendEvaluator):
             
             result = json.loads(response.choices[0].message.content)
             return {
+                "span_id": span_id,  
                 "step_number": step_number,
                 "step_type": step_type,
                 "step_name": step_name,
@@ -286,6 +290,7 @@ class LLMEvaluator(BaseBackendEvaluator):
         except Exception as e:
             logger.error(f"Span evaluation failed for step {step_number}: {e}")
             return {
+                "span_id": span_id,
                 "step_number": step_number,
                 "step_type": step_type,
                 "step_name": step_name,
@@ -347,11 +352,11 @@ class LLMEvaluator(BaseBackendEvaluator):
         if execution_steps and len(execution_steps) > 0:
             print(f"\n[AUDITI EVALUATION] Step 1: Evaluating {len(execution_steps)} spans individually...")
             
-            span_evaluations = []
+            span_evaluations: List[SpanEvaluation] = []
             for i, step in enumerate(execution_steps, 1):
                 print(f"\n  Evaluating span {i}/{len(execution_steps)}: {step.get('type')} - {step.get('name')}")
                 
-                span_eval = await self._evaluate_single_span(
+                span_eval_dict = await self._evaluate_single_span(
                     client=client,
                     user_input=user_input,
                     step=step,
@@ -359,20 +364,21 @@ class LLMEvaluator(BaseBackendEvaluator):
                     total_steps=len(execution_steps)
                 )
                 
+                span_eval = SpanEvaluation(**span_eval_dict)  # Object!
                 span_evaluations.append(span_eval)
                 
-                print(f"    → Relevant: {span_eval['relevant']}, Quality: {span_eval['quality_score']:.2f}")
-                print(f"    → Reasoning: {span_eval['reasoning']}")
-                if span_eval['issues']:
-                    print(f"    → Issues: {', '.join(span_eval['issues'])}")
+                print(f"    → Relevant: {span_eval.relevant}, Quality: {span_eval.quality_score:.2f}")
+                print(f"    → Reasoning: {span_eval.reasoning}")
+                if span_eval.issues:
+                    print(f"    → Issues: {', '.join(span_eval.issues)}")
             
             # Build span evaluation summary for trace evaluation
             span_eval_summary = "\n".join([
-                f"Step {ev['step_number']} ({ev['step_type']}: {ev['step_name']}):\n"
-                f"  - Relevant: {ev['relevant']}\n"
-                f"  - Quality Score: {ev['quality_score']:.2f}\n"
-                f"  - Issues: {', '.join(ev['issues']) if ev['issues'] else 'None'}\n"
-                f"  - Reasoning: {ev['reasoning']}"
+                f"Step {ev.step_number} ({ev.step_type}: {ev.step_name}):\n"
+                f"  - Relevant: {ev.relevant}\n"
+                f"  - Quality Score: {ev.quality_score:.2f}\n"
+                f"  - Issues: {', '.join(ev.issues if ev.issues else 'None')}\n"
+                f"  - Reasoning: {ev.reasoning}"
                 for ev in span_evaluations
             ])
             
@@ -444,12 +450,18 @@ class LLMEvaluator(BaseBackendEvaluator):
             if failure_mode and failure_mode not in valid_modes:
                 failure_mode = "other"
             
-            reason = result.get("reason", "")[:500]
+            reason = result.get("reason", "")
+            
+            # NEW: Extract recommended_action
+            recommended_action = result.get("recommended_action")
+            # Only include recommended_action for fail/review statuses
+            if status == "pass":
+                recommended_action = None
             
             # Build enhanced reason with span details
             if span_evaluations:
-                avg_span_quality = sum(s['quality_score'] for s in span_evaluations) / len(span_evaluations)
-                poor_spans = [s for s in span_evaluations if s['quality_score'] < 0.6]
+                avg_span_quality = sum(s.quality_score for s in span_evaluations) / len(span_evaluations)
+                poor_spans = [s for s in span_evaluations if s.quality_score < 0.6]
                 
                 enhanced_reason = reason
                 if result.get("step_quality_summary"):
@@ -457,7 +469,7 @@ class LLMEvaluator(BaseBackendEvaluator):
                 if result.get("efficiency_summary"):
                     enhanced_reason += f" Efficiency: {result['efficiency_summary']}"
                 
-                reason = enhanced_reason[:500]
+                reason = enhanced_reason
             
             print(f"[AUDITI EVALUATION] Final result:")
             print(f"  Status: {status}")
@@ -467,6 +479,8 @@ class LLMEvaluator(BaseBackendEvaluator):
                 print(f"  Poor Quality Spans: {len(poor_spans)}/{len(span_evaluations)}")
             print(f"  Failure Mode: {failure_mode}")
             print(f"  Reason: {reason}")
+            if recommended_action:
+                print(f"  Recommended Action: {recommended_action}")
             print("="*80 + "\n")
             
             logger.info(f"Evaluation complete: status={status}, score={score:.2f}, spans={len(span_evaluations)}")
@@ -475,8 +489,11 @@ class LLMEvaluator(BaseBackendEvaluator):
                 status=status,
                 score=score,
                 failure_mode=failure_mode if status == "fail" else None,
-                reason=reason
+                reason=reason,
+                recommended_action=recommended_action,  # NEW: Include in result
+                span_evaluations=span_evaluations
             )
+            
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM response: {e}")
@@ -489,10 +506,10 @@ class LLMEvaluator(BaseBackendEvaluator):
             )
         except Exception as e:
             logger.error(f"LLM evaluation failed: {e}")
-            print(f"[AUDITI EVALUATION] ERROR: {e}\n")
             return EvalResult(
                 status="review",
                 score=0.5,
                 failure_mode="other",
-                reason=f"Evaluation failed: {str(e)[:100]}"
+                reason=f"Evaluation failed: {str(e)[:100]}",
+                span_evaluations=span_evaluations  # Include even on error
             )

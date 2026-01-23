@@ -1,14 +1,128 @@
-"""Conversations API routes."""
+"""Conversations API routes with proper schema validation."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List
 
 from app.database import get_db
-from app.models import Conversation
-from app.schemas import ConversationSummary
+from app.models import Conversation, Trace, Span
+from app.schemas import (
+    ConversationSummary,
+    ConversationDetail,
+    ConversationTurn,
+    UserMessage,
+    AssistantMessage,
+    AssistantEvaluation,
+    SpanDetail,
+    SpanEvaluation
+)
 
 router = APIRouter(tags=["conversations"])
+
+
+def extract_models_from_spans(spans: List[Span]) -> List[str]:
+    """Extract unique model names from spans."""
+    models = set()
+    for span in spans:
+        if span.model:
+            models.add(span.model)
+    return sorted(list(models)) if models else ["Unknown"]
+
+
+def compute_span_duration_ms(span: Span) -> float:
+    """Compute duration in milliseconds for a span."""
+    if span.end_time and span.start_time:
+        duration_seconds = (span.end_time - span.start_time).total_seconds()
+        return duration_seconds * 1000  # Convert to milliseconds
+    elif span.processing_time:
+        return span.processing_time * 1000  # Assume processing_time is in seconds
+    return 0.0
+
+
+def compute_trace_latency_ms(trace: Trace) -> float:
+    """Compute latency in milliseconds for a trace."""
+    if trace.latency:
+        # Assume latency is stored in seconds
+        return trace.latency * 1000
+    elif trace.end_time and trace.start_time:
+        duration_seconds = (trace.end_time - trace.start_time).total_seconds()
+        return duration_seconds * 1000
+    return 0.0
+
+
+def build_span_detail(span: Span) -> SpanDetail:
+    """Build SpanDetail from Span model."""
+    # Build evaluation if exists
+    evaluation = None
+    if any([
+        span.eval_relevant is not None, 
+        span.eval_quality_score is not None,
+        span.eval_issues is not None,
+        span.eval_reasoning is not None
+    ]):
+        evaluation = SpanEvaluation(
+            evalRelevant=span.eval_relevant,
+            evalQualityScore=span.eval_quality_score,
+            evalIssues=span.eval_issues or [],
+            evalReasoning=span.eval_reasoning
+        )
+    
+    return SpanDetail(
+        id=str(span.id),
+        spanType=span.span_type,
+        name=span.name,
+        model=span.model,
+        startTime=span.start_time,
+        endTime=span.end_time,
+        durationMs=compute_span_duration_ms(span),
+        inputs=span.inputs,
+        outputs=span.outputs,
+        inputTokens=span.input_tokens or 0,
+        outputTokens=span.output_tokens or 0,
+        tokens=span.tokens or 0,
+        cost=span.cost or 0.0,
+        status=span.status or "ok",
+        error=span.error,
+        evaluation=evaluation
+    )
+
+
+def build_conversation_turn(trace: Trace) -> ConversationTurn:
+    """Build ConversationTurn from Trace model."""
+    # Extract model from spans or fallback to trace model_name or default
+    models = extract_models_from_spans(trace.spans)
+    model = models[0] if models else (trace.model_name or "Unknown")
+    
+    # Build evaluation
+    evaluation = AssistantEvaluation(
+        status=trace.status or "pending",
+        score=trace.score,
+        failureMode=trace.failure_mode,
+        reason=trace.eval_reason,
+        # IMPORTANT: Return None (null) if not present, not "None" string
+        recommendedAction=trace.recommended_action if trace.recommended_action else None
+    )
+    
+    # Build assistant message
+    assistant = AssistantMessage(
+        content=trace.assistant_output or "",
+        model=model,
+        latencyMs=compute_trace_latency_ms(trace),
+        evaluation=evaluation
+    )
+    
+    # Build user message
+    user = UserMessage(content=trace.user_input or "")
+    
+    # Build spans
+    spans = [build_span_detail(span) for span in trace.spans]
+    
+    return ConversationTurn(
+        id=str(trace.id),
+        user=user,
+        assistant=assistant,
+        spans=spans
+    )
 
 
 @router.get("/conversations", response_model=List[ConversationSummary])
@@ -30,7 +144,17 @@ def get_conversations(
         pass_count = sum(1 for t in traces if t.status == "pass")
         fail_count = sum(1 for t in traces if t.status == "fail")
         scores = [t.score for t in traces if t.score is not None]
-        avg_score = sum(scores) / len(scores) if scores else 0
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+        
+        # Extract unique models from all spans
+        all_spans = []
+        for trace in traces:
+            all_spans.extend(trace.spans)
+        models = extract_models_from_spans(all_spans)
+        
+        # Calculate average latency in milliseconds
+        latencies_ms = [compute_trace_latency_ms(t) for t in traces]
+        avg_latency_ms = sum(latencies_ms) / len(latencies_ms) if latencies_ms else 0.0
         
         results.append(ConversationSummary(
             id=c.id,
@@ -40,15 +164,15 @@ def get_conversations(
             passCount=pass_count,
             failCount=fail_count,
             overallStatus="fail" if fail_count > 0 else "pass" if pass_count > 0 else "review",
-            models=["GPT-4"],  # TODO: Extract from spans
+            models=models,
             avgScore=avg_score,
-            latency=sum(t.latency for t in traces if t.latency) / len(traces) if traces else 0
+            avgLatencyMs=avg_latency_ms
         ))
     return results
 
 
-@router.get("/conversations/{conversation_id}")
-@router.get("/v1/conversations/{conversation_id}")
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+@router.get("/v1/conversations/{conversation_id}", response_model=ConversationDetail)
 def get_conversation_detail(conversation_id: str, db: Session = Depends(get_db)):
     """Get detailed view of a conversation including all turns and spans."""
     c = db.query(Conversation).filter(Conversation.id == conversation_id).first()
@@ -59,46 +183,25 @@ def get_conversation_detail(conversation_id: str, db: Session = Depends(get_db))
     # Sort traces by start time
     traces.sort(key=lambda t: t.start_time)
     
-    return {
-        "id": c.id,
-        "userId": c.user_id,
-        "startTime": c.created_at,
-        "turns": [
-            {
-                "id": str(t.id),
-                "user": {"content": t.user_input},
-                "assistant": {
-                    "content": t.assistant_output,
-                    "model": "GPT-4",
-                    "latency": f"{t.latency:.1f}s",
-                    "evaluation": {
-                        "status": t.status,
-                        "score": t.score,
-                        "failureMode": t.failure_mode,
-                        "reason": t.eval_reason,
-                        "recommendedAction": "None"
-                    }
-                },
-                "spans": [
-                    {
-                        "id": str(s.id),
-                        "name": s.name,
-                        "type": s.span_type,
-                        "model": s.model,
-                        "start_time": s.start_time,
-                        "end_time": s.end_time,
-                        "inputs": s.inputs,
-                        "outputs": s.outputs,
-                        "input_tokens": s.input_tokens,
-                        "output_tokens": s.output_tokens,
-                        "tokens": s.tokens,
-                        "cost": s.cost,
-                        "status": s.status,
-                        "error": s.error,
-                        "duration": f"{(s.end_time - s.start_time).total_seconds():.1f}s" 
-                            if s.end_time and s.start_time else "0s"
-                    } for s in t.spans
-                ]
-            } for t in traces
-        ]
-    }
+    # Build turns
+    turns = [build_conversation_turn(trace) for trace in traces]
+    
+    # Extract unique models
+    all_spans = []
+    for trace in traces:
+        all_spans.extend(trace.spans)
+    models = extract_models_from_spans(all_spans)
+    
+    # Calculate average score
+    scores = [t.score for t in traces if t.score is not None]
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+    
+    return ConversationDetail(
+        id=c.id,
+        userId=c.user_id,
+        startTime=c.created_at,
+        objective=c.objective,
+        turns=turns,
+        models=models,
+        avgScore=avg_score
+    )

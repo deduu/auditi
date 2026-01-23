@@ -2,7 +2,9 @@
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.orm import relationship
 from datetime import datetime
+from sqlalchemy import Column, String, Text
 from app.database import Base
+
 
 
 class Conversation(Base):
@@ -16,6 +18,6 @@ class Conversation(Base):
     user_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+    objective = Column(Text, nullable=True)
     # Relationships
     traces = relationship("Trace", back_populates="conversation", lazy="dynamic")

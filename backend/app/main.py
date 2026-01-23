@@ -23,6 +23,9 @@ from app.routers import (
 )
 from app.services.eval_worker import run_eval_worker
 
+from fastapi.exceptions import RequestValidationError
+from app.errors import validation_exception_handler
+
 import logging
 
 logging.basicConfig(
@@ -71,7 +74,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan
 )
-
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,

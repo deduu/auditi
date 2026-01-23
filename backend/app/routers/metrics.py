@@ -37,7 +37,7 @@ def get_metrics(db: Session = Depends(get_db)):
         totalConversations=total_convs,
         passRate=round(pass_rate, 1),
         avgScore=round(float(avg_score), 1),
-        avgLatency=round(float(avg_latency), 2),
+        avgLatencyMs=round(float(avg_latency), 2),
         trends={
             "conversations": MetricTrend(value=5, direction="up"),
             "passRate": MetricTrend(value=2, direction="up"),

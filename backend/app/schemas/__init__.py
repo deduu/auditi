@@ -1,17 +1,76 @@
-"""Pydantic Schemas Package"""
-from .trace import SpanIngest, EvaluationIngest, TraceIngest
-from .metrics import MetricTrend, MetricsResponse
-from .conversation import ConversationSummary
-from .responses import FailureModeStat, ActionResponse, ModelStat
+"""
+Pydantic schemas package.
+
+Re-export commonly used API schemas for convenient imports:
+    from app.schemas import ConversationSummary, SpanDetail, ...
+"""
+
+# Base
+from .base import APIModel
+
+# Conversation schemas
+from .conversation import (
+    UserMessage,
+    AssistantMessage,
+    AssistantEvaluation,
+    ConversationTurn,
+    ConversationSummary,
+    ConversationDetail,
+)
+
+# Span schemas
+from .span import (
+    SpanDetail,
+    SpanEvaluation,
+)
+
+# Metrics
+from .metrics import (
+    MetricTrend,
+    MetricsResponse,
+)
+
+# Responses
+from .responses import (
+    FailureModeStat,
+    ActionResponse,
+    ModelStat,
+)
+
+# Trace ingestion
+from .trace import (
+    SpanIngest,
+    EvaluationIngest,
+    TraceIngest,
+)
 
 __all__ = [
-    "SpanIngest",
-    "EvaluationIngest", 
-    "TraceIngest",
+    # Base
+    "APIModel",
+
+    # Conversation
+    "UserMessage",
+    "AssistantMessage",
+    "AssistantEvaluation",
+    "ConversationTurn",
+    "ConversationSummary",
+    "ConversationDetail",
+
+    # Span
+    "SpanDetail",
+    "SpanEvaluation",
+
+    # Metrics
     "MetricTrend",
     "MetricsResponse",
-    "ConversationSummary",
+
+    # Responses
     "FailureModeStat",
     "ActionResponse",
     "ModelStat",
+
+    # Trace ingest
+    "SpanIngest",
+    "EvaluationIngest",
+    "TraceIngest",
 ]

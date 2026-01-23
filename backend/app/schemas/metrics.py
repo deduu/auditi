@@ -1,18 +1,17 @@
-"""Metrics-related Pydantic schemas."""
-from pydantic import BaseModel
 from typing import Dict
+from pydantic import Field
+from .base import APIModel
 
 
-class MetricTrend(BaseModel):
-    """Schema for metric trend data."""
+class MetricTrend(APIModel):
     value: float
-    direction: str  # up, down, stable
+    direction: str  # up | down | stable
 
 
-class MetricsResponse(BaseModel):
-    """Schema for dashboard metrics response."""
-    totalConversations: int
-    passRate: float
-    avgScore: float
-    avgLatency: float
+class MetricsResponse(APIModel):
+    total_conversations: int = Field(..., alias="totalConversations")
+    pass_rate: float = Field(..., alias="passRate")
+    avg_score: float = Field(..., alias="avgScore")
+    avg_latency_ms: float = Field(..., alias="avgLatencyMs")
+
     trends: Dict[str, MetricTrend]

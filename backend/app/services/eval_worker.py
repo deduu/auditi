@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.evaluators import LLMEvaluator
+from app.evaluators.base import EvalResult
 
 logger = logging.getLogger("auditi.eval_worker")
 
@@ -122,12 +123,14 @@ async def process_evaluation(
         
         for i, span in enumerate(all_spans, 1):
             step = {
+                "span_id": str(span.id), 
                 "type": span.span_type,
                 "name": span.name,
                 "inputs": span.inputs,
                 "outputs": span.outputs,
                 "model": span.model,
                 "tokens": span.tokens,
+                "processing_time": span.processing_time or 0,
                 "error": span.error
             }
             execution_steps.append(step)
@@ -140,6 +143,7 @@ async def process_evaluation(
             print(f"  - Tokens: {span.tokens or 0}")
             print(f"  - Has inputs: {bool(span.inputs)}")
             print(f"  - Has outputs: {bool(span.outputs)}")
+            print(f"  - Processing time: {span.processing_time}s")
             if span.outputs:
                 print(f"  - Output preview: {str(span.outputs)[:80]}...")
             if span.error:
@@ -173,32 +177,55 @@ async def process_evaluation(
         # ============================================
         print(f"\n[EVAL WORKER] Calling LLM evaluator...")
         
-        result = await evaluator.evaluate(
+        result: EvalResult = await evaluator.evaluate(
             user_input=user_input,
             assistant_output=assistant_output,
-            context=context  # Pass full execution context
+            context=context
         )
+        
         
         # ============================================
         # Step 6: Update trace with results
         # ============================================
-        print(f"\n[EVAL WORKER] Evaluation result:")
-        print(f"  - Status: {result['status']}")
-        print(f"  - Score: {result['score']:.2f}")
-        print(f"  - Failure mode: {result.get('failure_mode', 'None')}")
-        print(f"  - Reason: {result.get('reason', 'N/A')}")
+        if result.span_evaluations:
+            print(f"\n[EVAL WORKER] Saving {len(result.span_evaluations)} span evaluations...")
+            
+            for span_eval in result.span_evaluations:
+                span_id = span_eval.span_id
+                
+                # Find the span in database
+                span = db.query(Span).filter(Span.id == span_id).first()
+                if not span:
+                    print(f"[EVAL WORKER] ⚠️ Span {span_id} not found, skipping")
+                    continue
+                
+                # Update span with evaluation results
+                span.eval_relevant = span_eval.relevant
+                span.eval_quality_score = span_eval.quality_score
+                span.eval_issues = span_eval.issues
+                span.eval_reasoning = span_eval.reasoning
+                
+                print(f"[EVAL WORKER] ✅ Saved eval for span {span.name}: "
+                      f"relevant={span.eval_relevant}, quality={span.eval_quality_score:.2f}")
         
-        trace.status = result["status"]
-        trace.score = result["score"]
-        trace.failure_mode = result.get("failure_mode")
-        trace.eval_reason = result.get("reason")
+         # Update trace with overall evaluation
+        print(f"\n[EVAL WORKER] Overall evaluation result:")
+        print(f"  - Status: {result.status}")
+        print(f"  - Score: {result.score:.2f}")
+        print(f"  - Failure mode: {result.failure_mode or 'None'}")
+        
+        
+        trace.status = result.status
+        trace.score = result.score
+        trace.failure_mode = result.failure_mode
+        trace.eval_reason = result.reason
         
         db.commit()
         
         logger.info(
             f"Trace {job.trace_id} evaluated: "
-            f"status={result['status']}, "
-            f"score={result['score']:.2f}, "
+            f"status={result.status}, "
+            f"score={result.score:.2f}, "
             f"spans={len(all_spans)}"
         )
         
