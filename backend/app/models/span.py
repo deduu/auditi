@@ -19,6 +19,7 @@ class Span(Base):
     model = Column(String, nullable=True)
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=True)
+    processing_time = Column(Float, nullable=True)  # ← NEW: Duration in seconds
     inputs = Column(JSON, nullable=True)
     outputs = Column(Text, nullable=True)
     input_tokens = Column(Integer, default=0)
