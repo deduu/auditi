@@ -98,28 +98,85 @@ const SpanItem = ({ span }) => {
   if (typeof resolvedTotalTokens === "number" && resolvedTotalTokens > 0)
     tokenParts.push(`total ${resolvedTotalTokens}`);
 
+
+
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return "N/A";
-    return new Date(timestamp).toLocaleTimeString("en-US", {
+
+    const d = new Date(timestamp);
+
+    return d.toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
       hour12: false,
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       fractionalSecondDigits: 3,
+      timeZoneName: "short", // ✅ adds timezone, e.g. GMT+7
     });
   };
 
+
   const formatJSONValue = (value) => {
     if (value === null || value === undefined) return "";
-    if (typeof value === "object") return JSON.stringify(value, null, 2);
+    if (typeof value === "object") {
+      return JSON.stringify(value, null, 2);
+    }
+    // Try to parse as JSON if it looks like a JSON string
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          return JSON.stringify(parsed, null, 2);
+        } catch {
+          // Not valid JSON, return as-is
+        }
+      }
+    }
     return String(value);
+  };
+
+  // Format JSON value with simple formatting (no HTML injection for safety)
+  const formatJSONDisplay = (value) => {
+    if (value === null || value === undefined) return "";
+
+    // Convert to formatted JSON string
+    let str;
+    if (typeof value === "object") {
+      str = JSON.stringify(value, null, 2);
+    } else if (typeof value === "string") {
+      // Try to parse if it looks like JSON
+      const trimmed = value.trim();
+      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+        (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          str = JSON.stringify(parsed, null, 2);
+        } catch {
+          str = value;
+        }
+      } else {
+        str = value;
+      }
+    } else {
+      str = String(value);
+    }
+
+    // Convert escaped newlines to actual newlines for display
+    // This makes prompts more readable
+    str = str.replace(/\\n/g, '\n');
+
+    return str;
   };
 
   return (
     <div
-      className={`ml-4 pl-4 border-l-2 ${
-        isError ? "border-rose-500/30" : "border-slate-800"
-      } py-2`}
+      className={`ml-4 pl-4 border-l-2 ${isError ? "border-rose-500/30" : "border-slate-800"
+        } py-2`}
     >
       <div
         className="flex items-center justify-between group cursor-pointer hover:bg-slate-800/30 -ml-4 pl-4 pr-2 py-1 rounded-r transition-colors"
@@ -203,11 +260,10 @@ const SpanItem = ({ span }) => {
               <span className="text-slate-500">Status:</span>
               <Badge
                 variant="outline"
-                className={`ml-2 ${
-                  spanStatus === "ok"
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                    : "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                }`}
+                className={`ml-2 ${spanStatus === "ok"
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                  }`}
               >
                 {spanStatus}
               </Badge>
@@ -235,8 +291,8 @@ const SpanItem = ({ span }) => {
             <div>
               <p className="text-xs font-medium text-slate-400 mb-1">Inputs:</p>
               <div className="bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-y-auto">
-                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">
-                  {formatJSONValue(span.inputs)}
+                <pre className="text-xs text-cyan-300 font-mono whitespace-pre-wrap break-words">
+                  {formatJSONDisplay(span.inputs)}
                 </pre>
               </div>
             </div>
@@ -249,10 +305,49 @@ const SpanItem = ({ span }) => {
                 Outputs:
               </p>
               <div className="bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-y-auto">
-                <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap break-words">
-                  {formatJSONValue(span.outputs)}
+                <pre className="text-xs text-emerald-300 font-mono whitespace-pre-wrap break-words">
+                  {formatJSONDisplay(span.outputs)}
                 </pre>
               </div>
+            </div>
+          )}
+
+          {/* Span Evaluation */}
+          {span?.evaluation && (
+            <div className={`p-3 rounded border ${span.evaluation.evalQualityScore >= 0.7
+              ? "bg-emerald-900/10 border-emerald-500/20"
+              : "bg-amber-900/10 border-amber-500/20"
+              }`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-slate-300">Evaluation</p>
+                <div className="flex items-center space-x-2">
+                  {span.evaluation.evalRelevant !== null && (
+                    <Badge variant="outline" className={span.evaluation.evalRelevant ? "text-emerald-400 border-emerald-500/30" : "text-slate-500 border-slate-700"}>
+                      {span.evaluation.evalRelevant ? "Relevant" : "Irrelevant"}
+                    </Badge>
+                  )}
+                  {span.evaluation.evalQualityScore !== null && (
+                    <span className={`text-xs font-bold ${span.evaluation.evalQualityScore >= 0.7 ? "text-emerald-400" : "text-amber-400"}`}>
+                      {span.evaluation.evalQualityScore.toFixed(2)} Score
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {span.evaluation.evalReasoning && (
+                <p className="text-xs text-slate-400 mb-2 italic">"{span.evaluation.evalReasoning}"</p>
+              )}
+
+              {span.evaluation.evalIssues && span.evaluation.evalIssues.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-rose-400 mb-1">Issues:</p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    {span.evaluation.evalIssues.map((issue, idx) => (
+                      <li key={idx} className="text-xs text-rose-300">{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
@@ -321,17 +416,15 @@ const TurnCard = ({ turn, turnNumber }) => {
 
   return (
     <Card
-      className={`p-0 overflow-hidden border ${
-        isFail ? "border-rose-900/50" : "border-slate-800"
-      }`}
+      className={`p-0 overflow-hidden border ${isFail ? "border-rose-900/50" : "border-slate-800"
+        }`}
     >
       {/* Turn Header */}
       <div
-        className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-colors ${
-          isFail
-            ? "bg-rose-900/20 hover:bg-rose-900/30"
-            : "bg-slate-900/50 hover:bg-slate-800/50"
-        }`}
+        className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-colors ${isFail
+          ? "bg-rose-900/20 hover:bg-rose-900/30"
+          : "bg-slate-900/50 hover:bg-slate-800/50"
+          }`}
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center space-x-3">
@@ -393,9 +486,8 @@ const TurnCard = ({ turn, turnNumber }) => {
           >
             <div className="flex items-start space-x-3">
               <div
-                className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${
-                  isFail ? "bg-rose-500" : "bg-blue-600"
-                }`}
+                className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${isFail ? "bg-rose-500" : "bg-blue-600"
+                  }`}
               >
                 <Bot className="w-3 h-3 text-white" />
               </div>
@@ -415,11 +507,10 @@ const TurnCard = ({ turn, turnNumber }) => {
       {/* Expanded Evaluation Details */}
       {expanded && evaluation?.reason && (
         <div
-          className={`border-t ${
-            isFail
-              ? "border-rose-900/30 bg-rose-900/10"
-              : "border-slate-800 bg-slate-900/30"
-          }`}
+          className={`border-t ${isFail
+            ? "border-rose-900/30 bg-rose-900/10"
+            : "border-slate-800 bg-slate-900/30"
+            }`}
         >
           <div className="p-4 space-y-4">
             <div className="flex items-start space-x-3">

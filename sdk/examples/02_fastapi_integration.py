@@ -6,7 +6,7 @@ The key: trace_tool and trace_llm must be called INSIDE a @trace_agent function.
 """
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 import auditi
 from openai import OpenAI
 
@@ -34,24 +34,18 @@ class ChatResponse(BaseModel):
 # They only work when called inside a @trace_agent function
 # ============================================
 
-@auditi.trace_llm(name="openai_chat", model="gpt-4")
-def call_llm(prompt: str, model: str = "gpt-4") -> str:
+@auditi.trace_llm(name="openai_chat")
+def call_llm(prompt: str, model: str) -> Any:
     """
     LLM call - creates a SPAN in the current trace.
-    
-    When called inside process_chat(), this becomes a span with:
-    - span_type: "llm"
-    - inputs: {"prompt": "..."}
-    - outputs: "LLM response..."
-    - model: "gpt-4"
-    - tokens, cost (auto-extracted)
+    RETURNS the full response object so Auditi can extract usage metrics.
     """
     client = OpenAI()
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content
+    return response
 
 
 @auditi.trace_tool(name="search_kb")
@@ -126,10 +120,11 @@ User Question: {message}
 
 Provide a helpful response:"""
     
-    response = call_llm(prompt)
+    response_obj = call_llm(prompt, model="gpt-4o")
+    content = response_obj.choices[0].message.content
     
     # This return value becomes trace.assistant_output
-    return response
+    return content
 
 
 # ============================================
@@ -157,7 +152,8 @@ def process_chat_with_reflection(
     
     # Initial generation
     initial_prompt = f"User: {message}\nContext: {kb_results}\nRespond helpfully:"
-    initial_response = call_llm(initial_prompt)
+    initial_response_obj = call_llm(initial_prompt)
+    initial_response = initial_response_obj.choices[0].message.content
     
     # Reflection (another LLM call)
     reflection_prompt = f"""Review this response for accuracy and completeness:
@@ -167,7 +163,8 @@ Response: {initial_response}
 
 Is this response good? Reply with GOOD or NEEDS_IMPROVEMENT and explain why."""
     
-    reflection = call_llm(reflection_prompt, model="gpt-4")
+    reflection_obj = call_llm(reflection_prompt, model="gpt-4")
+    reflection = reflection_obj.choices[0].message.content
     
     # Refine if needed
     if "NEEDS_IMPROVEMENT" in reflection:
@@ -178,7 +175,8 @@ Issue: {reflection}
 User Question: {message}
 
 Provide improved response:"""
-        final_response = call_llm(refinement_prompt)
+        final_response_obj = call_llm(refinement_prompt)
+        final_response = final_response_obj.choices[0].message.content
     else:
         final_response = initial_response
     

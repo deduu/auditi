@@ -115,7 +115,9 @@ def build_conversation_turn(trace: Trace) -> ConversationTurn:
     user = UserMessage(content=trace.user_input or "")
     
     # Build spans
-    spans = [build_span_detail(span) for span in trace.spans]
+    # Sort by start_time, then end_time (ensures longer running tasks appear after instant ones if started same time)
+    sorted_spans = sorted(trace.spans, key=lambda s: (s.start_time, s.end_time or s.start_time))
+    spans = [build_span_detail(span) for span in sorted_spans]
     
     return ConversationTurn(
         id=str(trace.id),
@@ -200,6 +202,7 @@ def get_conversation_detail(conversation_id: str, db: Session = Depends(get_db))
         id=c.id,
         userId=c.user_id,
         startTime=c.created_at,
+        updatedAt=c.updated_at,
         objective=c.objective,
         turns=turns,
         models=models,

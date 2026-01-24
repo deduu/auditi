@@ -3,6 +3,7 @@ Async background worker for processing trace evaluations.
 
 FIXED: Now properly evaluates traces with multiple spans (tools + LLMs)
 ENHANCED: Comprehensive logging to debug evaluation context
+NEW: Extracts conversation objective from first user message
 """
 import asyncio
 import logging
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.evaluators import LLMEvaluator
 from app.evaluators.base import EvalResult
+from app.services.llm_provider import get_llm_provider, extract_objective
 
 logger = logging.getLogger("auditi.eval_worker")
 
@@ -71,7 +73,37 @@ async def process_evaluation(
         print(f"{'='*80}")
         
         # ============================================
-        # Step 2: Build complete conversation context
+        # Step 2: Extract objective for conversation (if not set)
+        # ============================================
+        from app.models import Conversation
+        
+        if trace.conversation_id:
+            conversation = db.query(Conversation).filter(Conversation.id == trace.conversation_id).first()
+            
+            if conversation and not conversation.objective:
+                # Check if this is the first trace in the conversation
+                first_trace = (
+                    db.query(Trace)
+                    .filter(Trace.conversation_id == trace.conversation_id)
+                    .order_by(Trace.start_time.asc())
+                    .first()
+                )
+                
+                if first_trace and first_trace.id == trace.id and trace.user_input:
+                    print(f"[EVAL WORKER] Extracting objective for conversation {trace.conversation_id}...")
+                    try:
+                        llm_provider = get_llm_provider("openai")
+                        objective = await extract_objective(trace.user_input, llm_provider)
+                        
+                        if objective:
+                            conversation.objective = objective
+                            db.commit()
+                            print(f"[EVAL WORKER] ✅ Objective extracted: {objective[:100]}...")
+                    except Exception as e:
+                        print(f"[EVAL WORKER] ⚠️ Failed to extract objective: {e}")
+        
+        # ============================================
+        # Step 3: Build complete conversation context
         # ============================================
         user_input = trace.user_input or ""
         print(f"[EVAL WORKER] User input: {user_input[:100]}...")
@@ -105,7 +137,7 @@ async def process_evaluation(
                 print(f"[EVAL WORKER] ⚠️ No LLM spans found with outputs!")
         
         # ============================================
-        # Step 3: Fetch and process ALL spans
+        # Step 4: Fetch and process ALL spans
         # ============================================
         print(f"\n[EVAL WORKER] Fetching all spans for trace {job.trace_id}...")
         
@@ -150,7 +182,7 @@ async def process_evaluation(
                 print(f"  - ERROR: {span.error}")
         
         # ============================================
-        # Step 4: Prepare evaluation context
+        # Step 5: Prepare evaluation context
         # ============================================
         print(f"\n[EVAL WORKER] Building evaluation context...")
         
@@ -173,7 +205,7 @@ async def process_evaluation(
         print(f"  - Span count: {context['span_count']}")
         
         # ============================================
-        # Step 5: Perform evaluation
+        # Step 6: Perform evaluation
         # ============================================
         print(f"\n[EVAL WORKER] Calling LLM evaluator...")
         
@@ -185,7 +217,7 @@ async def process_evaluation(
         
         
         # ============================================
-        # Step 6: Update trace with results
+        # Step 7: Update trace with results
         # ============================================
         if result.span_evaluations:
             print(f"\n[EVAL WORKER] Saving {len(result.span_evaluations)} span evaluations...")

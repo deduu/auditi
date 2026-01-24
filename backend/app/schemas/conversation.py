@@ -65,6 +65,7 @@ class ConversationDetail(APIModel):
     id: str
     user_id: Optional[str] = Field(None, alias="userId")
     start_time: datetime = Field(..., alias="startTime")
+    updated_at: datetime = Field(..., alias="updatedAt")
 
     objective: Optional[str] = None
     turns: List[ConversationTurn] = Field(default_factory=list)
