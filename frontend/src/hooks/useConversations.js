@@ -86,13 +86,19 @@ export const useConversations = (initialFilters = {}) => {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (abortController) => {
     try {
       setLoading(true);
-      const data = await api.getConversations(filters);
-      setConversations(data);
-      setError(null);
+      // Pass signal to api call to actually cancel the request if component unmounts
+      const data = await api.getConversations(filters, { signal: abortController.signal });
+      
+      if (!abortController.signal.aborted) {
+        setConversations(data);
+        setError(null);
+      }
     } catch (err) {
+      if (abortController.signal.aborted) return;
+      
       console.error("Failed to fetch conversations:", err);
       
       // Apply local filtering to mock data for a better UX when API fails
@@ -115,12 +121,19 @@ export const useConversations = (initialFilters = {}) => {
       setConversations(filtered);
       setError(null);
     } finally {
-      setLoading(false);
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, [filters]);
 
   useEffect(() => {
-    fetchConversations();
+    const abortController = new AbortController();
+    fetchConversations(abortController);
+    
+    return () => {
+      abortController.abort();
+    };
   }, [fetchConversations]);
 
   const refetch = () => fetchConversations();

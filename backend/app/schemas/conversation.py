@@ -58,6 +58,7 @@ class ConversationSummary(APIModel):
 
     avg_score: float = Field(..., alias="avgScore")
     avg_latency_ms: float = Field(..., alias="avgLatencyMs")  # In milliseconds
+    objective: Optional[str] = None
 
 
 class ConversationDetail(APIModel):

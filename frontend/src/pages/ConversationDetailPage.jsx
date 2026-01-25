@@ -20,6 +20,15 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 
 const EvaluationBadge = ({ status, score }) => {
+  // Helper to format score
+  const formatScore = (val) => {
+    if (val === null || val === undefined) return "N/A";
+    // If score is 0-1 range (typical for this backend), show as decimal
+    // If score is > 1 (legacy/mock), assume 0-10 range
+    if (val <= 1.0) return val.toFixed(2);
+    return `${val.toFixed(1)}/10`;
+  };
+
   if (status === "pass") {
     return (
       <div className="flex items-center space-x-2">
@@ -31,7 +40,7 @@ const EvaluationBadge = ({ status, score }) => {
           Pass
         </Badge>
         <span className="text-sm font-semibold text-emerald-400">
-          {score}/10
+          {formatScore(score)}
         </span>
       </div>
     );
@@ -45,7 +54,9 @@ const EvaluationBadge = ({ status, score }) => {
           <XCircle className="w-3.5 h-3.5 mr-1" />
           Fail
         </Badge>
-        <span className="text-sm font-semibold text-rose-400">{score}/10</span>
+        <span className="text-sm font-semibold text-rose-400">
+          {formatScore(score)}
+        </span>
       </div>
     );
   }

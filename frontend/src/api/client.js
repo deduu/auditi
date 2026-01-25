@@ -39,10 +39,10 @@ async function request(endpoint, options = {}) {
  * HTTP method helpers
  */
 export const client = {
-  get: (endpoint, params = {}) => {
+  get: (endpoint, params = {}, options = {}) => {
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-    return request(url);
+    return request(url, options);
   },
 
   post: (endpoint, data) => {

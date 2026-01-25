@@ -259,24 +259,37 @@ export const useConversationDetail = (sessionId) => {
       return;
     }
 
+    const abortController = new AbortController();
+
     const fetchDetail = async () => {
       try {
         setLoading(true);
-        const data = await api.getConversationDetail(sessionId);
-        setDetail(data);
-        setError(null);
+        const data = await api.getConversationDetail(sessionId, { signal: abortController.signal });
+        
+        if (!abortController.signal.aborted) {
+          setDetail(data);
+          setError(null);
+        }
       } catch (err) {
+        if (abortController.signal.aborted) return;
+        
         console.error("Failed to fetch session detail:", err);
         // Use mock data as fallback
         const mockData = mockSessionDetails[sessionId] || mockSessionDetails.session_001;
         setDetail(mockData);
         setError(null);
       } finally {
-        setLoading(false);
+        if (!abortController.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDetail();
+
+    return () => {
+      abortController.abort();
+    };
   }, [sessionId]);
 
   return { detail, loading, error };

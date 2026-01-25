@@ -168,7 +168,8 @@ def get_conversations(
             overallStatus="fail" if fail_count > 0 else "pass" if pass_count > 0 else "review",
             models=models,
             avgScore=avg_score,
-            avgLatencyMs=avg_latency_ms
+            avgLatencyMs=avg_latency_ms,
+            objective=c.objective
         ))
     return results
 
