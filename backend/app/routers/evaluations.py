@@ -11,6 +11,8 @@ from pydantic import BaseModel
 router = APIRouter(tags=["evaluations"])
 
 
+from datetime import datetime, timedelta
+
 class EvaluationStat(BaseModel):
     id: str
     name: str
@@ -18,6 +20,9 @@ class EvaluationStat(BaseModel):
     trend: str
     pass_rate: float
     count: int
+    avg_latency: float
+    total_cost: float
+    total_tokens: int
 
 class EvaluationsResponse(BaseModel):
     evaluations: List[EvaluationStat]
@@ -38,28 +43,64 @@ def get_evaluations(
     Get aggregated evaluation statistics grouped by Agent/Task name.
     """
     try:
-        # Group by Agent Name
-        # We want: Name, Avg Score, Pass Rate
+        # 1. Parse Time Range
+        now = datetime.utcnow()
+        if time_range == "24h":
+            delta = timedelta(hours=24)
+        elif time_range == "7d":
+            delta = timedelta(days=7)
+        elif time_range == "30d":
+            delta = timedelta(days=30)
+        else:
+            delta = timedelta(days=7)  # Default
+            
+        start_date = now - delta
+        prev_start_date = start_date - delta
         
-        results = db.query(
+        # 2. Query Current Period Stats
+        current_stats = db.query(
             Trace.name,
             func.count(Trace.id).label("total"),
             func.avg(Trace.score).label("avg_score"),
-            func.sum(case((Trace.status == "pass", 1), else_=0)).label("passed")
+            func.sum(case((Trace.status == "pass", 1), else_=0)).label("passed"),
+            func.avg(Trace.latency).label("avg_latency"),
+            func.sum(Trace.cost).label("total_cost"),
+            func.sum(Trace.total_tokens).label("total_tokens")
         ).filter(
-            Trace.name != None
+            Trace.name != None,
+            Trace.start_time >= start_date
         ).group_by(Trace.name).all()
         
+        # 3. Query Previous Period Stats (for Trend)
+        prev_stats_result = db.query(
+            Trace.name,
+            func.avg(Trace.score).label("avg_score")
+        ).filter(
+            Trace.name != None,
+            Trace.start_time >= prev_start_date,
+            Trace.start_time < start_date
+        ).group_by(Trace.name).all()
+        
+        prev_stats_map = {row.name: row.avg_score for row in prev_stats_result}
+        
         stats = []
-        for i, row in enumerate(results):
+        for i, row in enumerate(current_stats):
             name = row.name
             total = row.total
-            avg_score = round(row.avg_score or 0, 1)
+            avg_score = round(row.avg_score or 0, 2)
             passed = row.passed or 0
             pass_rate = round((passed / total) * 100, 1)
+            avg_latency = round(row.avg_latency or 0, 2)
+            total_cost = round(row.total_cost or 0, 4)
+            total_tokens = int(row.total_tokens or 0)
             
-            # Mock trend for now (requires time-series query)
-            trend = "+2.5%" if avg_score > 80 else "-1.2%"
+            # Calculate Trend
+            prev_score = prev_stats_map.get(name, 0)
+            if prev_score > 0:
+                trend_val = ((avg_score - prev_score) / prev_score) * 100
+                trend = f"{'+' if trend_val >= 0 else ''}{round(trend_val, 1)}%"
+            else:
+                trend = "0%"  # No previous data
             
             stats.append(EvaluationStat(
                 id=f"eval_{i}",
@@ -67,7 +108,10 @@ def get_evaluations(
                 score=float(avg_score),
                 trend=str(trend),
                 pass_rate=float(pass_rate),
-                count=int(total)
+                count=int(total),
+                avg_latency=float(avg_latency),
+                total_cost=float(total_cost),
+                total_tokens=total_tokens
             ))
             
         return EvaluationsResponse(evaluations=stats)

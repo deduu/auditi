@@ -1,4 +1,4 @@
-"""
+""" 
 Auditi Backend - FastAPI Application Entry Point
 
 Modular FastAPI application with separate routers for each domain.

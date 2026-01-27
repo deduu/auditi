@@ -158,6 +158,9 @@ def get_conversations(
         latencies_ms = [compute_trace_latency_ms(t) for t in traces]
         avg_latency_ms = sum(latencies_ms) / len(latencies_ms) if latencies_ms else 0.0
         
+        # Calculate total cost from all spans
+        total_cost = sum(span.cost or 0.0 for span in all_spans)
+        
         results.append(ConversationSummary(
             id=c.id,
             userId=c.user_id,
@@ -169,6 +172,7 @@ def get_conversations(
             models=models,
             avgScore=avg_score,
             avgLatencyMs=avg_latency_ms,
+            totalCost=total_cost,
             objective=c.objective
         ))
     return results

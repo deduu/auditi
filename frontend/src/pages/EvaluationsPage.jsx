@@ -26,13 +26,15 @@ export const EvaluationsPage = () => {
   const [failureModes, setFailureModes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [timeRange, setTimeRange] = useState("7d");
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         const [evalData, failureData] = await Promise.all([
-          api.getEvaluations(),
-          api.getFailureModes()
+          api.getEvaluations({ timeRange }),
+          api.getFailureModes(timeRange)
         ]);
         setEvaluations(evalData.evaluations || []);
         setFailureModes(failureData || []);
@@ -45,7 +47,7 @@ export const EvaluationsPage = () => {
     };
 
     fetchData();
-  }, []);
+  }, [timeRange]);
 
   if (loading) {
     return (
@@ -70,15 +72,32 @@ export const EvaluationsPage = () => {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Evaluations</h1>
           <p className="mt-1 text-slate-400">Track evaluation metrics and scoring trends</p>
         </div>
-        <Button variant="primary" onClick={() => exportToCSV(evaluations, "evaluations_report")}>
-          <BarChart3 className="w-4 h-4 mr-2" />
-          Export Report
-        </Button>
+
+        <div className="flex items-center space-x-3">
+          <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
+            {["24h", "7d", "30d"].map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "text-slate-400 hover:text-white"
+                  }`}
+              >
+                {range.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <Button variant="outline" size="sm" onClick={() => exportToCSV(evaluations, "evaluations_report")}>
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -94,36 +113,47 @@ export const EvaluationsPage = () => {
             </div>
           </div>
         </Card>
+
         <Card className="bg-slate-900/50 border-slate-800 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-400 font-medium">Passing</p>
-              <p className="text-3xl font-bold mt-1 text-emerald-400">{evaluations.filter(e => e.score >= 80).length}</p>
+              <p className="text-sm text-slate-400 font-medium">Avg Latency</p>
+              <p className="text-3xl font-bold mt-1 text-purple-400">
+                {evaluations.length > 0
+                  ? (evaluations.reduce((acc, e) => acc + (e.avg_latency || 0), 0) / evaluations.length).toFixed(2)
+                  : "0.00"}s
+              </p>
             </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl">
-              <CheckCircle className="w-6 h-6 text-emerald-400" />
+            <div className="p-3 bg-purple-500/10 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-purple-400" />
             </div>
           </div>
         </Card>
+
         <Card className="bg-slate-900/50 border-slate-800 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-400 font-medium">Needs Attention</p>
-              <p className="text-3xl font-bold mt-1 text-amber-400">{evaluations.filter(e => e.score < 80).length}</p>
+              <p className="text-sm text-slate-400 font-medium">Total Cost</p>
+              <p className="text-3xl font-bold mt-1 text-amber-400">
+                ${evaluations.reduce((acc, e) => acc + (e.total_cost || 0), 0).toFixed(4)}
+              </p>
             </div>
             <div className="p-3 bg-amber-500/10 rounded-xl">
               <AlertCircle className="w-6 h-6 text-amber-400" />
             </div>
           </div>
         </Card>
+
         <Card className="bg-slate-900/50 border-slate-800 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-400 font-medium">Avg Improvement</p>
-              <p className="text-3xl font-bold mt-1 text-emerald-400">+3.2%</p>
+              <p className="text-sm text-slate-400 font-medium">Total Tokens</p>
+              <p className="text-3xl font-bold mt-1 text-emerald-400">
+                {(evaluations.reduce((acc, e) => acc + (e.total_tokens || 0), 0) / 1000).toFixed(1)}k
+              </p>
             </div>
-            <div className="p-3 bg-purple-500/10 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-purple-400" />
+            <div className="p-3 bg-emerald-500/10 rounded-xl">
+              <BarChart3 className="w-6 h-6 text-emerald-400" />
             </div>
           </div>
         </Card>
@@ -133,7 +163,7 @@ export const EvaluationsPage = () => {
         {/* Evaluation Criteria */}
         <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-            <h2 className="text-lg font-semibold text-white">Evaluation Criteria</h2>
+            <h2 className="text-lg font-semibold text-white">Evaluation Criteria & Metrics</h2>
           </div>
           <div className="divide-y divide-slate-800">
             {evaluations.map((evaluation) => (
@@ -141,7 +171,7 @@ export const EvaluationsPage = () => {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">
                     <h3 className="text-base font-medium text-white">{evaluation.name}</h3>
-                    <span className={`text-sm font-medium ${getTrendColor(evaluation.trend)}`}>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-slate-800 ${getTrendColor(evaluation.trend)}`}>
                       {evaluation.trend}
                     </span>
                   </div>
@@ -149,6 +179,23 @@ export const EvaluationsPage = () => {
                     {evaluation.score}%
                   </span>
                 </div>
+
+                {/* Metric Badges */}
+                <div className="flex items-center space-x-4 mb-3 text-xs text-slate-400">
+                  <div className="flex items-center">
+                    <span className="font-medium text-slate-300 mr-1">{evaluation.avg_latency?.toFixed(2)}s</span> latency
+                  </div>
+                  <div className="flex items-center">
+                    <span className="font-medium text-slate-300 mr-1">${evaluation.total_cost?.toFixed(4)}</span> cost
+                  </div>
+                  <div className="flex items-center">
+                    <span className="font-medium text-slate-300 mr-1">{evaluation.total_tokens?.toLocaleString()}</span> tokens
+                  </div>
+                  <div className="flex items-center">
+                    <span className="font-medium text-slate-300 mr-1">{evaluation.pass_rate}%</span> pass rate
+                  </div>
+                </div>
+
                 <div className="w-full bg-slate-800 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(evaluation.score)}`}

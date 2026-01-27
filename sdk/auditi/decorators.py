@@ -282,7 +282,7 @@ def trace_agent(
                         except:
                             pass
                 
-                _debug_log(f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]})
+                _debug_log(f"Captured assistant output:", {"output": str(trace.assistant_output)})
                 
             except Exception as e:
                 error_msg = str(e)
@@ -350,46 +350,70 @@ def _trace_span(
             start_time = datetime.utcnow()
             span_name = name or func.__name__
 
-            # Auto-detect model if not provided
+            # Auto-detect model and capture inputs using signature binding if available
             effective_model = model
-            if not effective_model:
-                # Try to get from bound arguments (handles defaults)
-                try:
-                    import inspect
-                    sig = inspect.signature(func)
-                    bound = sig.bind(*args, **kwargs)
-                    bound.apply_defaults()
-                    if "model" in bound.arguments:
-                        effective_model = str(bound.arguments["model"])
-                except Exception:
-                    pass
+            inputs = {}
+            
+            try:
+                import inspect
+                sig = inspect.signature(func)
+                bound = sig.bind(*args, **kwargs)
+                bound.apply_defaults()
+                
+                # Capture all arguments as inputs
+                for arg_name, value in bound.arguments.items():
+                    # Skip 'self' or 'cls' typically found in methods
+                    if arg_name in ('self', 'cls'):
+                        continue
+                    # Flatten **kwargs if they exist and are a dict
+                    param = sig.parameters.get(arg_name)
+                    if param and param.kind == inspect.Parameter.VAR_KEYWORD and isinstance(value, dict):
+                        inputs.update({k: str(v)[:500] for k, v in value.items()})
+                    else:
+                        inputs[arg_name] = str(value)[:500]
+                
+                # Check for model in arguments
+                if not effective_model:
+                     if "model" in inputs:
+                         effective_model = inputs["model"]
+                     # Also check original bound args just in case normalization changed something
+                     elif "model" in bound.arguments:
+                         effective_model = str(bound.arguments["model"])
 
-            # Fallback to checking args/kwargs directly if bind fails
+            except Exception:
+                # If binding fails, valid case for built-ins or certain wrappers
+                pass
+
+            # Fallback model detection (if signature extraction failed or didn't find model)
             if not effective_model:
                 if "model" in kwargs:
                     effective_model = str(kwargs["model"])
                 elif args and hasattr(args[0], "model"):
                     effective_model = str(args[0].model)
 
+            # Fallback input detection (if signature extraction failed or resulted in empty inputs)
+            if not inputs:
+                if args:
+                    first_arg = args[0]
+                    # Check if first arg is self/cls (heuristic) to avoid capturing instance as prompt
+                    # But without signature we can't be sure. The old logic didn't skip it.
+                    # We'll stick to old logic for fallback consistency
+                    if isinstance(first_arg, str):
+                        inputs["prompt"] = first_arg
+                    elif isinstance(first_arg, (dict, list)):
+                        inputs["data"] = first_arg
+                    else:
+                        inputs["input"] = str(first_arg)
+                if kwargs:
+                    inputs.update({k: str(v)[:500] for k, v in kwargs.items()})
+
             _debug_log(f"Starting span '{span_name}' (type: {span_type}):", {
                 "span_id": str(span_id),
                 "parent_id": str(parent.id) if parent else None,
                 "model": effective_model,
-                "trace_id": str(trace.id)
+                "trace_id": str(trace.id),
+                "inputs_keys": list(inputs.keys())
             })
-
-            # Smart input capture for spans
-            inputs = {}
-            if args:
-                first_arg = args[0]
-                if isinstance(first_arg, str):
-                    inputs["prompt"] = first_arg
-                elif isinstance(first_arg, (dict, list)):
-                    inputs["data"] = first_arg
-                else:
-                    inputs["input"] = str(first_arg)
-            if kwargs:
-                inputs.update({k: str(v)[:500] for k, v in kwargs.items()})  # Truncate long values
 
             span = SpanInput(
                 id=span_id,

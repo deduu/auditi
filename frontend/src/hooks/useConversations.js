@@ -93,7 +93,14 @@ export const useConversations = (initialFilters = {}) => {
       const data = await api.getConversations(filters, { signal: abortController.signal });
       
       if (!abortController.signal.aborted) {
-        setConversations(data);
+        // Map backend fields to frontend display format
+        const formattedData = data.map(session => ({
+          ...session,
+          latency: session.latency || (session.avgLatencyMs !== undefined ? `${(session.avgLatencyMs / 1000).toFixed(2)}s` : "0.00s"),
+          cost: session.cost || (session.totalCost !== undefined ? `$${Number(session.totalCost).toFixed(5)}` : "$0.00"),
+        }));
+        
+        setConversations(formattedData);
         setError(null);
       }
     } catch (err) {

@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Any
 import auditi
+import os
 from openai import OpenAI
 
 app = FastAPI(title="AI Assistant API")
@@ -41,10 +42,15 @@ def call_llm(prompt: str, model: str) -> Any:
     RETURNS the full response object so Auditi can extract usage metrics.
     """
     client = OpenAI()
+    api_key = os.getenv("OPENAI_API_KEY")
+    masked_key = api_key if api_key else None
+    print("OPENAI_API_KEY:", masked_key)
+    print("Base URL:", client.base_url)
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}]
     )
+    
     return response
 
 

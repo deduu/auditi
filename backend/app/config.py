@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     
+    # Evaluation
+    truncation_limit: int = 2000  # -1 for unlimited
+    truncation_strategy: str = "end"  # "end", "middle", "start"
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS origins from comma-separated string."""

@@ -30,7 +30,10 @@ async function request(endpoint, options = {}) {
     }
     return await response.json();
   } catch (error) {
-    console.error(`API request failed: ${endpoint}`, error);
+    // Don't log aborted requests as errors
+    if (error.name !== 'AbortError') {
+      console.error(`API request failed: ${endpoint}`, error);
+    }
     throw error;
   }
 }

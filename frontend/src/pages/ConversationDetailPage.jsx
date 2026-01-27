@@ -301,7 +301,7 @@ const SpanItem = ({ span }) => {
           {span?.inputs && (
             <div>
               <p className="text-xs font-medium text-slate-400 mb-1">Inputs:</p>
-              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-y-auto">
+              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-40 resize-y overflow-y-auto">
                 <pre className="text-xs text-cyan-300 font-mono whitespace-pre-wrap break-words">
                   {formatJSONDisplay(span.inputs)}
                 </pre>
@@ -315,7 +315,7 @@ const SpanItem = ({ span }) => {
               <p className="text-xs font-medium text-slate-400 mb-1">
                 Outputs:
               </p>
-              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 max-h-40 overflow-y-auto">
+              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-40 resize-y overflow-y-auto">
                 <pre className="text-xs text-emerald-300 font-mono whitespace-pre-wrap break-words">
                   {formatJSONDisplay(span.outputs)}
                 </pre>

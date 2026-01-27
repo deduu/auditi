@@ -15,6 +15,8 @@ from .base import BaseBackendEvaluator, EvalResult, SpanEvaluation
 logger = logging.getLogger("auditi.evaluator")
 
 
+from app.config import settings
+
 # Prompt for evaluating individual spans
 SPAN_EVALUATION_PROMPT = """You are evaluating a single step in an AI agent's execution.
 
@@ -151,7 +153,7 @@ class LLMEvaluator(BaseBackendEvaluator):
     def __init__(
         self, 
         api_key: Optional[str] = None, 
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-4o",
         base_url: Optional[str] = None
     ):
         self.model = model
@@ -255,15 +257,33 @@ class LLMEvaluator(BaseBackendEvaluator):
         model_info = f"**Model**: {model}" if model else ""
         token_info = f"**Tokens Used**: {tokens}" if tokens > 0 else ""
         
+        # Helper to truncate based on settings
+        limit = settings.truncation_limit
+        if limit == -1:
+            limit = 100_000  # "Unlimited"
+            
+        def truncate(text: str) -> str:
+            text = str(text)
+            if len(text) <= limit:
+                return text
+            
+            if settings.truncation_strategy == "middle":
+                half = limit // 2
+                return text[:half] + "...[TRUNCATED]..." + text[-half:]
+            elif settings.truncation_strategy == "start":
+                return "...[TRUNCATED]..." + text[-limit:]
+            else: # "end" or default
+                return text[:limit] + "...[TRUNCATED]"
+
         prompt = SPAN_EVALUATION_PROMPT.format(
-            user_input=user_input[:1000],
+            user_input=truncate(user_input),
             step_number=step_number,
             total_steps=total_steps,
             step_type=step_type.upper(),
             step_name=step_name,
             model_info=model_info,
-            step_input=input_str[:500],
-            step_output=str(step_output)[:500],
+            step_input=truncate(input_str),
+            step_output=truncate(step_output),
             processing_time=processing_time,
             token_info=token_info
         )

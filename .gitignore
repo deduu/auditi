@@ -17,6 +17,7 @@ venv/
 .env/
 .env.*
 !.env.example
+output.txt
 
 # =========================
 # Node / JavaScript

@@ -40,7 +40,25 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
     initial_failure_mode = trace_data.evaluation.failure_mode if has_evaluation else None
     initial_eval_reason = trace_data.evaluation.reason if has_evaluation else None
     
-    # 3. Create Trace
+    # 3. Derive model_name from first LLM span if not provided at trace level
+    resolved_model_name = trace_data.model_name
+    if not resolved_model_name:
+        for span in trace_data.spans:
+            if span.span_type == "llm" and span.model:
+                resolved_model_name = span.model
+                break
+    
+    # 4. Aggregate tokens/cost from spans if not provided on trace
+    resolved_total_tokens = trace_data.total_tokens or 0
+    resolved_cost = trace_data.cost or 0.0
+    if resolved_total_tokens == 0:
+        for span in trace_data.spans:
+            if span.tokens:
+                resolved_total_tokens += span.tokens
+            if span.cost:
+                resolved_cost += span.cost
+    
+    # 5. Create Trace with all fields
     db_trace = Trace(
         id=str(trace_data.id),
         conversation_id=str(trace_data.conversation_id) if trace_data.conversation_id else None,
@@ -51,6 +69,11 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
         assistant_output=trace_data.assistant_output,
         latency=(trace_data.end_time - trace_data.start_time).total_seconds() 
             if trace_data.end_time and trace_data.start_time else 0,
+        name=trace_data.name,
+        model_name=resolved_model_name,
+        total_tokens=resolved_total_tokens,
+        cost=resolved_cost,
+        tags=trace_data.tags if trace_data.tags else None,
         status=initial_status,
         score=initial_score,
         failure_mode=initial_failure_mode,
@@ -58,7 +81,7 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
     )
     db.add(db_trace)
 
-    # 4. Create Spans
+    # 6. Create Spans
     for span in trace_data.spans:
         db_span = Span(
             id=str(span.id),
@@ -82,10 +105,8 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
     
     db.commit()
     
-    # 5. Enqueue for async evaluation if no pre-computed evaluation was provided
+    # 7. Enqueue for async evaluation if no pre-computed evaluation was provided
     if not has_evaluation:
-        # TODO: In future, extract tenant API key from request headers or DB
         enqueue_evaluation(str(trace_data.id), api_key=None)
     
     return {"status": "success", "id": str(trace_data.id), "evaluation_pending": not has_evaluation}
-

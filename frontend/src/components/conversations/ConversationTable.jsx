@@ -86,13 +86,12 @@ const SessionRow = ({ session, onClick }) => {
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <span
-          className={`text-sm font-bold ${
-            session.avgScore >= 8
-              ? "text-emerald-400"
-              : session.avgScore >= 6
+          className={`text-sm font-bold ${session.avgScore >= 8
+            ? "text-emerald-400"
+            : session.avgScore >= 6
               ? "text-amber-400"
               : "text-rose-400"
-          }`}
+            }`}
         >
           {session.avgScore?.toFixed(1)}
         </span>
@@ -148,16 +147,16 @@ export const ConversationTable = ({
               Models
             </th>
             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Avg Score
+              Avg. Score
             </th>
             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Status
             </th>
             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Latency
+              Avg. Latency
             </th>
             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Cost
+              Total Cost
             </th>
           </tr>
         </thead>

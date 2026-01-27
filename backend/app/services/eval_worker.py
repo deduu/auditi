@@ -251,6 +251,7 @@ async def process_evaluation(
         trace.score = result.score
         trace.failure_mode = result.failure_mode
         trace.eval_reason = result.reason
+        trace.recommended_action = result.recommended_action
         
         db.commit()
         
