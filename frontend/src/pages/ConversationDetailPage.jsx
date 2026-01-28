@@ -44,7 +44,7 @@ const EvaluationBadge = ({ status, score }) => {
         </span>
       </div>
     );
-  } else {
+  } else if (status === "fail") {
     return (
       <div className="flex items-center space-x-2">
         <Badge
@@ -55,6 +55,22 @@ const EvaluationBadge = ({ status, score }) => {
           Fail
         </Badge>
         <span className="text-sm font-semibold text-rose-400">
+          {formatScore(score)}
+        </span>
+      </div>
+    );
+  } else {
+    // Review or unknown
+    return (
+      <div className="flex items-center space-x-2">
+        <Badge
+          variant="warning"
+          className="bg-amber-500/10 text-amber-400 border border-amber-500/20"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 mr-1" />
+          Review
+        </Badge>
+        <span className="text-sm font-semibold text-amber-400">
           {formatScore(score)}
         </span>
       </div>
@@ -417,6 +433,7 @@ const TurnCard = ({ turn, turnNumber }) => {
 
   const status = evaluation?.status ?? "review";
   const isFail = status === "fail";
+  const isReview = status === "review";
 
   const latencyMs = turn?.assistant?.latencyMs ?? turn?.assistant?.latency_ms;
   const latencyLabel =
@@ -427,14 +444,20 @@ const TurnCard = ({ turn, turnNumber }) => {
 
   return (
     <Card
-      className={`p-0 overflow-hidden border ${isFail ? "border-rose-900/50" : "border-slate-800"
+      className={`p-0 overflow-hidden border ${isFail
+        ? "border-rose-900/50"
+        : isReview
+          ? "border-amber-900/50"
+          : "border-slate-800"
         }`}
     >
       {/* Turn Header */}
       <div
         className={`px-4 py-2 flex items-center justify-between cursor-pointer transition-colors ${isFail
           ? "bg-rose-900/20 hover:bg-rose-900/30"
-          : "bg-slate-900/50 hover:bg-slate-800/50"
+          : isReview
+            ? "bg-amber-900/10 hover:bg-amber-900/20"
+            : "bg-slate-900/50 hover:bg-slate-800/50"
           }`}
         onClick={() => setExpanded(!expanded)}
       >
@@ -520,7 +543,9 @@ const TurnCard = ({ turn, turnNumber }) => {
         <div
           className={`border-t ${isFail
             ? "border-rose-900/30 bg-rose-900/10"
-            : "border-slate-800 bg-slate-900/30"
+            : isReview
+              ? "border-amber-900/30 bg-amber-900/10"
+              : "border-slate-800 bg-slate-900/30"
             }`}
         >
           <div className="p-4 space-y-4">
@@ -607,6 +632,9 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
   const failCount =
     detail.turns?.filter((t) => t.assistant.evaluation.status === "fail")
       .length || 0;
+  const reviewCount =
+    detail.turns?.filter((t) => t.assistant.evaluation.status === "review")
+      .length || 0;
 
   return (
     <div className="space-y-6">
@@ -634,6 +662,13 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
           >
             <XCircle className="w-4 h-4 mr-1" />
             {failCount} Failed
+          </Badge>
+          <Badge
+            variant="warning"
+            className="bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          >
+            <AlertTriangle className="w-4 h-4 mr-1" />
+            {reviewCount} Review
           </Badge>
         </div>
       </div>

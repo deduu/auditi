@@ -1,9 +1,10 @@
-""" 
+"""
 Auditi Backend - FastAPI Application Entry Point
 
 Modular FastAPI application with separate routers for each domain.
 Run with: uvicorn app.main:app --reload --port 8000
 """
+
 import asyncio
 import time
 from contextlib import asynccontextmanager
@@ -20,7 +21,11 @@ from app.routers import (
     actions_router,
     models_router,
     evaluations_router,
+    settings_router,
+    llm_connections_router,
+    evaluators_router,
 )
+from app.routers.evaluation_jobs import router as evaluation_jobs_router
 from app.services.eval_worker import run_eval_worker
 
 from fastapi.exceptions import RequestValidationError
@@ -32,6 +37,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,13 +57,13 @@ async def lifespan(app: FastAPI):
                 raise e
             print(f"Database not ready, retrying in 2s... ({i+1}/{retries})")
             time.sleep(2)
-    
+
     # Start background evaluation worker
     eval_worker_task = asyncio.create_task(run_eval_worker(SessionLocal))
     print("✓ Background evaluation worker started.")
-    
+
     yield
-    
+
     # Shutdown: cancel background worker
     eval_worker_task.cancel()
     try:
@@ -72,7 +78,7 @@ app = FastAPI(
     title="Auditi Backend",
     description="AI/LLM Evaluation and Monitoring Platform API",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 # Configure CORS
@@ -91,6 +97,10 @@ app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(actions_router, prefix="/api/v1")
 app.include_router(models_router, prefix="/api/v1")
 app.include_router(evaluations_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
+app.include_router(llm_connections_router, prefix="/api/v1")
+app.include_router(evaluators_router, prefix="/api/v1")
+app.include_router(evaluation_jobs_router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -107,9 +117,10 @@ def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "app.main:app",
         host=settings.api_host,
         port=settings.api_port,
-        reload=settings.debug
+        reload=settings.debug,
     )

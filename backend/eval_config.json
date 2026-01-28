@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "evaluator_type": "llm",
+  "llm_config": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "api_key": null,
+    "base_url": null,
+    "extra_headers": {},
+    "temperature": 0.1
+  },
+  "prompts": {
+    "span_eval": null,
+    "trace_eval": null,
+    "simple_eval": null
+  }
+}

@@ -1,7 +1,18 @@
 """SQLAlchemy Models Package"""
+
 from .conversation import Conversation
 from .trace import Trace
 from .span import Span
 from .action import Action
+from .llm_connection import LLMConnection
+from .evaluator import Evaluator, EvaluatorSetupState
 
-__all__ = ["Conversation", "Trace", "Span", "Action"]
+__all__ = [
+    "Conversation",
+    "Trace",
+    "Span",
+    "Action",
+    "LLMConnection",
+    "Evaluator",
+    "EvaluatorSetupState",
+]

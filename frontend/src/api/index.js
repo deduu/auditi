@@ -9,6 +9,7 @@ export * as conversationsApi from "./conversations";
 export * as evaluationsApi from "./evaluations";
 export * as modelsApi from "./models";
 export * as actionsApi from "./actions";
+export * as settingsApi from "./settings";
 
 // Legacy default export for backward compatibility
 import client from "./client";

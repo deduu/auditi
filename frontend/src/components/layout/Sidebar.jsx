@@ -6,16 +6,33 @@ import {
   Zap,
   FileText,
   Settings,
-  LayoutDashboard
+  LayoutDashboard,
+  Database
 } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, onTabChange }) => {
-  const tabs = [
-    { id: 'conversations', label: 'Conversations', icon: MessageSquare },
-    { id: 'evaluations', label: 'Evaluations', icon: CheckCircle },
-    { id: 'failure-modes', label: 'Failure Modes', icon: AlertTriangle },
-    { id: 'models', label: 'Models', icon: Zap },
-    { id: 'actions', label: 'Recommended Actions', icon: FileText },
+  /* Navigation Configuration */
+  const navSections = [
+    {
+      id: 'monitoring',
+      label: 'Monitoring',
+      items: [
+        { id: 'conversations', label: 'Conversations', icon: MessageSquare },
+        { id: 'failure-modes', label: 'Failure Modes', icon: AlertTriangle },
+        { id: 'models', label: 'Models', icon: Zap },
+        { id: 'actions', label: 'Recommended Actions', icon: FileText },
+      ]
+    },
+    {
+      id: 'evaluation',
+      label: 'Evaluation',
+      items: [
+        { id: 'scores', label: 'Scores', icon: CheckCircle },
+        { id: 'llm-judge', label: 'LLM-as-a-Judge', icon: CheckCircle },
+        { id: 'human-annotation', label: 'Human Annotation', icon: CheckCircle },
+        { id: 'datasets', label: 'Datasets', icon: Database },
+      ]
+    }
   ];
 
   return (
@@ -29,37 +46,38 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
         </h1>
       </div>
 
-      <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto custom-scrollbar">
-        <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Monitoring
-        </div>
+      <nav className="flex-1 px-3 py-6 space-y-6 overflow-y-auto custom-scrollbar">
+        {navSections.map((section) => (
+          <div key={section.id}>
+            <div className="px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              {section.label}
+            </div>
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
 
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ${isActive
-                ? 'bg-blue-600/10 text-blue-400'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
-            >
-              <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-white'
-                }`} />
-              {tab.label}
-              {isActive && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
-              )}
-            </button>
-          );
-        })}
-
-        <div className="mt-8 px-3 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          System
-        </div>
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onTabChange(item.id)}
+                    className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ${isActive
+                      ? 'bg-blue-600/10 text-blue-400'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      }`}
+                  >
+                    <Icon className={`w-5 h-5 mr-3 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-white'
+                      }`} />
+                    {item.label}
+                    {isActive && (
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
         <button
           onClick={() => onTabChange('settings')}
           className={`w-full flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 group ${activeTab === 'settings'

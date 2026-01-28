@@ -6,6 +6,8 @@ import { FailureModesPage } from "./pages/FailureModesPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { ActionsPage } from "./pages/ActionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ScoresPage } from "./pages/ScoresPage";
+import { LLMJudgePage } from "./pages/LLMJudgePage";
 import { Sidebar } from "./components/layout/Sidebar";
 
 function App() {
@@ -27,7 +29,23 @@ function App() {
                 return (
                     <ConversationsPage onSelectConversation={setSelectedConversation} />
                 );
-            case "evaluations":
+            case "scores":
+                return <ScoresPage />;
+            case "llm-judge":
+                return <LLMJudgePage />;
+            case "human-annotation":
+                return (
+                    <div className="flex items-center justify-center h-full text-slate-500">
+                        Human Annotation Page (Coming Soon)
+                    </div>
+                );
+            case "datasets":
+                return (
+                    <div className="flex items-center justify-center h-full text-slate-500">
+                        Datasets Page (Coming Soon)
+                    </div>
+                );
+            case "evaluations": // Keeping for legacy/fallback if needed, though Sidebar removed it
                 return <EvaluationsPage />;
             case "failure-modes":
                 return <FailureModesPage />;

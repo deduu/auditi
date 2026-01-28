@@ -1,0 +1,295 @@
+import React, { useState, useEffect } from "react";
+import { CheckCircle, AlertTriangle, TrendingUp, BarChart3, Target, AlertCircle } from "lucide-react";
+import api from "../api";
+import { Button } from "../components/ui/Button";
+import { Card } from "../components/ui/Card";
+import { exportToCSV } from "../utils/exportUtils";
+
+const getScoreColor = (score) => {
+    if (score >= 90) return "text-emerald-400";
+    if (score >= 80) return "text-amber-400";
+    return "text-rose-400";
+};
+
+const getProgressColor = (score) => {
+    if (score >= 90) return "bg-emerald-500";
+    if (score >= 80) return "bg-amber-500";
+    return "bg-rose-500";
+};
+
+const getTrendColor = (trend) => {
+    return trend && trend.startsWith("+") ? "text-emerald-400" : "text-rose-400";
+};
+
+// Sub-component for the Scores content (logic from old EvaluationsPage)
+const ScoresTabContent = ({ evaluations, failureModes, loading, error, timeRange, setTimeRange }) => {
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-slate-500">Loading evaluation metrics...</div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="text-rose-500">{error}</div>
+            </div>
+        );
+    }
+
+    const avgScore = evaluations.length > 0
+        ? Math.round(evaluations.reduce((acc, e) => acc + e.score, 0) / evaluations.length)
+        : 0;
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Time Range & Export */}
+            <div className="flex justify-end items-center space-x-3">
+                <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
+                    {["24h", "7d", "30d"].map((range) => (
+                        <button
+                            key={range}
+                            onClick={() => setTimeRange(range)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
+                                ? "bg-blue-600 text-white shadow-lg"
+                                : "text-slate-400 hover:text-white"
+                                }`}
+                        >
+                            {range.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
+                <Button variant="outline" size="sm" onClick={() => exportToCSV(evaluations, "evaluations_report")}>
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Export
+                </Button>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="bg-slate-900/50 border-slate-800 p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">Overall Score</p>
+                            <p className={`text-3xl font-bold mt-1 ${getScoreColor(avgScore)}`}>{avgScore}%</p>
+                        </div>
+                        <div className="p-3 bg-blue-500/10 rounded-xl">
+                            <Target className="w-6 h-6 text-blue-400" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="bg-slate-900/50 border-slate-800 p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">Avg Latency</p>
+                            <p className="text-3xl font-bold mt-1 text-purple-400">
+                                {evaluations.length > 0
+                                    ? (evaluations.reduce((acc, e) => acc + (e.avg_latency || 0), 0) / evaluations.length).toFixed(2)
+                                    : "0.00"}s
+                            </p>
+                        </div>
+                        <div className="p-3 bg-purple-500/10 rounded-xl">
+                            <TrendingUp className="w-6 h-6 text-purple-400" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="bg-slate-900/50 border-slate-800 p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">Total Cost</p>
+                            <p className="text-3xl font-bold mt-1 text-amber-400">
+                                ${evaluations.reduce((acc, e) => acc + (e.total_cost || 0), 0).toFixed(4)}
+                            </p>
+                        </div>
+                        <div className="p-3 bg-amber-500/10 rounded-xl">
+                            <AlertCircle className="w-6 h-6 text-amber-400" />
+                        </div>
+                    </div>
+                </Card>
+
+                <Card className="bg-slate-900/50 border-slate-800 p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-sm text-slate-400 font-medium">Total Tokens</p>
+                            <p className="text-3xl font-bold mt-1 text-emerald-400">
+                                {(evaluations.reduce((acc, e) => acc + (e.total_tokens || 0), 0) / 1000).toFixed(1)}k
+                            </p>
+                        </div>
+                        <div className="p-3 bg-emerald-500/10 rounded-xl">
+                            <BarChart3 className="w-6 h-6 text-emerald-400" />
+                        </div>
+                    </div>
+                </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Evaluation Criteria */}
+                <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50">
+                        <h2 className="text-lg font-semibold text-white">Evaluation Criteria & Metrics</h2>
+                    </div>
+                    <div className="divide-y divide-slate-800">
+                        {evaluations.map((evaluation) => (
+                            <div key={evaluation.id} className="p-6 hover:bg-slate-800/30 transition-colors">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center space-x-3">
+                                        <h3 className="text-base font-medium text-white">{evaluation.name}</h3>
+                                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-slate-800 ${getTrendColor(evaluation.trend)}`}>
+                                            {evaluation.trend}
+                                        </span>
+                                    </div>
+                                    <span className={`text-2xl font-bold ${getScoreColor(evaluation.score)}`}>
+                                        {evaluation.score}%
+                                    </span>
+                                </div>
+
+                                {/* Metric Badges */}
+                                <div className="flex items-center space-x-4 mb-3 text-xs text-slate-400">
+                                    <div className="flex items-center">
+                                        <span className="font-medium text-slate-300 mr-1">{evaluation.avg_latency?.toFixed(2)}s</span> latency
+                                    </div>
+                                    <div className="flex items-center">
+                                        <span className="font-medium text-slate-300 mr-1">${evaluation.total_cost?.toFixed(4)}</span> cost
+                                    </div>
+                                    <div className="flex items-center">
+                                        <span className="font-medium text-slate-300 mr-1">{evaluation.total_tokens?.toLocaleString()}</span> tokens
+                                    </div>
+                                    <div className="flex items-center">
+                                        <span className="font-medium text-slate-300 mr-1">{evaluation.pass_rate}%</span> pass rate
+                                    </div>
+                                </div>
+
+                                <div className="w-full bg-slate-800 rounded-full h-2">
+                                    <div
+                                        className={`h-2 rounded-full transition-all duration-500 ${getProgressColor(evaluation.score)}`}
+                                        style={{ width: `${evaluation.score}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+
+                {/* Failure Mode Analysis */}
+                <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden h-fit">
+                    <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                        <h2 className="text-lg font-semibold text-white">Failure Mode Analysis</h2>
+                        <span className="text-xs font-medium text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full">Last 7 Days</span>
+                    </div>
+                    <div className="p-6 space-y-6">
+                        {failureModes.map((mode) => (
+                            <div key={mode.id}>
+                                <div className="flex justify-between items-center mb-1">
+                                    <div className="flex items-center">
+                                        <AlertTriangle className="w-4 h-4 text-orange-400 mr-2" />
+                                        <span className="text-sm font-medium text-slate-300">{mode.name}</span>
+                                    </div>
+                                    <span className="text-sm font-medium text-white">{mode.count} incidents ({mode.percentage}%)</span>
+                                </div>
+                                <div className="w-full bg-slate-800 rounded-full h-2">
+                                    <div
+                                        className="bg-orange-500 h-2 rounded-full"
+                                        style={{ width: `${mode.percentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        ))}
+
+                        {failureModes.length === 0 && (
+                            <div className="text-center py-8 text-slate-500">
+                                No failure modes detected in this period.
+                            </div>
+                        )}
+                    </div>
+                </Card>
+            </div>
+        </div>
+    );
+};
+
+export const ScoresPage = () => {
+    const [activeTab, setActiveTab] = useState("scores");
+    const [evaluations, setEvaluations] = useState([]);
+    const [failureModes, setFailureModes] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [timeRange, setTimeRange] = useState("7d");
+
+    // Fetch data only once (or when timeRange changes) 
+    // We can share this data across tabs if needed, or fetch only for active tab
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const [evalData, failureData] = await Promise.all([
+                    api.getEvaluations({ timeRange }),
+                    api.getFailureModes(timeRange)
+                ]);
+                setEvaluations(evalData.evaluations || []);
+                setFailureModes(failureData || []);
+            } catch (err) {
+                console.error("Failed to fetch evaluation data:", err);
+                setError("Failed to load evaluation data");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [timeRange]);
+
+    return (
+        <div className="space-y-8">
+            {/* Page Header */}
+            <div>
+                <h1 className="text-3xl font-bold text-white">Scores</h1>
+                <p className="mt-1 text-slate-400">Track evaluation metrics and scoring trends</p>
+
+                {/* Tab Navigation */}
+                <div className="flex space-x-6 mt-6 border-b border-slate-800">
+                    <button
+                        onClick={() => setActiveTab("scores")}
+                        className={`pb-3 text-sm font-medium transition-all ${activeTab === "scores"
+                                ? "text-blue-400 border-b-2 border-blue-400"
+                                : "text-slate-400 hover:text-white"
+                            }`}
+                    >
+                        Scores
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("analytics")}
+                        className={`pb-3 text-sm font-medium transition-all ${activeTab === "analytics"
+                                ? "text-blue-400 border-b-2 border-blue-400"
+                                : "text-slate-400 hover:text-white"
+                            }`}
+                    >
+                        Analytics
+                    </button>
+                </div>
+            </div>
+
+            {/* Content Area */}
+            {activeTab === "scores" ? (
+                <ScoresTabContent
+                    evaluations={evaluations}
+                    failureModes={failureModes}
+                    loading={loading}
+                    error={error}
+                    timeRange={timeRange}
+                    setTimeRange={setTimeRange}
+                />
+            ) : (
+                /* Placeholder for Analytics */
+                <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 border border-dashed border-slate-800 rounded-xl animate-in fade-in">
+                    <BarChart3 className="w-12 h-12 text-slate-600 mb-4" />
+                    <h3 className="text-xl font-semibold text-white">Analytics Dashboard</h3>
+                    <p className="text-slate-500 mt-2">Advanced analytics visualizations coming soon.</p>
+                </div>
+            )}
+        </div>
+    );
+};

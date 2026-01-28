@@ -3,6 +3,7 @@ Enhanced LLM-based evaluator using OpenAI API for agentic workflows.
 
 NEW: Granular span-level evaluation + overall trace evaluation
 """
+
 import os
 import json
 import logging
@@ -142,82 +143,164 @@ Respond ONLY with valid JSON, nothing else."""
 
 class LLMEvaluator(BaseBackendEvaluator):
     """
-    LLM-based evaluator using OpenAI with granular span-level evaluation.
-    
-    NEW FEATURES:
-    - Evaluates each span individually (tool/LLM calls)
-    - Evaluates overall trace considering all spans
-    - Returns detailed breakdown of step quality
+    LLM-based evaluator with configurable provider and prompts.
+
+    FEATURES:
+    - Supports multiple LLM providers (OpenAI, Anthropic, OpenAI-compatible)
+    - Customizable evaluation prompts
+    - Granular span-level evaluation + overall trace evaluation
     """
-    
+
     def __init__(
-        self, 
-        api_key: Optional[str] = None, 
+        self,
+        llm_provider: Optional["BaseLLMProvider"] = None,
+        api_key: Optional[str] = None,
         model: str = "gpt-4o",
-        base_url: Optional[str] = None
+        base_url: Optional[str] = None,
+        custom_prompts: Optional[Dict[str, str]] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        temperature: float = 0.1,
     ):
-        self.model = model
-        self.base_url = base_url
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        """
+        Initialize LLMEvaluator.
+
+        Args:
+            llm_provider: Optional BaseLLMProvider instance. If provided, uses its config.
+            api_key: API key (falls back to env var if not provided)
+            model: Model name to use
+            base_url: Optional base URL for OpenAI-compatible APIs
+            custom_prompts: Optional dict with keys 'span_eval', 'trace_eval', 'simple_eval'
+            extra_headers: Optional HTTP headers for LLM requests
+            temperature: LLM temperature setting
+        """
+        # Use provider config if provided, otherwise use direct params
+        if llm_provider is not None:
+            self.model = llm_provider.model_name
+            self.api_key = (
+                getattr(llm_provider, "api_key", None)
+                or api_key
+                or os.getenv("OPENAI_API_KEY")
+            )
+            self.base_url = getattr(llm_provider, "base_url", None) or base_url
+        else:
+            self.model = model
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            self.base_url = base_url
+
+        self.extra_headers = extra_headers or {}
+        self.temperature = temperature
         self._default_client: Optional[AsyncOpenAI] = None
-    
+
+        # Custom prompts (override defaults if provided)
+        self.span_eval_prompt = (custom_prompts or {}).get(
+            "span_eval"
+        ) or SPAN_EVALUATION_PROMPT
+        self.trace_eval_prompt = (custom_prompts or {}).get(
+            "trace_eval"
+        ) or TRACE_EVALUATION_PROMPT
+        self.simple_eval_prompt = (custom_prompts or {}).get(
+            "simple_eval"
+        ) or SIMPLE_EVALUATION_PROMPT
+
+        logger.info(
+            f"LLMEvaluator initialized: model={self.model}, base_url={self.base_url}"
+        )
+
+    def _safe_format(self, template: str, **kwargs) -> str:
+        """
+        Safely format a template string, ignoring missing keys.
+        This allows custom prompts to use only the variables they need.
+        """
+        import re
+
+        def replace_var(match):
+            key = match.group(1)
+            return str(kwargs.get(key, f"{{{key}}}"))
+
+        # Replace {variable} patterns with values or keep original
+        return re.sub(r"\{(\w+)\}", replace_var, template)
+
     def _get_client(self, api_key: Optional[str] = None) -> AsyncOpenAI:
-        """Get or create an OpenAI client with the given API key."""
+        """Get or create an OpenAI-compatible client with the given API key."""
         effective_key = api_key or self.api_key
-        
+
         if not effective_key:
             raise ValueError(
-                "No OpenAI API key provided. "
+                "No API key provided. "
                 "Set OPENAI_API_KEY environment variable or provide api_key parameter."
             )
-        
+
         if effective_key == self.api_key and self._default_client is not None:
             return self._default_client
-        
-        client = AsyncOpenAI(
-            api_key=effective_key,
-            base_url=self.base_url
-        )
-        
+
+        # Build client with extra headers if provided
+        client_kwargs = {
+            "api_key": effective_key,
+        }
+        if self.base_url:
+            client_kwargs["base_url"] = self.base_url
+        if self.extra_headers:
+            client_kwargs["default_headers"] = self.extra_headers
+
+        client = AsyncOpenAI(**client_kwargs)
+
         if effective_key == self.api_key:
             self._default_client = client
-        
+
         return client
-    
+
     def _build_execution_summary(self, execution_steps: List[Dict]) -> str:
         """Build human-readable summary of agent execution."""
         if not execution_steps:
             return "No execution steps recorded."
-        
+
         summary_parts = []
         for i, step in enumerate(execution_steps, 1):
             step_type = step.get("type", "unknown")
             step_name = step.get("name", "unnamed")
             processing_time = step.get("processing_time", 0)
-            
+
             if step_type == "tool":
                 inputs = step.get("inputs", {})
                 outputs = step.get("outputs", "")
-                input_str = json.dumps(inputs, indent=2) if isinstance(inputs, dict) else str(inputs)
-                input_preview = input_str[:150] + "..." if len(input_str) > 150 else input_str
-                output_preview = str(outputs)[:150] + "..." if len(str(outputs)) > 150 else str(outputs)
-                
+                input_str = (
+                    json.dumps(inputs, indent=2)
+                    if isinstance(inputs, dict)
+                    else str(inputs)
+                )
+                input_preview = (
+                    input_str[:150] + "..." if len(input_str) > 150 else input_str
+                )
+                output_preview = (
+                    str(outputs)[:150] + "..."
+                    if len(str(outputs)) > 150
+                    else str(outputs)
+                )
+
                 summary_parts.append(
                     f"Step {i}: TOOL '{step_name}' ({processing_time:.2f}s)\n"
                     f"  Input: {input_preview}\n"
                     f"  Output: {output_preview}"
                 )
-                
+
             elif step_type == "llm":
                 model = step.get("model", "unknown")
                 inputs = step.get("inputs", {})
                 outputs = step.get("outputs", "")
                 tokens = step.get("tokens", 0)
-                
-                prompt = inputs.get("prompt") if isinstance(inputs, dict) else str(inputs)
-                prompt_preview = str(prompt)[:120] + "..." if len(str(prompt)) > 120 else str(prompt)
-                output_preview = str(outputs)[:150] + "..." if len(str(outputs)) > 150 else str(outputs)
-                
+
+                prompt = (
+                    inputs.get("prompt") if isinstance(inputs, dict) else str(inputs)
+                )
+                prompt_preview = (
+                    str(prompt)[:120] + "..." if len(str(prompt)) > 120 else str(prompt)
+                )
+                output_preview = (
+                    str(outputs)[:150] + "..."
+                    if len(str(outputs)) > 150
+                    else str(outputs)
+                )
+
                 summary_parts.append(
                     f"Step {i}: LLM '{step_name}' (model: {model}, tokens: {tokens}, {processing_time:.2f}s)\n"
                     f"  Prompt: {prompt_preview}\n"
@@ -225,19 +308,19 @@ class LLMEvaluator(BaseBackendEvaluator):
                 )
             else:
                 summary_parts.append(f"Step {i}: {step_type.upper()} '{step_name}'")
-        
+
         return "\n\n".join(summary_parts)
-    
+
     async def _evaluate_single_span(
         self,
         client: AsyncOpenAI,
         user_input: str,
         step: Dict,
         step_number: int,
-        total_steps: int
+        total_steps: int,
     ) -> Dict[str, Any]:
         """Evaluate a single span (tool or LLM call)."""
-        
+
         step_type = step.get("type", "unknown")
         step_name = step.get("name", "unnamed")
         step_input = step.get("inputs", {})
@@ -246,36 +329,37 @@ class LLMEvaluator(BaseBackendEvaluator):
         tokens = step.get("tokens", 0)
         model = step.get("model", "")
         span_id = step.get("span_id")
-        
+
         # Format inputs nicely
         if isinstance(step_input, dict):
             input_str = json.dumps(step_input, indent=2)
         else:
             input_str = str(step_input)
-        
+
         # Build model info
         model_info = f"**Model**: {model}" if model else ""
         token_info = f"**Tokens Used**: {tokens}" if tokens > 0 else ""
-        
+
         # Helper to truncate based on settings
         limit = settings.truncation_limit
         if limit == -1:
             limit = 100_000  # "Unlimited"
-            
+
         def truncate(text: str) -> str:
             text = str(text)
             if len(text) <= limit:
                 return text
-            
+
             if settings.truncation_strategy == "middle":
                 half = limit // 2
                 return text[:half] + "...[TRUNCATED]..." + text[-half:]
             elif settings.truncation_strategy == "start":
                 return "...[TRUNCATED]..." + text[-limit:]
-            else: # "end" or default
+            else:  # "end" or default
                 return text[:limit] + "...[TRUNCATED]"
 
-        prompt = SPAN_EVALUATION_PROMPT.format(
+        prompt = self._safe_format(
+            self.span_eval_prompt,
             user_input=truncate(user_input),
             step_number=step_number,
             total_steps=total_steps,
@@ -285,27 +369,27 @@ class LLMEvaluator(BaseBackendEvaluator):
             step_input=truncate(input_str),
             step_output=truncate(step_output),
             processing_time=processing_time,
-            token_info=token_info
+            token_info=token_info,
         )
-        
+
         try:
             response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                temperature=0.1,
+                temperature=self.temperature,
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             return {
-                "span_id": span_id,  
+                "span_id": span_id,
                 "step_number": step_number,
                 "step_type": step_type,
                 "step_name": step_name,
                 "relevant": result.get("relevant", True),
                 "quality_score": result.get("quality_score", 0.5),
                 "issues": result.get("issues", []),
-                "reasoning": result.get("reasoning", "")
+                "reasoning": result.get("reasoning", ""),
             }
         except Exception as e:
             logger.error(f"Span evaluation failed for step {step_number}: {e}")
@@ -317,18 +401,18 @@ class LLMEvaluator(BaseBackendEvaluator):
                 "relevant": True,
                 "quality_score": 0.5,
                 "issues": ["evaluation_failed"],
-                "reasoning": f"Could not evaluate: {str(e)[:100]}"
+                "reasoning": f"Could not evaluate: {str(e)[:100]}",
             }
-    
+
     async def evaluate(
-        self, 
-        user_input: str, 
+        self,
+        user_input: str,
         assistant_output: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ) -> EvalResult:
         """
         Evaluate a trace with granular span-level evaluation.
-        
+
         Process:
         1. Evaluate each span individually
         2. Evaluate overall trace considering span evaluations
@@ -340,13 +424,13 @@ class LLMEvaluator(BaseBackendEvaluator):
         total_tokens = context.get("total_tokens", 0)
         total_cost = context.get("total_cost", 0.0)
         span_count = context.get("span_count", 0)
-        
+
         # Calculate total processing time
         total_time = sum(step.get("processing_time", 0) for step in execution_steps)
-        
-        print("\n" + "="*80)
+
+        print("\n" + "=" * 80)
         print("[AUDITI EVALUATION] Starting granular evaluation")
-        print("="*80)
+        print("=" * 80)
         print(f"User Input: {user_input[:100]}...")
         print(f"Assistant Output: {assistant_output[:100]}...")
         print(f"\nExecution Context:")
@@ -354,7 +438,7 @@ class LLMEvaluator(BaseBackendEvaluator):
         print(f"  - Total tokens: {total_tokens}")
         print(f"  - Total cost: ${total_cost:.4f}")
         print(f"  - Total time: {total_time:.2f}s")
-        
+
         try:
             client = self._get_client(tenant_api_key)
         except ValueError as e:
@@ -363,53 +447,62 @@ class LLMEvaluator(BaseBackendEvaluator):
                 status="review",
                 score=0.0,
                 failure_mode="other",
-                reason="Evaluation skipped: No API key configured"
+                reason="Evaluation skipped: No API key configured",
             )
-        
+
         # ============================================
         # GRANULAR EVALUATION: Evaluate each span
         # ============================================
         if execution_steps and len(execution_steps) > 0:
-            print(f"\n[AUDITI EVALUATION] Step 1: Evaluating {len(execution_steps)} spans individually...")
-            
+            print(
+                f"\n[AUDITI EVALUATION] Step 1: Evaluating {len(execution_steps)} spans individually..."
+            )
+
             span_evaluations: List[SpanEvaluation] = []
             for i, step in enumerate(execution_steps, 1):
-                print(f"\n  Evaluating span {i}/{len(execution_steps)}: {step.get('type')} - {step.get('name')}")
-                
+                print(
+                    f"\n  Evaluating span {i}/{len(execution_steps)}: {step.get('type')} - {step.get('name')}"
+                )
+
                 span_eval_dict = await self._evaluate_single_span(
                     client=client,
                     user_input=user_input,
                     step=step,
                     step_number=i,
-                    total_steps=len(execution_steps)
+                    total_steps=len(execution_steps),
                 )
-                
+
                 span_eval = SpanEvaluation(**span_eval_dict)  # Object!
                 span_evaluations.append(span_eval)
-                
-                print(f"    → Relevant: {span_eval.relevant}, Quality: {span_eval.quality_score:.2f}")
+
+                print(
+                    f"    → Relevant: {span_eval.relevant}, Quality: {span_eval.quality_score:.2f}"
+                )
                 print(f"    → Reasoning: {span_eval.reasoning}")
                 if span_eval.issues:
                     print(f"    → Issues: {', '.join(span_eval.issues)}")
-            
+
             # Build span evaluation summary for trace evaluation
-            span_eval_summary = "\n".join([
-                f"Step {ev.step_number} ({ev.step_type}: {ev.step_name}):\n"
-                f"  - Relevant: {ev.relevant}\n"
-                f"  - Quality Score: {ev.quality_score:.2f}\n"
-                f"  - Issues: {', '.join(ev.issues if ev.issues else 'None')}\n"
-                f"  - Reasoning: {ev.reasoning}"
-                for ev in span_evaluations
-            ])
-            
+            span_eval_summary = "\n".join(
+                [
+                    f"Step {ev.step_number} ({ev.step_type}: {ev.step_name}):\n"
+                    f"  - Relevant: {ev.relevant}\n"
+                    f"  - Quality Score: {ev.quality_score:.2f}\n"
+                    f"  - Issues: {', '.join(ev.issues if ev.issues else 'None')}\n"
+                    f"  - Reasoning: {ev.reasoning}"
+                    for ev in span_evaluations
+                ]
+            )
+
             # ============================================
             # OVERALL EVALUATION: Evaluate entire trace
             # ============================================
             print(f"\n[AUDITI EVALUATION] Step 2: Evaluating overall trace...")
-            
+
             execution_summary = self._build_execution_summary(execution_steps)
-            
-            prompt = TRACE_EVALUATION_PROMPT.format(
+
+            prompt = self._safe_format(
+                self.trace_eval_prompt,
                 user_input=user_input[:2000],
                 span_evaluations=span_eval_summary,
                 execution_summary=execution_summary,
@@ -417,104 +510,116 @@ class LLMEvaluator(BaseBackendEvaluator):
                 step_count=len(execution_steps),
                 total_tokens=total_tokens,
                 total_cost=total_cost,
-                total_time=total_time
+                total_time=total_time,
             )
-            
+
         else:
             # Simple evaluation for single-turn
             print("[AUDITI EVALUATION] Using SIMPLE evaluation (no spans)")
-            
-            prompt = SIMPLE_EVALUATION_PROMPT.format(
+
+            prompt = self._safe_format(
+                self.simple_eval_prompt,
                 user_input=user_input[:2000],
-                assistant_output=assistant_output[:4000]
+                assistant_output=assistant_output[:4000],
             )
-            
+
             span_evaluations = []
-        
+
         # ============================================
         # Call OpenAI for final evaluation
         # ============================================
         try:
             print(f"\n[AUDITI EVALUATION] Calling OpenAI model: {self.model}")
-            
+
             response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
-                temperature=0.1,
+                temperature=self.temperature,
             )
-            
+
             content = response.choices[0].message.content
-            
+
             print(f"\n[AUDITI EVALUATION] Raw LLM response:")
             print("-" * 80)
             print(content)
             print("-" * 80 + "\n")
-            
+
             result = json.loads(content)
-            
+
             # Validate and normalize
             status = result.get("status", "review")
             if status not in ("pass", "fail", "review"):
                 status = "review"
-            
+
             score = float(result.get("score", 0.5))
             score = max(0.0, min(1.0, score))
-            
+
             failure_mode = result.get("failure_mode")
             valid_modes = {
-                "hallucination", "off_topic", "harmful", "incomplete", 
-                "incoherent", "incorrect_tool_use", "inefficient_execution",
-                "poor_step_quality", "other"
+                "hallucination",
+                "off_topic",
+                "harmful",
+                "incomplete",
+                "incoherent",
+                "incorrect_tool_use",
+                "inefficient_execution",
+                "poor_step_quality",
+                "other",
             }
             if failure_mode and failure_mode not in valid_modes:
                 failure_mode = "other"
-            
+
             reason = result.get("reason", "")
-            
+
             # NEW: Extract recommended_action
             recommended_action = result.get("recommended_action")
             # Only include recommended_action for fail/review statuses
             if status == "pass":
                 recommended_action = None
-            
+
             # Build enhanced reason with span details
             if span_evaluations:
-                avg_span_quality = sum(s.quality_score for s in span_evaluations) / len(span_evaluations)
+                avg_span_quality = sum(s.quality_score for s in span_evaluations) / len(
+                    span_evaluations
+                )
                 poor_spans = [s for s in span_evaluations if s.quality_score < 0.6]
-                
+
                 enhanced_reason = reason
                 if result.get("step_quality_summary"):
                     enhanced_reason += f" Steps: {result['step_quality_summary']}"
                 if result.get("efficiency_summary"):
                     enhanced_reason += f" Efficiency: {result['efficiency_summary']}"
-                
+
                 reason = enhanced_reason
-            
+
             print(f"[AUDITI EVALUATION] Final result:")
             print(f"  Status: {status}")
             print(f"  Score: {score:.2f}")
             if span_evaluations:
                 print(f"  Avg Span Quality: {avg_span_quality:.2f}")
-                print(f"  Poor Quality Spans: {len(poor_spans)}/{len(span_evaluations)}")
+                print(
+                    f"  Poor Quality Spans: {len(poor_spans)}/{len(span_evaluations)}"
+                )
             print(f"  Failure Mode: {failure_mode}")
             print(f"  Reason: {reason}")
             if recommended_action:
                 print(f"  Recommended Action: {recommended_action}")
-            print("="*80 + "\n")
-            
-            logger.info(f"Evaluation complete: status={status}, score={score:.2f}, spans={len(span_evaluations)}")
-            
+            print("=" * 80 + "\n")
+
+            logger.info(
+                f"Evaluation complete: status={status}, score={score:.2f}, spans={len(span_evaluations)}"
+            )
+
             return EvalResult(
                 status=status,
                 score=score,
                 failure_mode=failure_mode if status == "fail" else None,
                 reason=reason,
                 recommended_action=recommended_action,  # NEW: Include in result
-                span_evaluations=span_evaluations
+                span_evaluations=span_evaluations,
             )
-            
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM response: {e}")
             print(f"[AUDITI EVALUATION] ERROR: Failed to parse: {e}\n")
@@ -522,7 +627,7 @@ class LLMEvaluator(BaseBackendEvaluator):
                 status="review",
                 score=0.5,
                 failure_mode="other",
-                reason="Evaluation failed: Could not parse LLM response"
+                reason="Evaluation failed: Could not parse LLM response",
             )
         except Exception as e:
             logger.error(f"LLM evaluation failed: {e}")
@@ -531,5 +636,5 @@ class LLMEvaluator(BaseBackendEvaluator):
                 score=0.5,
                 failure_mode="other",
                 reason=f"Evaluation failed: {str(e)[:100]}",
-                span_evaluations=span_evaluations  # Include even on error
+                span_evaluations=span_evaluations,  # Include even on error
             )
