@@ -29,20 +29,48 @@ Evaluate whether THIS SPECIFIC STEP was appropriate and effective.
 ## User's Original Query
 {user_input}
 
+## Individual Step Evaluations
+{span_evaluations}
+
+## Full Execution Summary
+{execution_summary}
+
 ## Final Response to User
 {assistant_output}
 
-### Evaluation Task
-Provide a holistic evaluation considering step quality, flow efficiency, and final output.
+## Execution Metadata
+- Total steps: {step_count}
+- Total tokens: {total_tokens}
+- Total cost: \${total_cost:.4f}
+- Total time: {total_time:.2f}s
+
+## Evaluation Task
+Provide a holistic evaluation considering:
+
+1. **Step Quality**: Were individual steps appropriate? (See evaluations above)
+2. **Flow Efficiency**: Was the sequence logical? Any redundant steps?
+3. **Resource Usage**: Reasonable token/cost usage?
+4. **Final Output**: Does the response fully address the user's query?
+5. **Overall Effectiveness**: Did the agent successfully complete the task?
 
 ## Response Format (JSON only)
 {
     "status": "pass" or "fail" or "review",
-    "score": 0.0 to 1.0,
-    "failure_mode": null or one of ["hallucination", "incorrect_tool_use", "inefficient_execution", "incomplete_answer", "off_topic", "harmful", "other"],
-    "reason": "2-3 sentence explanation",
-    "recommended_action": null or "specific actionable advice"
-}`,
+    "score": 0.0 to 1.0 (overall quality score),
+    "failure_mode": null or one of ["hallucination", "incorrect_tool_use", "inefficient_execution", "incomplete_answer", "off_topic", "harmful", "poor_step_quality", "other"],
+    "reason": "2-3 sentence explanation covering step quality, execution flow, and final output",
+    "recommended_action": null or "specific actionable advice for improvement (1-2 sentences)",
+    "step_quality_summary": "1 sentence about individual step quality",
+    "efficiency_summary": "1 sentence about execution efficiency"
+}
+
+Guidelines:
+- "pass" = Good steps AND efficient execution AND quality output (score >= 0.7)
+- "fail" = Poor steps OR wasteful execution OR bad output (score < 0.5)
+- "review" = Mixed results or borderline quality (0.5 <= score < 0.7)
+- **recommended_action**: Only provide if status is "fail" or "review".
+
+Respond ONLY with valid JSON, nothing else.`,
     simple_eval: `You are an AI quality evaluator. Analyze the following agent interaction.
 
 ## User Input
@@ -340,6 +368,7 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
     const [formData, setFormData] = useState({
         name: "",
         description: "",
+        evaluationScope: "auto",
         useDefaultModel: true,
         spanEvalPrompt: "",
         traceEvalPrompt: "",
@@ -358,6 +387,7 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
             await onSave({
                 name: formData.name,
                 description: formData.description,
+                evaluation_scope: formData.evaluationScope,
                 use_default_model: formData.useDefaultModel,
                 span_eval_prompt: formData.spanEvalPrompt || null,
                 trace_eval_prompt: formData.traceEvalPrompt || null,
@@ -366,6 +396,7 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
             setFormData({
                 name: "",
                 description: "",
+                evaluationScope: "auto",
                 useDefaultModel: true,
                 spanEvalPrompt: "",
                 traceEvalPrompt: "",
@@ -407,6 +438,25 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
                         placeholder="What this evaluator checks for..."
                         className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
+                </div>
+
+                {/* Evaluation Scope */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Evaluation Scope</label>
+                    <select
+                        value={formData.evaluationScope}
+                        onChange={(e) => setFormData({ ...formData, evaluationScope: e.target.value })}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    >
+                        <option value="auto">Auto-detect (Recommended)</option>
+                        <option value="simple">Simple (LLM calls, embeddings)</option>
+                        <option value="trace">Agent Trace (Multi-step with spans)</option>
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">
+                        {formData.evaluationScope === "auto" && "Automatically selects trace prompt for agent calls, simple prompt for LLM/embedding calls."}
+                        {formData.evaluationScope === "simple" && "Uses only simple prompt (user_input, assistant_output). Best for LLM calls without spans."}
+                        {formData.evaluationScope === "trace" && "Uses full agent context (span evaluations, execution summary). For multi-step agent traces."}
+                    </p>
                 </div>
 
                 {/* Model */}
@@ -556,6 +606,323 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
                     {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Create Evaluator
                 </Button>
+            </div>
+        </Modal>
+    );
+};
+
+// Modal for viewing/editing an evaluator
+export const EditEvaluatorModal = ({ isOpen, onClose, evaluator, onSave, defaultModel }) => {
+    const [formData, setFormData] = useState({
+        name: "",
+        description: "",
+        evaluationScope: "auto",
+        useDefaultModel: true,
+        spanEvalPrompt: "",
+        traceEvalPrompt: "",
+        simpleEvalPrompt: ""
+    });
+    const [saving, setSaving] = useState(false);
+    const [showPrompts, setShowPrompts] = useState({
+        span: false,
+        trace: true,  // Show trace prompt by default
+        simple: false
+    });
+
+    const isManaged = evaluator?.evaluator_type === "managed";
+
+    // Load evaluator data when opening
+    useEffect(() => {
+        if (evaluator && isOpen) {
+            setFormData({
+                name: evaluator.name || "",
+                description: evaluator.description || "",
+                evaluationScope: evaluator.evaluation_scope || "auto",
+                useDefaultModel: evaluator.use_default_model !== false,
+                spanEvalPrompt: evaluator.span_eval_prompt || "",
+                traceEvalPrompt: evaluator.trace_eval_prompt || "",
+                simpleEvalPrompt: evaluator.simple_eval_prompt || ""
+            });
+        }
+    }, [evaluator, isOpen]);
+
+    const handleSubmit = async () => {
+        if (isManaged) {
+            onClose();
+            return;
+        }
+
+        setSaving(true);
+        try {
+            await onSave({
+                name: formData.name,
+                description: formData.description,
+                evaluation_scope: formData.evaluationScope,
+                use_default_model: formData.useDefaultModel,
+                span_eval_prompt: formData.spanEvalPrompt || null,
+                trace_eval_prompt: formData.traceEvalPrompt || null,
+                simple_eval_prompt: formData.simpleEvalPrompt || null
+            });
+            onClose();
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const loadDefaultPrompt = (type) => {
+        const key = type === "span" ? "spanEvalPrompt" : type === "trace" ? "traceEvalPrompt" : "simpleEvalPrompt";
+        const defaultKey = type === "span" ? "span_eval" : type === "trace" ? "trace_eval" : "simple_eval";
+        setFormData({ ...formData, [key]: DEFAULT_PROMPTS[defaultKey] });
+    };
+
+    return (
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={isManaged ? `View: ${evaluator?.name}` : `Edit: ${evaluator?.name}`}
+            size="lg"
+        >
+            <div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
+                {/* Type Badge */}
+                <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 text-xs font-medium rounded ${isManaged
+                        ? "bg-purple-500/20 text-purple-400"
+                        : "bg-blue-500/20 text-blue-400"
+                        }`}>
+                        {isManaged ? "Managed Evaluator" : "Custom Evaluator"}
+                    </span>
+                    {isManaged && (
+                        <span className="text-xs text-slate-500">
+                            (Read-only - create a custom evaluator to modify prompts)
+                        </span>
+                    )}
+                </div>
+
+                {/* Name */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Evaluator Name</label>
+                    <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        disabled={isManaged}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-60"
+                    />
+                </div>
+
+                {/* Description */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+                    <input
+                        type="text"
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        disabled={isManaged}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-60"
+                    />
+                </div>
+
+                {/* Evaluation Scope */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Evaluation Scope</label>
+                    {isManaged ? (
+                        <div className="flex items-center px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg">
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${formData.evaluationScope === "simple" ? "bg-green-500/20 text-green-400" :
+                                    formData.evaluationScope === "trace" ? "bg-purple-500/20 text-purple-400" :
+                                        "bg-blue-500/20 text-blue-400"
+                                }`}>
+                                {formData.evaluationScope === "simple" ? "Simple" :
+                                    formData.evaluationScope === "trace" ? "Agent Trace" : "Auto-detect"}
+                            </span>
+                            <span className="ml-2 text-sm text-slate-400">
+                                {formData.evaluationScope === "auto" && "Uses appropriate prompt based on trace type"}
+                                {formData.evaluationScope === "simple" && "Uses simple prompt (input/output only)"}
+                                {formData.evaluationScope === "trace" && "Uses full agent context with spans"}
+                            </span>
+                        </div>
+                    ) : (
+                        <>
+                            <select
+                                value={formData.evaluationScope}
+                                onChange={(e) => setFormData({ ...formData, evaluationScope: e.target.value })}
+                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                            >
+                                <option value="auto">Auto-detect (Recommended)</option>
+                                <option value="simple">Simple (LLM calls, embeddings)</option>
+                                <option value="trace">Agent Trace (Multi-step with spans)</option>
+                            </select>
+                            <p className="mt-1 text-xs text-slate-500">
+                                {formData.evaluationScope === "auto" && "Automatically selects trace prompt for agent calls, simple prompt for LLM/embedding calls."}
+                                {formData.evaluationScope === "simple" && "Uses only simple prompt (user_input, assistant_output). Best for LLM calls without spans."}
+                                {formData.evaluationScope === "trace" && "Uses full agent context (span evaluations, execution summary). For multi-step agent traces."}
+                            </p>
+                        </>
+                    )}
+                </div>
+
+                {/* Model (for custom only) */}
+                {!isManaged && (
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Model</label>
+                        <div className="flex items-center p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
+                            <input
+                                type="checkbox"
+                                id="editUseDefaultModel"
+                                checked={formData.useDefaultModel}
+                                onChange={(e) => setFormData({ ...formData, useDefaultModel: e.target.checked })}
+                                className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
+                            />
+                            <label htmlFor="editUseDefaultModel" className="ml-2 text-sm text-slate-300">
+                                Use default evaluation model
+                            </label>
+                            {defaultModel && (
+                                <span className="ml-auto text-xs text-slate-500">
+                                    {defaultModel.provider} / {defaultModel.model}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Prompt Templates Section */}
+                <div className="border-t border-slate-800 pt-4">
+                    <div className="flex items-center space-x-2 mb-4">
+                        <Info className="w-4 h-4 text-blue-400" />
+                        <span className="text-sm text-slate-400">
+                            {isManaged
+                                ? "View the prompt template used by this evaluator"
+                                : "Customize prompts for different evaluation scenarios"
+                            }
+                        </span>
+                    </div>
+
+                    {/* Trace Eval Prompt (main one) */}
+                    <div className="mb-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowPrompts({ ...showPrompts, trace: !showPrompts.trace })}
+                            className="flex items-center justify-between w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-left hover:bg-slate-800 transition-colors"
+                        >
+                            <span className="text-sm font-medium text-slate-300">Trace Evaluation Prompt</span>
+                            <div className="flex items-center space-x-2">
+                                {formData.traceEvalPrompt && <span className="text-xs text-emerald-400">Has content</span>}
+                                {showPrompts.trace ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                            </div>
+                        </button>
+                        {showPrompts.trace && (
+                            <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
+                                {!isManaged && (
+                                    <div className="flex justify-end mb-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => loadDefaultPrompt("trace")}
+                                            className="text-xs text-blue-400 hover:text-blue-300"
+                                        >
+                                            Load default template
+                                        </button>
+                                    </div>
+                                )}
+                                <textarea
+                                    value={formData.traceEvalPrompt}
+                                    onChange={(e) => setFormData({ ...formData, traceEvalPrompt: e.target.value })}
+                                    placeholder="Prompt for overall trace evaluation..."
+                                    rows={10}
+                                    readOnly={isManaged}
+                                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize font-mono text-xs min-h-[200px] disabled:opacity-60"
+                                />
+                                <p className="mt-1 text-xs text-slate-500">Variables: {"{user_input}"}, {"{assistant_output}"}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Span Eval Prompt */}
+                    <div className="mb-4">
+                        <button
+                            type="button"
+                            onClick={() => setShowPrompts({ ...showPrompts, span: !showPrompts.span })}
+                            className="flex items-center justify-between w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-left hover:bg-slate-800 transition-colors"
+                        >
+                            <span className="text-sm font-medium text-slate-300">Span Evaluation Prompt</span>
+                            <div className="flex items-center space-x-2">
+                                {formData.spanEvalPrompt && <span className="text-xs text-emerald-400">Has content</span>}
+                                {showPrompts.span ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                            </div>
+                        </button>
+                        {showPrompts.span && (
+                            <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
+                                {!isManaged && (
+                                    <div className="flex justify-end mb-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => loadDefaultPrompt("span")}
+                                            className="text-xs text-blue-400 hover:text-blue-300"
+                                        >
+                                            Load default template
+                                        </button>
+                                    </div>
+                                )}
+                                <textarea
+                                    value={formData.spanEvalPrompt}
+                                    onChange={(e) => setFormData({ ...formData, spanEvalPrompt: e.target.value })}
+                                    placeholder="Prompt for evaluating individual spans..."
+                                    rows={6}
+                                    readOnly={isManaged}
+                                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize font-mono text-xs min-h-[120px] disabled:opacity-60"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Simple Eval Prompt */}
+                    <div>
+                        <button
+                            type="button"
+                            onClick={() => setShowPrompts({ ...showPrompts, simple: !showPrompts.simple })}
+                            className="flex items-center justify-between w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-left hover:bg-slate-800 transition-colors"
+                        >
+                            <span className="text-sm font-medium text-slate-300">Simple Evaluation Prompt</span>
+                            <div className="flex items-center space-x-2">
+                                {formData.simpleEvalPrompt && <span className="text-xs text-emerald-400">Has content</span>}
+                                {showPrompts.simple ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                            </div>
+                        </button>
+                        {showPrompts.simple && (
+                            <div className="mt-2 animate-in slide-in-from-top-2 duration-200">
+                                {!isManaged && (
+                                    <div className="flex justify-end mb-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => loadDefaultPrompt("simple")}
+                                            className="text-xs text-blue-400 hover:text-blue-300"
+                                        >
+                                            Load default template
+                                        </button>
+                                    </div>
+                                )}
+                                <textarea
+                                    value={formData.simpleEvalPrompt}
+                                    onChange={(e) => setFormData({ ...formData, simpleEvalPrompt: e.target.value })}
+                                    placeholder="Prompt for single-turn interactions..."
+                                    rows={6}
+                                    readOnly={isManaged}
+                                    className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize font-mono text-xs min-h-[120px] disabled:opacity-60"
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-800">
+                <Button variant="ghost" onClick={onClose}>
+                    {isManaged ? "Close" : "Cancel"}
+                </Button>
+                {!isManaged && (
+                    <Button onClick={handleSubmit} disabled={!formData.name || saving}>
+                        {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        Save Changes
+                    </Button>
+                )}
             </div>
         </Modal>
     );

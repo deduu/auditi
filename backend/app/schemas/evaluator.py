@@ -12,6 +12,9 @@ class EvaluatorBase(BaseModel):
 
     name: str = Field(..., description="Evaluator name")
     description: Optional[str] = Field(None, description="Evaluator description")
+    evaluation_scope: str = Field(
+        "auto", description="Evaluation scope: 'auto', 'simple', 'trace', or 'span'"
+    )
     use_default_model: bool = Field(
         True, description="Whether to use the default model"
     )
@@ -25,10 +28,10 @@ class EvaluatorBase(BaseModel):
         None, description="Prompt for evaluating individual spans"
     )
     trace_eval_prompt: Optional[str] = Field(
-        None, description="Prompt for overall trace evaluation"
+        None, description="Prompt for overall trace evaluation (agent mode)"
     )
     simple_eval_prompt: Optional[str] = Field(
-        None, description="Prompt for single-turn interactions"
+        None, description="Prompt for single-turn interactions (simple mode)"
     )
 
     # Legacy fields
@@ -49,6 +52,7 @@ class EvaluatorUpdate(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
+    evaluation_scope: Optional[str] = None
     use_default_model: Optional[bool] = None
     connection_id: Optional[str] = None
     model_name: Optional[str] = None
@@ -67,6 +71,7 @@ class EvaluatorResponse(BaseModel):
     name: str
     description: Optional[str] = None
     evaluator_type: str
+    evaluation_scope: str = "auto"
     use_default_model: bool
     connection_id: Optional[str] = None
     model_name: Optional[str] = None
@@ -90,6 +95,10 @@ class ManagedEvaluator(BaseModel):
     name: str
     description: str
     evaluator_type: str = "managed"
+    evaluation_scope: str = "auto"  # auto, simple, trace, span
+    # Pre-defined prompts for managed evaluators
+    trace_eval_prompt: Optional[str] = None  # Used when trace has spans
+    simple_eval_prompt: Optional[str] = None  # Used for simple input/output traces
 
 
 class SetupStateResponse(BaseModel):

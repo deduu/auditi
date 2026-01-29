@@ -7,6 +7,8 @@ import {
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 
+// ... imports
+
 /**
  * RunEvaluatorPage - Step 2 of LLM-as-a-Judge flow
  * Allows users to configure and execute evaluations on existing traces
@@ -22,6 +24,10 @@ export const RunEvaluatorPage = ({
     const [includeNew, setIncludeNew] = useState(true);
     const [includeExisting, setIncludeExisting] = useState(true);
 
+    // Pagination state
+    const [page, setPage] = useState(0);
+    const [limit, setLimit] = useState(10);
+
     // Filter state
     const [filters, setFilters] = useState({
         dateFrom: "",
@@ -29,7 +35,7 @@ export const RunEvaluatorPage = ({
         models: [],
         traceName: "",
         tags: [],
-        status: "all" // all | success | error
+        status: "needs_evaluation" // Default to smart filter: Review + Pending
     });
     const [showFilters, setShowFilters] = useState(false);
 
@@ -80,7 +86,9 @@ export const RunEvaluatorPage = ({
             const tagsRes = await fetch("/api/v1/evaluation-jobs/traces/tags");
             if (tagsRes.ok) {
                 const tags = await tagsRes.json();
-                setAvailableTags(tags);
+                // Ensure common types are always available
+                const defaultTags = ["llm", "agent", "tool", "retrieval", "standalone"];
+                setAvailableTags(Array.from(new Set([...defaultTags, ...tags])));
             }
         } catch (error) {
             console.error("Failed to fetch filter options:", error);
@@ -102,15 +110,20 @@ export const RunEvaluatorPage = ({
             if (filters.models.length) params.append("models", filters.models.join(","));
             if (filters.traceName) params.append("name", filters.traceName);
             if (filters.tags.length) params.append("tags", filters.tags.join(","));
+
+            // Pass status if not 'all'
             if (filters.status !== "all") params.append("status", filters.status);
-            params.append("limit", "10");
+
+            params.append("limit", limit.toString());
+            params.append("skip", (page * limit).toString());
 
             const res = await fetch(`/api/v1/evaluation-jobs/traces/preview?${params}`);
             if (res.ok) {
                 const data = await res.json();
                 setPreviewTraces(data.traces || []);
                 setTotalMatchingTraces(data.total || 0);
-                // Auto-select all traces on load
+                // Auto-select all traces on load if not checking specifically
+                // Or preserve selection? For now re-select all matches displayed
                 setSelectedTraceIds(new Set(data.traces?.map(t => t.id) || []));
             }
         } catch (error) {
@@ -392,6 +405,7 @@ export const RunEvaluatorPage = ({
                                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                 >
                                     <option value="all">All</option>
+                                    <option value="needs_evaluation">Pending / Review</option>
                                     <option value="success">Success</option>
                                     <option value="error">Error</option>
                                 </select>
@@ -524,6 +538,30 @@ export const RunEvaluatorPage = ({
                                     )}
                                 </tbody>
                             </table>
+
+                            {/* Pagination Footer */}
+                            <div className="flex items-center justify-between p-3 border-t border-slate-700 bg-slate-800/30">
+                                <span className="text-xs text-slate-400">
+                                    Showing {previewTraces.length} of {totalMatchingTraces} traces
+                                </span>
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => setPage(p => Math.max(0, p - 1))}
+                                        disabled={page === 0 || loadingPreview}
+                                        className="px-2 py-1 text-xs rounded border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Previous
+                                    </button>
+                                    <span className="text-xs text-slate-400">Page {page + 1}</span>
+                                    <button
+                                        onClick={() => setPage(p => p + 1)}
+                                        disabled={previewTraces.length < limit || (totalMatchingTraces > 0 && (page + 1) * limit >= totalMatchingTraces) || loadingPreview}
+                                        className="px-2 py-1 text-xs rounded border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

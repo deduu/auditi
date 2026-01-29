@@ -3,7 +3,7 @@ import { Check, ChevronRight, Play, Loader2, Zap, ZapOff } from "lucide-react";
 import { DefaultModelStep } from "../components/evaluations/DefaultModelStep";
 import { SelectEvaluatorStep } from "../components/evaluations/SelectEvaluatorStep";
 import { RunEvaluatorPage } from "../components/evaluations/RunEvaluatorPage";
-import { DefaultModelModal, CreateEvaluatorModal } from "../components/evaluations/EvaluationModals";
+import { DefaultModelModal, CreateEvaluatorModal, EditEvaluatorModal } from "../components/evaluations/EvaluationModals";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import * as llmApi from "../api/llmConnections";
@@ -21,6 +21,8 @@ export const LLMJudgePage = () => {
     // Modal states
     const [showDefaultModelModal, setShowDefaultModelModal] = useState(false);
     const [showCreateEvaluatorModal, setShowCreateEvaluatorModal] = useState(false);
+    const [showEditEvaluatorModal, setShowEditEvaluatorModal] = useState(false);
+    const [evaluatorToEdit, setEvaluatorToEdit] = useState(null);
 
     const steps = [
         { id: 0, label: "Set up default model" },
@@ -184,6 +186,25 @@ export const LLMJudgePage = () => {
         }
     };
 
+    const handleEvaluatorDoubleClick = (evaluator) => {
+        setEvaluatorToEdit(evaluator);
+        setShowEditEvaluatorModal(true);
+    };
+
+    const handleEditEvaluatorSave = async (updates) => {
+        if (!evaluatorToEdit || evaluatorToEdit.evaluator_type === "managed") return;
+        try {
+            const updated = await evaluatorsApi.updateEvaluator(evaluatorToEdit.id, updates);
+            // Update selected evaluator if it's the same one
+            if (selectedEvaluator?.id === evaluatorToEdit.id) {
+                setSelectedEvaluator(updated);
+            }
+            setShowEditEvaluatorModal(false);
+        } catch (error) {
+            console.error("Failed to update evaluator:", error);
+        }
+    };
+
     const canEnableAutoEval = defaultModel && selectedEvaluator;
 
     if (loading) {
@@ -301,6 +322,7 @@ export const LLMJudgePage = () => {
                             onSelectEvaluator={handleEvaluatorSelect}
                             onCreateCustomClick={() => setShowCreateEvaluatorModal(true)}
                             selectedEvaluatorId={selectedEvaluator?.id}
+                            onDoubleClickEvaluator={handleEvaluatorDoubleClick}
                         />
                         {selectedEvaluator && (
                             <div className="flex justify-end mt-6">
@@ -338,6 +360,14 @@ export const LLMJudgePage = () => {
                 isOpen={showCreateEvaluatorModal}
                 onClose={() => setShowCreateEvaluatorModal(false)}
                 onSave={handleCreateEvaluatorSave}
+                defaultModel={defaultModel}
+            />
+
+            <EditEvaluatorModal
+                isOpen={showEditEvaluatorModal}
+                onClose={() => setShowEditEvaluatorModal(false)}
+                evaluator={evaluatorToEdit}
+                onSave={handleEditEvaluatorSave}
                 defaultModel={defaultModel}
             />
         </div>

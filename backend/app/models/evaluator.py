@@ -16,6 +16,7 @@ class Evaluator(Base):
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     evaluator_type = Column(String(50), default="custom")  # managed, custom
+    evaluation_scope = Column(String(20), default="auto")  # auto, simple, trace, span
 
     # Model configuration
     use_default_model = Column(Boolean, default=True)

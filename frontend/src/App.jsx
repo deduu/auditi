@@ -8,11 +8,15 @@ import { ActionsPage } from "./pages/ActionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ScoresPage } from "./pages/ScoresPage";
 import { LLMJudgePage } from "./pages/LLMJudgePage";
+
+import { TracesPage } from "./pages/TracesPage";
+import { TraceDetailPage } from "./pages/TraceDetailPage";
 import { Sidebar } from "./components/layout/Sidebar";
 
 function App() {
     const [activeTab, setActiveTab] = useState("conversations");
     const [selectedConversation, setSelectedConversation] = useState(null);
+    const [selectedTrace, setSelectedTrace] = useState(null);
 
     const renderPage = () => {
         if (activeTab === "conversations" && selectedConversation) {
@@ -29,6 +33,17 @@ function App() {
                 return (
                     <ConversationsPage onSelectConversation={setSelectedConversation} />
                 );
+
+            case "traces":
+                if (selectedTrace) {
+                    return (
+                        <TraceDetailPage
+                            traceId={selectedTrace}
+                            onBack={() => setSelectedTrace(null)}
+                        />
+                    );
+                }
+                return <TracesPage onSelectTrace={setSelectedTrace} />;
             case "scores":
                 return <ScoresPage />;
             case "llm-judge":

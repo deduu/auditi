@@ -7,10 +7,11 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func, or_, and_
+from sqlalchemy import desc, func, or_, and_, cast, String
 import uuid
 
 from app.database import get_db
+
 from app.models import Trace, Span
 from app.models.evaluator import Evaluator, EvaluatorSetupState
 from app.models.llm_connection import LLMConnection
@@ -93,6 +94,7 @@ def get_traces_preview(
     tags: Optional[str] = None,
     status: Optional[str] = None,
     limit: int = 10,
+    skip: int = 0,
     db: Session = Depends(get_db),
 ):
     """Get preview of traces matching filters"""
@@ -116,17 +118,38 @@ def get_traces_preview(
     if name:
         query = query.filter(Trace.name.ilike(f"%{name}%"))
 
+    if tags:
+        # Handle comma-separated tags
+        tag_list = tags.split(",")
+        for tag in tag_list:
+            if tag.strip():
+                query = query.filter(
+                    cast(Trace.tags, String).like(f'%"{tag.strip()}"%')
+                )
+
     if status and status != "all":
         if status == "success":
             query = query.filter(Trace.status == "pass")
         elif status == "error":
             query = query.filter(Trace.status == "fail")
+        elif status == "needs_evaluation":
+            # Status is null OR 'review' OR 'pending' AND score is null (not evaluated)
+            query = query.filter(
+                and_(
+                    or_(
+                        Trace.status == None,
+                        Trace.status == "review",
+                        Trace.status == "pending",
+                    ),
+                    Trace.score == None,
+                )
+            )
 
     # Get total count
     total = query.count()
 
     # Get limited results
-    traces = query.order_by(desc(Trace.start_time)).limit(limit).all()
+    traces = query.order_by(desc(Trace.start_time)).offset(skip).limit(limit).all()
 
     return TracePreviewResponse(
         traces=[

@@ -6,12 +6,9 @@ interactions and sending them to the Auditi platform for evaluation.
 """
 
 from .client import init, get_client, AuditiClient
-from .decorators import trace_agent, trace_tool, trace_llm
+from .decorators import trace_agent, trace_tool, trace_llm, trace_embedding, trace_retrieval
 from .evaluator import BaseEvaluator
-from .context import (
-    get_current_trace, set_current_trace, 
-    set_context, get_context
-)
+from .context import get_current_trace, set_current_trace, set_context, get_context
 from .client import get_client
 from .evaluator import BaseEvaluator
 from .transport import BaseTransport, SyncHttpTransport, DebugTransport
@@ -22,7 +19,7 @@ __version__ = "0.1.0"
 __all__ = [
     # Client
     "init",
-    "get_client", 
+    "get_client",
     "AuditiClient",
     # Context
     "set_context",
@@ -31,7 +28,8 @@ __all__ = [
     "trace_agent",
     "trace_tool",
     "trace_llm",
-    "trace_session",
+    "trace_embedding",
+    "trace_retrieval",
     # Evaluator
     "BaseEvaluator",
     # Transport

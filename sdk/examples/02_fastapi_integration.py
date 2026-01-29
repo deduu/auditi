@@ -4,6 +4,7 @@ CORRECTED: Production FastAPI Integration
 This shows the PROPER way to use Auditi with agentic workflows.
 The key: trace_tool and trace_llm must be called INSIDE a @trace_agent function.
 """
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Any
@@ -14,16 +15,14 @@ from openai import OpenAI
 app = FastAPI(title="AI Assistant API")
 
 # Initialize Auditi at startup
-auditi.init(
-    api_key="your-auditi-api-key",
-    base_url="http://localhost:8000"
-)
+auditi.init(api_key="your-auditi-api-key", base_url="http://localhost:8000")
 
 
 class ChatRequest(BaseModel):
     message: str
     user_id: str
     conversation_id: Optional[str] = None
+
 
 class ChatResponse(BaseModel):
     response: str
@@ -35,6 +34,7 @@ class ChatResponse(BaseModel):
 # They only work when called inside a @trace_agent function
 # ============================================
 
+
 @auditi.trace_llm(name="openai_chat")
 def call_llm(prompt: str, model: str) -> Any:
     """
@@ -44,13 +44,12 @@ def call_llm(prompt: str, model: str) -> Any:
     client = OpenAI()
     api_key = os.getenv("OPENAI_API_KEY")
     masked_key = api_key if api_key else None
-    print("OPENAI_API_KEY:", masked_key)
-    print("Base URL:", client.base_url)
+    # print("OPENAI_API_KEY:", masked_key)
+    # print("Base URL:", client.base_url)
     response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}]
+        model=model, messages=[{"role": "user", "content": prompt}]
     )
-    
+
     return response
 
 
@@ -58,7 +57,7 @@ def call_llm(prompt: str, model: str) -> Any:
 def search_knowledge_base(query: str) -> str:
     """
     Tool call - creates a SPAN in the current trace.
-    
+
     When called inside process_chat(), this becomes a span with:
     - span_type: "tool"
     - inputs: {"query": "..."}
@@ -78,7 +77,7 @@ def fetch_user_context(user_id: str) -> dict:
     return {
         "preferences": "technical explanations",
         "subscription": "premium",
-        "last_topic": "API integration"
+        "last_topic": "API integration",
     }
 
 
@@ -87,15 +86,12 @@ def fetch_user_context(user_id: str) -> dict:
 # This creates ONE trace with multiple spans
 # ============================================
 
+
 @auditi.trace_agent(name="Customer Support Agent")
-def process_chat(
-    message: str, 
-    user_id: str = None, 
-    session_id: str = None
-) -> str:
+def process_chat(message: str, user_id: str = None, session_id: str = None) -> str:
     """
     Main agent function - creates ONE trace that captures:
-    
+
     TRACE:
       - user_input: message
       - user_id: user_id
@@ -106,16 +102,16 @@ def process_chat(
           {type: "tool", name: "search_kb", ...},
           {type: "llm", name: "openai_chat", ...}
         ]
-    
+
     The evaluation will see ALL spans and the final output.
     """
-    
+
     # Step 1: Fetch user context (creates tool span)
     user_context = fetch_user_context(user_id)
-    
+
     # Step 2: Search knowledge base (creates tool span)
     kb_results = search_knowledge_base(message)
-    
+
     # Step 3: Generate response with LLM (creates llm span)
     prompt = f"""You are a helpful assistant.
 
@@ -125,10 +121,10 @@ Knowledge Base Results: {kb_results}
 User Question: {message}
 
 Provide a helpful response:"""
-    
+
     response_obj = call_llm(prompt, model="gpt-4o")
     content = response_obj.choices[0].message.content
-    
+
     # This return value becomes trace.assistant_output
     return content
 
@@ -137,30 +133,27 @@ Provide a helpful response:"""
 # Example: Multi-turn conversation with reflection
 # ============================================
 
+
 @auditi.trace_agent(name="Advanced Agent with Reflection")
-def process_chat_with_reflection(
-    message: str,
-    user_id: str = None,
-    session_id: str = None
-) -> str:
+def process_chat_with_reflection(message: str, user_id: str = None, session_id: str = None) -> str:
     """
     This shows a more complex agentic pattern:
     1. Search
     2. Generate initial response
     3. Reflect on response quality
     4. Refine if needed
-    
+
     All steps are captured as spans in ONE trace.
     """
-    
+
     # Search
     kb_results = search_knowledge_base(message)
-    
+
     # Initial generation
     initial_prompt = f"User: {message}\nContext: {kb_results}\nRespond helpfully:"
     initial_response_obj = call_llm(initial_prompt)
     initial_response = initial_response_obj.choices[0].message.content
-    
+
     # Reflection (another LLM call)
     reflection_prompt = f"""Review this response for accuracy and completeness:
     
@@ -168,10 +161,10 @@ User Question: {message}
 Response: {initial_response}
 
 Is this response good? Reply with GOOD or NEEDS_IMPROVEMENT and explain why."""
-    
+
     reflection_obj = call_llm(reflection_prompt, model="gpt-4")
     reflection = reflection_obj.choices[0].message.content
-    
+
     # Refine if needed
     if "NEEDS_IMPROVEMENT" in reflection:
         refinement_prompt = f"""Improve this response:
@@ -185,7 +178,7 @@ Provide improved response:"""
         final_response = final_response_obj.choices[0].message.content
     else:
         final_response = initial_response
-    
+
     return final_response
 
 
@@ -193,27 +186,25 @@ Provide improved response:"""
 # API Endpoints
 # ============================================
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
     Standard chat endpoint.
-    
+
     Creates ONE trace with multiple spans (tool calls + LLM calls).
     """
-    conversation_id = request.conversation_id or f"conv_{request.user_id}_{int(__import__('time').time())}"
-    
+    conversation_id = (
+        request.conversation_id or f"conv_{request.user_id}_{int(__import__('time').time())}"
+    )
+
     try:
         # This creates ONE trace with ALL the spans inside
         response = process_chat(
-            message=request.message,
-            user_id=request.user_id,
-            session_id=conversation_id
+            message=request.message, user_id=request.user_id, session_id=conversation_id
         )
-        
-        return ChatResponse(
-            response=response,
-            conversation_id=conversation_id
-        )
+
+        return ChatResponse(response=response, conversation_id=conversation_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -222,22 +213,19 @@ async def chat_endpoint(request: ChatRequest):
 async def advanced_chat_endpoint(request: ChatRequest):
     """
     Advanced chat with reflection.
-    
+
     Also creates ONE trace, but with more spans (search + 2-3 LLM calls).
     """
-    conversation_id = request.conversation_id or f"conv_{request.user_id}_{int(__import__('time').time())}"
-    
+    conversation_id = (
+        request.conversation_id or f"conv_{request.user_id}_{int(__import__('time').time())}"
+    )
+
     try:
         response = process_chat_with_reflection(
-            message=request.message,
-            user_id=request.user_id,
-            session_id=conversation_id
+            message=request.message, user_id=request.user_id, session_id=conversation_id
         )
-        
-        return ChatResponse(
-            response=response,
-            conversation_id=conversation_id
-        )
+
+        return ChatResponse(response=response, conversation_id=conversation_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -297,4 +285,5 @@ The evaluator will then assess:
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8080)

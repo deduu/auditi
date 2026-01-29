@@ -124,6 +124,167 @@ def _apply_usage_to_trace(trace: TraceInput, usage: Any, model: Optional[str] = 
     trace.cost = (trace.cost or 0.0) + incremental_cost
 
 
+def _execute_as_standalone_trace(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    span_type: str,
+    name: Optional[str],
+    model: Optional[str],
+) -> Any:
+    """
+    Execute a function as a standalone trace (no parent trace required).
+
+    This creates a simple trace with the function result as the only content.
+    Used when @trace_llm or @trace_tool is called with standalone=True
+    outside of a @trace_agent context.
+    """
+    client = get_client()
+    trace_id = uuid4()
+    span_id = uuid4()
+    start_time = datetime.utcnow()
+    func_name = name or func.__name__
+
+    # Extract user input from args/kwargs
+    user_input = ""
+    if args:
+        first_arg = args[0]
+        if isinstance(first_arg, str):
+            user_input = first_arg
+        elif isinstance(first_arg, list):
+            # Could be messages array
+            user_input = str(first_arg)
+        elif isinstance(first_arg, dict):
+            user_input = first_arg.get("content") or first_arg.get("message") or str(first_arg)
+        else:
+            user_input = str(first_arg)
+
+    if not user_input:
+        user_input = kwargs.get("prompt") or kwargs.get("message") or kwargs.get("query") or ""
+
+    # Create trace
+    trace = TraceInput(
+        id=trace_id,
+        start_time=start_time,
+        user_input=user_input[:2000],
+        name=func_name,
+        tags=["standalone", span_type],
+    )
+    set_current_trace(trace)
+
+    # Create span
+    span = SpanInput(
+        id=span_id,
+        trace_id=trace_id,
+        name=func_name,
+        span_type=span_type,
+        start_time=start_time,
+        inputs={"prompt": user_input[:500]} if user_input else {},
+        model=model,
+    )
+    push_span(span)
+
+    result = None
+    error_msg = None
+
+    try:
+        result = func(*args, **kwargs)
+        print(f"[Auditi] Standalone {span_type} trace captured.")
+
+        # Extract model from response if not set
+        if not span.model:
+            provider = detect_provider(response=result)
+            extracted_model = provider.extract_model(result)
+            if extracted_model:
+                span.model = extracted_model
+
+        # Extract output and usage based on response type
+        if hasattr(result, "choices") and result.choices:
+            # OpenAI-style response
+            try:
+                choice = result.choices[0]
+                if hasattr(choice, "message") and hasattr(choice.message, "content"):
+                    output = str(choice.message.content)
+                elif hasattr(choice, "text"):
+                    output = str(choice.text)
+                else:
+                    output = str(result)
+            except (IndexError, AttributeError):
+                output = str(result)
+
+            trace.assistant_output = output[:2000]
+            span.outputs = output[:2000]
+
+            if hasattr(result, "usage") and result.usage:
+                _apply_usage_to_span(span, result.usage, response=result)
+
+        elif hasattr(result, "data"):
+            # Embedding response (OpenAI embeddings have .data)
+            if hasattr(result, "usage"):
+                _apply_usage_to_span(span, result.usage, response=result)
+            span.outputs = f"Generated {len(result.data)} embeddings"
+            trace.assistant_output = span.outputs
+
+        elif isinstance(result, str):
+            trace.assistant_output = result[:2000]
+            span.outputs = result[:2000]
+
+        elif isinstance(result, dict):
+            content = (
+                result.get("content") or result.get("text") or result.get("response") or str(result)
+            )
+            trace.assistant_output = str(content)[:2000]
+            span.outputs = str(content)[:2000]
+            if "usage" in result:
+                _apply_usage_to_span(span, result["usage"], response=result)
+
+        elif hasattr(result, "content"):
+            trace.assistant_output = str(result.content)[:2000]
+            span.outputs = str(result.content)[:2000]
+            if hasattr(result, "usage"):
+                _apply_usage_to_span(span, result.usage, response=result)
+
+        else:
+            trace.assistant_output = str(result)[:2000] if result else ""
+            span.outputs = str(result)[:2000] if result else ""
+
+        span.status = "ok"
+
+    except Exception as e:
+        error_msg = str(e)
+        trace.assistant_output = f"Error: {e}"
+        trace.error = error_msg
+        span.error = error_msg
+        span.status = "error"
+        raise
+
+    finally:
+        end_time = datetime.utcnow()
+        span.end_time = end_time
+        trace.end_time = end_time
+
+        pop_span()
+        trace.spans.append(span)
+
+        # Aggregate metrics from span to trace
+        if span.tokens:
+            trace.total_tokens = span.tokens
+        if span.cost:
+            trace.cost = span.cost
+
+        # Send trace
+        trace_payload = trace.model_dump(mode="json")
+        _debug_log(f"Sending standalone trace payload for '{func_name}':", trace_payload)
+        client.transport.send_trace(trace_payload)
+
+        # Clear context
+        from .context import clear_current_trace
+
+        clear_current_trace()
+
+    return result
+
+
 def trace_agent(
     name: Optional[str] = None,
     user_id: Optional[str] = None,
@@ -326,10 +487,19 @@ def trace_agent(
 
 
 def _trace_span(
-    span_type: str, name: Optional[str] = None, model: Optional[str] = None
+    span_type: str,
+    name: Optional[str] = None,
+    model: Optional[str] = None,
+    standalone: bool = False,
 ) -> Callable:
     """
     Internal helper to create span tracing decorators.
+
+    Args:
+        span_type: Type of span ("llm", "tool", "embedding", etc.)
+        name: Optional custom name for the span
+        model: Optional model name
+        standalone: If True, creates a standalone trace when no parent trace exists
     """
 
     def decorator(func: Callable) -> Callable:
@@ -337,8 +507,12 @@ def _trace_span(
         def wrapper(*args, **kwargs) -> Any:
             trace = get_current_trace()
             if not trace:
-                # If no active trace, just run the function normally
-                return func(*args, **kwargs)
+                if standalone:
+                    # Create a standalone trace for this call
+                    return _execute_as_standalone_trace(func, args, kwargs, span_type, name, model)
+                else:
+                    # Original behavior: just run the function normally
+                    return func(*args, **kwargs)
 
             parent = get_current_span()
             span_id = uuid4()
@@ -529,25 +703,79 @@ def _trace_span(
     return decorator
 
 
-def trace_tool(name: Optional[str] = None) -> Callable:
+def trace_tool(name: Optional[str] = None, standalone: bool = False) -> Callable:
     """
     Decorator to trace a tool/function call within an agent.
+
+    Args:
+        name: Optional custom name for the tool span
+        standalone: If True, creates its own trace when not inside @trace_agent
 
     Example:
         >>> @trace_tool("database_search")
         ... def search_db(query: str) -> list:
         ...     return db.search(query)
+
+        >>> # Standalone tool call (creates its own trace)
+        >>> @trace_tool(standalone=True)
+        ... def standalone_tool(data: str) -> str:
+        ...     return process(data)
     """
-    return _trace_span("tool", name)
+    return _trace_span("tool", name, standalone=standalone)
 
 
-def trace_llm(name: Optional[str] = None, model: Optional[str] = None) -> Callable:
+def trace_llm(
+    name: Optional[str] = None, model: Optional[str] = None, standalone: bool = False
+) -> Callable:
     """
     Decorator to trace an LLM call within an agent.
+
+    Args:
+        name: Optional custom name for the LLM span
+        model: Optional model name (auto-detected from response if not provided)
+        standalone: If True, creates its own trace when not inside @trace_agent
 
     Example:
         >>> @trace_llm("generate_response", model="gpt-4")
         ... def call_gpt(prompt: str) -> str:
         ...     return openai.chat(prompt)
+
+        >>> # Standalone LLM call (creates its own trace)
+        >>> @trace_llm(standalone=True)
+        ... def simple_chat(prompt: str) -> str:
+        ...     return openai.chat(prompt)
     """
-    return _trace_span("llm", name, model)
+    return _trace_span("llm", name, model, standalone=standalone)
+
+
+def trace_embedding(name: Optional[str] = None, model: Optional[str] = None) -> Callable:
+    """
+    Decorator to trace an embedding call. Always creates a standalone trace
+    when not inside @trace_agent (embeddings are typically standalone operations).
+
+    Args:
+        name: Optional custom name for the embedding span
+        model: Optional model name (auto-detected from response if not provided)
+
+    Example:
+        >>> @trace_embedding()
+        ... def embed_text(text: str) -> list:
+        ...     return openai.embeddings.create(input=text, model="text-embedding-3-small")
+    """
+    return _trace_span("embedding", name, model, standalone=True)
+
+
+def trace_retrieval(name: Optional[str] = None) -> Callable:
+    """
+    Decorator to trace a retrieval/search operation (e.g., vector DB search).
+    Always creates a standalone trace when not inside @trace_agent.
+
+    Args:
+        name: Optional custom name for the retrieval span
+
+    Example:
+        >>> @trace_retrieval("vector_search")
+        ... def search_docs(query: str) -> list:
+        ...     return vector_db.similarity_search(query)
+    """
+    return _trace_span("retrieval", name, standalone=True)

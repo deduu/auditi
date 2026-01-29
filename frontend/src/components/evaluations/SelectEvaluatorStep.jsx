@@ -4,7 +4,7 @@ import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import * as evaluatorsApi from "../../api/evaluatorsApi";
 
-export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, selectedEvaluatorId }) => {
+export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, selectedEvaluatorId, onDoubleClickEvaluator }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [localSelectedId, setLocalSelectedId] = useState(selectedEvaluatorId || null);
     const [managedEvaluators, setManagedEvaluators] = useState([]);
@@ -85,15 +85,26 @@ export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, se
                                 <Card
                                     key={evaluator.id}
                                     onClick={() => handleSelect(evaluator)}
+                                    onDoubleClick={() => onDoubleClickEvaluator?.(evaluator)}
                                     className={`p-4 cursor-pointer transition-all duration-200 ${localSelectedId === evaluator.id
-                                            ? "bg-blue-600/10 border-blue-500/50 ring-1 ring-blue-500/30"
-                                            : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
+                                        ? "bg-blue-600/10 border-blue-500/50 ring-1 ring-blue-500/30"
+                                        : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
                                         }`}
                                 >
                                     <div className="flex items-start justify-between">
                                         <div>
-                                            <h4 className="text-base font-medium text-white">{evaluator.name}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-base font-medium text-white">{evaluator.name}</h4>
+                                                <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${evaluator.evaluation_scope === "simple" ? "bg-green-500/20 text-green-400" :
+                                                        evaluator.evaluation_scope === "trace" ? "bg-purple-500/20 text-purple-400" :
+                                                            "bg-blue-500/20 text-blue-400"
+                                                    }`}>
+                                                    {evaluator.evaluation_scope === "simple" ? "Simple" :
+                                                        evaluator.evaluation_scope === "trace" ? "Trace" : "Auto"}
+                                                </span>
+                                            </div>
                                             <p className="text-sm text-slate-400 mt-1">{evaluator.description || "Custom evaluator"}</p>
+                                            <p className="text-xs text-slate-500 mt-1">Double-click to view/edit</p>
                                         </div>
                                         {localSelectedId === evaluator.id && (
                                             <CheckCircle className="w-5 h-5 text-blue-400 shrink-0" />
@@ -122,15 +133,26 @@ export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, se
                             <Card
                                 key={evaluator.id}
                                 onClick={() => handleSelect(evaluator)}
+                                onDoubleClick={() => onDoubleClickEvaluator?.(evaluator)}
                                 className={`p-4 cursor-pointer transition-all duration-200 ${localSelectedId === evaluator.id
-                                        ? "bg-blue-600/10 border-blue-500/50 ring-1 ring-blue-500/30"
-                                        : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
+                                    ? "bg-blue-600/10 border-blue-500/50 ring-1 ring-blue-500/30"
+                                    : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
                                     }`}
                             >
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <h4 className="text-base font-medium text-white">{evaluator.name}</h4>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-base font-medium text-white">{evaluator.name}</h4>
+                                            <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${evaluator.evaluation_scope === "simple" ? "bg-green-500/20 text-green-400" :
+                                                    evaluator.evaluation_scope === "trace" ? "bg-purple-500/20 text-purple-400" :
+                                                        "bg-blue-500/20 text-blue-400"
+                                                }`}>
+                                                {evaluator.evaluation_scope === "simple" ? "Simple" :
+                                                    evaluator.evaluation_scope === "trace" ? "Trace" : "Auto"}
+                                            </span>
+                                        </div>
                                         <p className="text-sm text-slate-400 mt-1">{evaluator.description}</p>
+                                        <p className="text-xs text-slate-500 mt-1">Double-click to view prompt</p>
                                     </div>
                                     {localSelectedId === evaluator.id && (
                                         <CheckCircle className="w-5 h-5 text-blue-400 shrink-0" />

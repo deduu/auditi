@@ -18,6 +18,7 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
       label: 'Monitoring',
       items: [
         { id: 'conversations', label: 'Conversations', icon: MessageSquare },
+        { id: 'traces', label: 'Traces', icon: FileText },
         { id: 'failure-modes', label: 'Failure Modes', icon: AlertTriangle },
         { id: 'models', label: 'Models', icon: Zap },
         { id: 'actions', label: 'Recommended Actions', icon: FileText },
