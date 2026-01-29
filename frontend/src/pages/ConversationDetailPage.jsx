@@ -18,6 +18,7 @@ import { useConversationDetail } from "../hooks/useConversationDetail";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
+import ContentRenderer from "../components/ui/ContentRenderer";
 
 const EvaluationBadge = ({ status, score }) => {
   // Helper to format score
@@ -146,59 +147,7 @@ const SpanItem = ({ span }) => {
   };
 
 
-  const formatJSONValue = (value) => {
-    if (value === null || value === undefined) return "";
-    if (typeof value === "object") {
-      return JSON.stringify(value, null, 2);
-    }
-    // Try to parse as JSON if it looks like a JSON string
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-        (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          return JSON.stringify(parsed, null, 2);
-        } catch {
-          // Not valid JSON, return as-is
-        }
-      }
-    }
-    return String(value);
-  };
 
-  // Format JSON value with simple formatting (no HTML injection for safety)
-  const formatJSONDisplay = (value) => {
-    if (value === null || value === undefined) return "";
-
-    // Convert to formatted JSON string
-    let str;
-    if (typeof value === "object") {
-      str = JSON.stringify(value, null, 2);
-    } else if (typeof value === "string") {
-      // Try to parse if it looks like JSON
-      const trimmed = value.trim();
-      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-        (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          str = JSON.stringify(parsed, null, 2);
-        } catch {
-          str = value;
-        }
-      } else {
-        str = value;
-      }
-    } else {
-      str = String(value);
-    }
-
-    // Convert escaped newlines to actual newlines for display
-    // This makes prompts more readable
-    str = str.replace(/\\n/g, '\n');
-
-    return str;
-  };
 
   return (
     <div
@@ -317,10 +266,8 @@ const SpanItem = ({ span }) => {
           {span?.inputs && (
             <div>
               <p className="text-xs font-medium text-slate-400 mb-1">Inputs:</p>
-              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-40 resize-y overflow-y-auto">
-                <pre className="text-xs text-cyan-300 font-mono whitespace-pre-wrap break-words">
-                  {formatJSONDisplay(span.inputs)}
-                </pre>
+              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-60 resize-y overflow-y-auto">
+                <ContentRenderer content={span.inputs} type="auto" className="text-xs" />
               </div>
             </div>
           )}
@@ -331,10 +278,8 @@ const SpanItem = ({ span }) => {
               <p className="text-xs font-medium text-slate-400 mb-1">
                 Outputs:
               </p>
-              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-40 resize-y overflow-y-auto">
-                <pre className="text-xs text-emerald-300 font-mono whitespace-pre-wrap break-words">
-                  {formatJSONDisplay(span.outputs)}
-                </pre>
+              <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-60 resize-y overflow-y-auto">
+                <ContentRenderer content={span.outputs} type="auto" className="text-xs" />
               </div>
             </div>
           )}
@@ -495,9 +440,9 @@ const TurnCard = ({ turn, turnNumber }) => {
               </div>
               <div className="flex-1">
                 <p className="text-xs font-medium text-slate-400 mb-1">User</p>
-                <p className="text-sm text-slate-200">
-                  {turn?.user?.content ?? ""}
-                </p>
+                <div className="text-sm text-slate-200">
+                  <ContentRenderer content={turn?.user?.content} />
+                </div>
               </div>
             </div>
           </div>
@@ -529,9 +474,9 @@ const TurnCard = ({ turn, turnNumber }) => {
                 <p className="text-xs font-medium text-slate-400 mb-1">
                   Assistant
                 </p>
-                <p className="text-sm text-slate-200 whitespace-pre-wrap">
-                  {turn?.assistant?.content ?? ""}
-                </p>
+                <div className="text-sm text-slate-200">
+                  <ContentRenderer content={turn?.assistant?.content} />
+                </div>
               </div>
             </div>
           </div>

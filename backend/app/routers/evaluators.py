@@ -614,13 +614,46 @@ def update_setup_state(data: SetupStateUpdate, db: Session = Depends(get_db)):
         state = EvaluatorSetupState(id="default")
         db.add(state)
 
+    # Helper to clean up connection_id (managed evaluators don't need it or use default)
+    # But Evaluator model has nullable connection_id.
+
+    # Helper to ensure managed evaluator exists in DB
+    def ensure_managed_evaluator_exists(eval_id: str):
+        # Check if it's a managed evaluator
+        managed = next((m for m in MANAGED_EVALUATORS if m.id == eval_id), None)
+        if managed:
+            # Check if exists in DB
+            exists = db.query(Evaluator).filter(Evaluator.id == eval_id).first()
+            if not exists:
+                # Create it
+                db_eval = Evaluator(
+                    id=managed.id,
+                    name=managed.name,
+                    description=managed.description,
+                    evaluator_type="managed",
+                    evaluation_scope=managed.evaluation_scope,
+                    simple_eval_prompt=managed.simple_eval_prompt,
+                    trace_eval_prompt=managed.trace_eval_prompt,
+                    # Managed evaluators usually rely on the default connection passed at runtime
+                    # or user configuration. For now, leave connection_id/model_name null
+                    # unless we want to enforce defaults.
+                    # The Evaluator table defaults use_default_model=True.
+                )
+                db.add(db_eval)
+                db.flush()  # Ensure ID is available for FK check
+
     if data.current_step is not None:
         state.current_step = str(data.current_step)
+
     if data.selected_evaluator_id is not None:
+        ensure_managed_evaluator_exists(data.selected_evaluator_id)
         state.selected_evaluator_id = data.selected_evaluator_id
+
     if data.auto_eval_enabled is not None:
         state.auto_eval_enabled = data.auto_eval_enabled
+
     if data.active_evaluator_id is not None:
+        ensure_managed_evaluator_exists(data.active_evaluator_id)
         state.active_evaluator_id = data.active_evaluator_id
 
     db.commit()

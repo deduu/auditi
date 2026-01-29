@@ -4,6 +4,7 @@ import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpC
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import ContentRenderer from "../components/ui/ContentRenderer";
 import { format } from "date-fns";
 
 const StatusBadge = ({ status }) => {
@@ -111,8 +112,8 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
                     <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 font-medium text-slate-300 text-sm">
                         Input
                     </div>
-                    <div className="p-4 bg-slate-950 font-mono text-sm text-slate-300 whitespace-pre-wrap overflow-y-auto max-h-[500px]">
-                        {trace.userInput}
+                    <div className="p-4 bg-slate-950 text-sm text-slate-300 overflow-y-auto max-h-[500px]">
+                        <ContentRenderer content={trace.userInput} type="auto" />
                     </div>
                 </Card>
 
@@ -120,8 +121,8 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
                     <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 font-medium text-slate-300 text-sm">
                         Output
                     </div>
-                    <div className="p-4 bg-slate-950 font-mono text-sm text-slate-300 whitespace-pre-wrap overflow-y-auto max-h-[500px]">
-                        {trace.assistantOutput}
+                    <div className="p-4 bg-slate-950 text-sm text-slate-300 overflow-y-auto max-h-[500px]">
+                        <ContentRenderer content={trace.assistantOutput} type="auto" />
                     </div>
                 </Card>
             </div>
@@ -135,8 +136,8 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
                             <div key={span.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
                                 <div className="flex items-center gap-3">
                                     <span className={`px-2 py-0.5 text-xs font-medium rounded uppercase ${span.spanType === 'llm' ? 'bg-blue-500/10 text-blue-400' :
-                                            span.spanType === 'tool' ? 'bg-purple-500/10 text-purple-400' :
-                                                'bg-slate-500/10 text-slate-400'
+                                        span.spanType === 'tool' ? 'bg-purple-500/10 text-purple-400' :
+                                            'bg-slate-500/10 text-slate-400'
                                         }`}>
                                         {span.spanType}
                                     </span>
