@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
+import { PaginationFooter } from "../ui/PaginationFooter";
 
 // ... imports
 
@@ -540,28 +541,17 @@ export const RunEvaluatorPage = ({
                             </table>
 
                             {/* Pagination Footer */}
-                            <div className="flex items-center justify-between p-3 border-t border-slate-700 bg-slate-800/30">
-                                <span className="text-xs text-slate-400">
-                                    Showing {previewTraces.length} of {totalMatchingTraces} traces
-                                </span>
-                                <div className="flex items-center space-x-2">
-                                    <button
-                                        onClick={() => setPage(p => Math.max(0, p - 1))}
-                                        disabled={page === 0 || loadingPreview}
-                                        className="px-2 py-1 text-xs rounded border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Previous
-                                    </button>
-                                    <span className="text-xs text-slate-400">Page {page + 1}</span>
-                                    <button
-                                        onClick={() => setPage(p => p + 1)}
-                                        disabled={previewTraces.length < limit || (totalMatchingTraces > 0 && (page + 1) * limit >= totalMatchingTraces) || loadingPreview}
-                                        className="px-2 py-1 text-xs rounded border border-slate-600 text-slate-300 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
-                            </div>
+                            <PaginationFooter
+                                currentPage={page + 1}
+                                totalPages={Math.ceil(totalMatchingTraces / limit)}
+                                pageSize={limit}
+                                onPageChange={(newPage) => setPage(newPage - 1)}
+                                onPageSizeChange={(newSize) => {
+                                    setLimit(newSize);
+                                    setPage(0);
+                                }}
+                                disabled={loadingPreview}
+                            />
                         </div>
                     </div>
                 )}

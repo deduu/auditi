@@ -9,6 +9,8 @@ import json
 import os
 from datetime import datetime
 from uuid import uuid4
+import asyncio
+import inspect
 from typing import Optional, Callable, Any
 
 from .types import TraceInput, SpanInput
@@ -293,197 +295,674 @@ def trace_agent(
 ) -> Callable:
     """
     Decorator to trace an entire agent interaction.
-
-    The decorator intelligently captures user input:
-    - First positional string argument is treated as user_input
-    - session_id/conversation_id from kwargs for conversation tracking
-    - user_id from kwargs or decorator parameter
-
-    Args:
-        name: Optional name for the trace (defaults to function name)
-        user_id: Default user ID (can be overridden by kwargs)
-        evaluator: Optional evaluator to run after completion
-        capture_input: Whether to capture the first arg as user_input (default: True)
-
-    Example:
-        >>> @trace_agent(name="Customer Support Bot")
-        ... def my_agent(user_message: str, user_id: str = None, session_id: str = None):
-        ...     return process_message(user_message)
-        ...
-        >>> # Call with explicit context
-        >>> my_agent("Hello!", user_id="user_123", session_id="conv_456")
+    Supports both sync and async functions, and handles instance methods.
     """
 
     def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            client = get_client()
-            trace_id = uuid4()
-            start_time = datetime.utcnow()
+        # Check if the function is async
+        is_async = asyncio.iscoroutinefunction(func)
 
-            trace_name = name or func.__name__
+        if is_async:
 
-            # Smart extraction of context from kwargs or global context
-            ctx = get_context()
-            session_id = (
-                kwargs.get("session_id") or kwargs.get("conversation_id") or ctx.get("session_id")
-            )
-            resolved_user_id = kwargs.get("user_id") or user_id or ctx.get("user_id")
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs) -> Any:
+                client = get_client()
+                trace_id = uuid4()
+                start_time = datetime.utcnow()
 
-            _debug_log(
-                f"Starting trace '{trace_name}':",
-                {
-                    "trace_id": str(trace_id),
-                    "user_id": resolved_user_id,
-                    "session_id": session_id,
-                    "args": [str(arg)[:100] for arg in args],
-                    "kwargs_keys": list(kwargs.keys()),
-                },
-            )
+                trace_name = name or func.__name__
 
-            # Smart extraction of user input
-            user_input = ""
-            if capture_input and args:
-                # First positional argument is typically the user message
-                first_arg = args[0]
-                if isinstance(first_arg, str):
-                    user_input = first_arg
-                elif isinstance(first_arg, dict) and "message" in first_arg:
-                    user_input = first_arg["message"]
-                elif isinstance(first_arg, dict) and "content" in first_arg:
-                    user_input = first_arg["content"]
-                else:
-                    user_input = str(first_arg)
-
-            # Also check for user_input/message/query in kwargs
-            if not user_input:
-                user_input = (
-                    kwargs.get("user_input")
-                    or kwargs.get("message")
-                    or kwargs.get("query")
-                    or kwargs.get("prompt")
-                    or ""
+                # Smart extraction of context from kwargs or global context
+                ctx = get_context()
+                session_id = (
+                    kwargs.get("session_id")
+                    or kwargs.get("conversation_id")
+                    or ctx.get("session_id")
                 )
-
-            _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
-
-            # Create Trace
-            trace = TraceInput(
-                id=trace_id,
-                user_id=resolved_user_id,
-                conversation_id=session_id,
-                start_time=start_time,
-                user_input=user_input,
-                name=trace_name,
-                tags=kwargs.get("tags", []),
-            )
-            set_current_trace(trace)
-
-            result = None
-            error_msg = None
-
-            try:
-                result = func(*args, **kwargs)
-                print("[Auditi] Trace captured.")
-                if DEBUG:
-                    print(f"result: {result}")
-
-                # Smart extraction of assistant output
-                if isinstance(result, str):
-                    trace.assistant_output = result
-                elif isinstance(result, dict):
-                    trace.assistant_output = (
-                        result.get("content")
-                        or result.get("message")
-                        or result.get("response")
-                        or str(result)
-                    )
-
-                    # Extract model for provider detection
-                    model = result.get("model")
-
-                    # EXTRACT METRICS from result dict if available
-                    if "usage" in result:
-                        _apply_usage_to_trace(trace, result["usage"], model=model)
-
-                elif hasattr(result, "content"):
-                    trace.assistant_output = str(result.content)
-
-                    # Extract model from response
-                    model = getattr(result, "model", None)
-                    if model:
-                        model = str(model)
-
-                    # Check for usage on object
-                    if hasattr(result, "usage"):
-                        try:
-                            _apply_usage_to_trace(trace, result.usage, model=model)
-                        except Exception as e:
-                            _debug_log(f"Failed to extract usage from result object: {e}")
-
-                else:
-                    trace.assistant_output = str(result) if result else ""
-
-                    # Try to extract model and usage
-                    model = getattr(result, "model", None)
-                    if model:
-                        model = str(model)
-
-                    if hasattr(result, "usage"):
-                        try:
-                            _apply_usage_to_trace(trace, result.usage, model=model)
-                        except Exception as e:
-                            _debug_log(f"Failed to extract usage: {e}")
+                resolved_user_id = kwargs.get("user_id") or user_id or ctx.get("user_id")
 
                 _debug_log(
-                    f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                    f"Starting trace '{trace_name}':",
+                    {
+                        "trace_id": str(trace_id),
+                        "user_id": resolved_user_id,
+                        "session_id": session_id,
+                        "args": [str(arg)[:100] for arg in args],
+                        "kwargs_keys": list(kwargs.keys()),
+                    },
                 )
 
-            except Exception as e:
-                error_msg = str(e)
-                trace.assistant_output = f"Error: {e}"
-                trace.error = error_msg
-                _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
-                raise
-            finally:
-                trace.end_time = datetime.utcnow()
+                # Smart extraction of user input - SKIP SELF/CLS
+                user_input = ""
+                if capture_input and args:
+                    # Determine starting index (skip 'self' or 'cls')
+                    start_idx = 0
+                    if args:
+                        first_arg = args[0]
+                        # Check if first arg is likely 'self' or 'cls'
+                        # It's self/cls if it's an object that's not a basic type
+                        if not isinstance(
+                            first_arg, (str, int, float, bool, list, dict, tuple, type(None))
+                        ):
+                            start_idx = 1
+                            _debug_log(
+                                f"Skipping first argument (detected as self/cls): {type(first_arg)}"
+                            )
 
-                # Aggregate metrics from spans if not set on trace
-                if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
-                    calculated_tokens = 0
-                    calculated_cost = 0.0
-                    for s in trace.spans:
-                        if s.tokens:
-                            calculated_tokens += s.tokens
-                        if s.cost:
-                            calculated_cost += s.cost
+                    # Get the actual user input from the correct position
+                    if len(args) > start_idx:
+                        first_arg = args[start_idx]
+                        if isinstance(first_arg, str):
+                            user_input = first_arg
+                        elif isinstance(first_arg, dict) and "message" in first_arg:
+                            user_input = first_arg["message"]
+                        elif isinstance(first_arg, dict) and "content" in first_arg:
+                            user_input = first_arg["content"]
+                        else:
+                            user_input = str(first_arg)
 
-                    if calculated_tokens > 0:
-                        trace.total_tokens = calculated_tokens
-                        if trace.cost is None or trace.cost == 0.0:
-                            trace.cost = calculated_cost
+                # Also check for user_input/message/query in kwargs
+                if not user_input:
+                    user_input = (
+                        kwargs.get("user_input")
+                        or kwargs.get("message")
+                        or kwargs.get("query")
+                        or kwargs.get("prompt")
+                        or ""
+                    )
 
-                # Run Evaluator if provided and no error
-                if evaluator and not error_msg:
-                    try:
-                        eval_result = evaluator.evaluate(trace)
-                        trace.evaluation = eval_result
-                        _debug_log("Evaluation result:", eval_result)
-                    except Exception as e:
-                        print(f"[Auditi] Evaluator failed: {e}")
+                _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
 
-                # Prepare and log payload
-                trace_payload = trace.model_dump(mode="json")
-                _debug_log(f"Sending trace payload for '{trace_name}':", trace_payload)
+                # Create Trace
+                trace = TraceInput(
+                    id=trace_id,
+                    user_id=resolved_user_id,
+                    conversation_id=session_id,
+                    start_time=start_time,
+                    user_input=user_input,
+                    name=trace_name,
+                    tags=kwargs.get("tags", []),
+                )
+                set_current_trace(trace)
 
-                # Send Trace
-                client.transport.send_trace(trace_payload)
+                result = None
+                error_msg = None
 
-            return result
+                try:
+                    result = await func(*args, **kwargs)
+                    print("[Auditi] Trace captured.")
+                    if DEBUG:
+                        print(f"result type: {type(result)}")
+                        print(f"result: {str(result)[:200]}")
 
-        return wrapper
+                    # Smart extraction of assistant output
+                    if isinstance(result, str):
+                        trace.assistant_output = result
+                    elif isinstance(result, dict):
+                        trace.assistant_output = (
+                            result.get("content")
+                            or result.get("message")
+                            or result.get("response")
+                            or str(result)
+                        )
+
+                        # Extract model for provider detection
+                        model = result.get("model")
+
+                        # EXTRACT METRICS from result dict if available
+                        if "usage" in result:
+                            _apply_usage_to_trace(trace, result["usage"], model=model)
+
+                    elif hasattr(result, "content"):
+                        trace.assistant_output = str(result.content)
+
+                        # Extract model from response
+                        model = getattr(result, "model", None)
+                        if model:
+                            model = str(model)
+
+                        # Check for usage on object
+                        if hasattr(result, "usage"):
+                            try:
+                                _apply_usage_to_trace(trace, result.usage, model=model)
+                            except Exception as e:
+                                _debug_log(f"Failed to extract usage from result object: {e}")
+
+                    else:
+                        trace.assistant_output = str(result) if result else ""
+
+                        # Try to extract model and usage
+                        model = getattr(result, "model", None)
+                        if model:
+                            model = str(model)
+
+                        if hasattr(result, "usage"):
+                            try:
+                                _apply_usage_to_trace(trace, result.usage, model=model)
+                            except Exception as e:
+                                _debug_log(f"Failed to extract usage: {e}")
+
+                    _debug_log(
+                        f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                    )
+
+                except Exception as e:
+                    error_msg = str(e)
+                    trace.assistant_output = f"Error: {e}"
+                    trace.error = error_msg
+                    _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
+                    raise
+                finally:
+                    trace.end_time = datetime.utcnow()
+
+                    # Aggregate metrics from spans if not set on trace
+                    if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
+                        calculated_tokens = 0
+                        calculated_cost = 0.0
+                        for s in trace.spans:
+                            if s.tokens:
+                                calculated_tokens += s.tokens
+                            if s.cost:
+                                calculated_cost += s.cost
+
+                        if calculated_tokens > 0:
+                            trace.total_tokens = calculated_tokens
+                            if trace.cost is None or trace.cost == 0.0:
+                                trace.cost = calculated_cost
+
+                    # Run Evaluator if provided and no error
+                    if evaluator and not error_msg:
+                        try:
+                            eval_result = evaluator.evaluate(trace)
+                            # FIX: Map evaluation result to TraceInput fields
+                            trace.status = eval_result.status
+                            trace.score = eval_result.score
+                            if eval_result.reason:
+                                trace.eval_reason = eval_result.reason
+                            if eval_result.failure_mode:
+                                trace.failure_mode = eval_result.failure_mode
+
+                            _debug_log("Evaluation result:", eval_result)
+                        except Exception as e:
+                            print(f"[Auditi] Evaluator failed: {e}")
+
+                    # Prepare and log payload
+                    trace_payload = trace.model_dump(mode="json")
+                    _debug_log(f"Sending trace payload for '{trace_name}':", trace_payload)
+
+                    # Send Trace
+                    client.transport.send_trace(trace_payload)
+
+                return result
+
+            return async_wrapper
+
+        elif inspect.isasyncgenfunction(func):
+
+            @functools.wraps(func)
+            async def async_gen_wrapper(*args, **kwargs) -> Any:
+                client = get_client()
+                trace_id = uuid4()
+                start_time = datetime.utcnow()
+
+                trace_name = name or func.__name__
+
+                # Smart extraction of context from kwargs or global context
+                ctx = get_context()
+                session_id = (
+                    kwargs.get("session_id")
+                    or kwargs.get("conversation_id")
+                    or ctx.get("session_id")
+                )
+                resolved_user_id = kwargs.get("user_id") or user_id or ctx.get("user_id")
+
+                _debug_log(
+                    f"Starting async generator trace '{trace_name}':",
+                    {
+                        "trace_id": str(trace_id),
+                        "user_id": resolved_user_id,
+                        "session_id": session_id,
+                        "args": [str(arg)[:100] for arg in args],
+                        "kwargs_keys": list(kwargs.keys()),
+                    },
+                )
+
+                # Smart extraction of user input - SKIP SELF/CLS
+                user_input = ""
+                if capture_input and args:
+                    # Determine starting index (skip 'self' or 'cls')
+                    start_idx = 0
+                    if args:
+                        first_arg = args[0]
+                        # Check if first arg is likely 'self' or 'cls'
+                        # It's self/cls if it's an object that's not a basic type
+                        if not isinstance(
+                            first_arg, (str, int, float, bool, list, dict, tuple, type(None))
+                        ):
+                            start_idx = 1
+
+                    # Get the actual user input from the correct position
+                    if len(args) > start_idx:
+                        first_arg = args[start_idx]
+                        if isinstance(first_arg, str):
+                            user_input = first_arg
+                        elif isinstance(first_arg, dict) and "message" in first_arg:
+                            user_input = first_arg["message"]
+                        elif isinstance(first_arg, dict) and "content" in first_arg:
+                            user_input = first_arg["content"]
+                        else:
+                            user_input = str(first_arg)
+
+                # Also check for user_input/message/query in kwargs
+                if not user_input:
+                    user_input = (
+                        kwargs.get("user_input")
+                        or kwargs.get("message")
+                        or kwargs.get("query")
+                        or kwargs.get("prompt")
+                        or ""
+                    )
+
+                _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
+
+                # Create Trace
+                trace = TraceInput(
+                    id=trace_id,
+                    user_id=resolved_user_id,
+                    conversation_id=session_id,
+                    start_time=start_time,
+                    user_input=user_input,
+                    name=trace_name,
+                    tags=kwargs.get("tags", []),
+                )
+                set_current_trace(trace)
+
+                error_msg = None
+
+                # Accumulators for streaming response
+                accumulated_content = []
+                final_content = None
+                accumulated_model = None
+                accumulated_usage = None
+
+                try:
+                    # Call the function to get the generator
+                    gen = func(*args, **kwargs)
+
+                    # Iterate through generator
+                    async for item in gen:
+                        yield item
+
+                        # Process item for trace
+                        if isinstance(item, str):
+                            accumulated_content.append(item)
+                        elif isinstance(item, dict):
+                            # Handle different event types
+                            evt_type = item.get("type")
+
+                            # Token event
+                            if evt_type == "token" and "content" in item:
+                                accumulated_content.append(str(item["content"]))
+
+                            # Complete event (often holds final answer/usage)
+                            elif evt_type == "complete":
+                                if "content" in item:
+                                    final_content = str(item["content"])
+                                if "usage" in item:
+                                    accumulated_usage = item["usage"]
+                                if "model" in item:
+                                    accumulated_model = item["model"]
+
+                            # Other events with content (fallback)
+                            elif "content" in item:
+                                # Start of new phase or just info, maybe not content to accumulate?
+                                # Generative agents often send content chunks in 'content' field
+                                if evt_type not in (
+                                    "tool_exec_start",
+                                    "tool_exec_end",
+                                    "phase_start",
+                                    "phase_end",
+                                ):
+                                    if isinstance(item["content"], str):
+                                        # Be careful not to double count if 'token' events are used
+                                        pass
+
+                        elif hasattr(item, "content"):
+                            accumulated_content.append(str(item.content))
+
+                    # Determine final output and usage
+                    if final_content is not None:
+                        trace.assistant_output = final_content
+                    else:
+                        trace.assistant_output = "".join(accumulated_content)
+
+                    # Apply usage if found
+                    if accumulated_usage:
+                        try:
+                            _apply_usage_to_trace(trace, accumulated_usage, model=accumulated_model)
+                        except Exception:
+                            pass
+
+                    print("[Auditi] Async generator trace captured.")
+                    _debug_log(
+                        f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                    )
+
+                except Exception as e:
+                    error_msg = str(e)
+                    trace.assistant_output = f"Error: {e}"
+                    trace.error = error_msg
+                    _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
+                    raise
+                finally:
+                    trace.end_time = datetime.utcnow()
+
+                    # Aggregate metrics from spans if not set on trace
+                    if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
+                        calculated_tokens = 0
+                        calculated_cost = 0.0
+                        for s in trace.spans:
+                            if s.tokens:
+                                calculated_tokens += s.tokens
+                            if s.cost:
+                                calculated_cost += s.cost
+
+                        if calculated_tokens > 0:
+                            trace.total_tokens = calculated_tokens
+                            if trace.cost is None or trace.cost == 0.0:
+                                trace.cost = calculated_cost
+
+                    # Run Evaluator if provided and no error
+                    if evaluator and not error_msg:
+                        try:
+                            eval_result = evaluator.evaluate(trace)
+                            # FIX: Map evaluation result to TraceInput fields
+                            trace.status = eval_result.status
+                            trace.score = eval_result.score
+                            if eval_result.reason:
+                                trace.eval_reason = eval_result.reason
+                            if eval_result.failure_mode:
+                                trace.failure_mode = eval_result.failure_mode
+
+                            _debug_log("Evaluation result:", eval_result)
+                        except Exception as e:
+                            print(f"[Auditi] Evaluator failed: {e}")
+
+                    # Prepare and log payload
+                    trace_payload = trace.model_dump(mode="json")
+                    _debug_log(f"Sending trace payload for '{trace_name}':", trace_payload)
+
+                    # Send Trace
+                    client.transport.send_trace(trace_payload)
+
+            return async_gen_wrapper
+
+        else:
+            # Original sync wrapper (adapted with new improvements)
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs) -> Any:
+                client = get_client()
+                trace_id = uuid4()
+                start_time = datetime.utcnow()
+
+                trace_name = name or func.__name__
+
+                # Smart extraction of context from kwargs or global context
+                ctx = get_context()
+                session_id = (
+                    kwargs.get("session_id")
+                    or kwargs.get("conversation_id")
+                    or ctx.get("session_id")
+                )
+                resolved_user_id = kwargs.get("user_id") or user_id or ctx.get("user_id")
+
+                _debug_log(
+                    f"Starting trace '{trace_name}':",
+                    {
+                        "trace_id": str(trace_id),
+                        "user_id": resolved_user_id,
+                        "session_id": session_id,
+                        "args": [str(arg)[:100] for arg in args],
+                        "kwargs_keys": list(kwargs.keys()),
+                    },
+                )
+
+                # Smart extraction of user input - SKIP SELF/CLS
+                user_input = ""
+                if capture_input and args:
+                    # Determine starting index (skip 'self' or 'cls')
+                    start_idx = 0
+                    if args:
+                        first_arg = args[0]
+                        # Check if first arg is likely 'self' or 'cls'
+                        # It's self/cls if it's an object that's not a basic type
+                        if not isinstance(
+                            first_arg, (str, int, float, bool, list, dict, tuple, type(None))
+                        ):
+                            start_idx = 1
+                            _debug_log(
+                                f"Skipping first argument (detected as self/cls): {type(first_arg)}"
+                            )
+
+                    # Get the actual user input from the correct position
+                    if len(args) > start_idx:
+                        first_arg = args[start_idx]
+                        if isinstance(first_arg, str):
+                            user_input = first_arg
+                        elif isinstance(first_arg, dict) and "message" in first_arg:
+                            user_input = first_arg["message"]
+                        elif isinstance(first_arg, dict) and "content" in first_arg:
+                            user_input = first_arg["content"]
+                        else:
+                            user_input = str(first_arg)
+
+                # Also check for user_input/message/query in kwargs
+                if not user_input:
+                    user_input = (
+                        kwargs.get("user_input")
+                        or kwargs.get("message")
+                        or kwargs.get("query")
+                        or kwargs.get("prompt")
+                        or ""
+                    )
+
+                _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
+
+                # Create Trace
+                trace = TraceInput(
+                    id=trace_id,
+                    user_id=resolved_user_id,
+                    conversation_id=session_id,
+                    start_time=start_time,
+                    user_input=user_input,
+                    name=trace_name,
+                    tags=kwargs.get("tags", []),
+                )
+                set_current_trace(trace)
+
+                result = None
+                error_msg = None
+
+                try:
+                    result = func(*args, **kwargs)
+                    print("[Auditi] Trace captured.")
+                    if DEBUG:
+                        print(f"result: {result}")
+
+                    # Smart extraction of assistant output
+                    if isinstance(result, str):
+                        trace.assistant_output = result
+                    elif isinstance(result, dict):
+                        trace.assistant_output = (
+                            result.get("content")
+                            or result.get("message")
+                            or result.get("response")
+                            or str(result)
+                        )
+
+                        # Extract model for provider detection
+                        model = result.get("model")
+
+                        # EXTRACT METRICS from result dict if available
+                        if "usage" in result:
+                            _apply_usage_to_trace(trace, result["usage"], model=model)
+
+                    elif hasattr(result, "content"):
+                        trace.assistant_output = str(result.content)
+
+                        # Extract model from response
+                        model = getattr(result, "model", None)
+                        if model:
+                            model = str(model)
+
+                        # Check for usage on object
+                        if hasattr(result, "usage"):
+                            try:
+                                _apply_usage_to_trace(trace, result.usage, model=model)
+                            except Exception as e:
+                                _debug_log(f"Failed to extract usage from result object: {e}")
+
+                    else:
+                        trace.assistant_output = str(result) if result else ""
+
+                        # Try to extract model and usage
+                        model = getattr(result, "model", None)
+                        if model:
+                            model = str(model)
+
+                        if hasattr(result, "usage"):
+                            try:
+                                _apply_usage_to_trace(trace, result.usage, model=model)
+                            except Exception as e:
+                                _debug_log(f"Failed to extract usage: {e}")
+
+                    _debug_log(
+                        f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                    )
+
+                except Exception as e:
+                    error_msg = str(e)
+                    trace.assistant_output = f"Error: {e}"
+                    trace.error = error_msg
+                    _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
+                    raise
+                finally:
+                    trace.end_time = datetime.utcnow()
+
+                    # Aggregate metrics from spans if not set on trace
+                    if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
+                        calculated_tokens = 0
+                        calculated_cost = 0.0
+                        for s in trace.spans:
+                            if s.tokens:
+                                calculated_tokens += s.tokens
+                            if s.cost:
+                                calculated_cost += s.cost
+
+                        if calculated_tokens > 0:
+                            trace.total_tokens = calculated_tokens
+                            if trace.cost is None or trace.cost == 0.0:
+                                trace.cost = calculated_cost
+
+                    # Run Evaluator if provided and no error
+                    if evaluator and not error_msg:
+                        try:
+                            eval_result = evaluator.evaluate(trace)
+                            # FIX: Map evaluation result to TraceInput fields
+                            trace.status = eval_result.status
+                            trace.score = eval_result.score
+                            if eval_result.reason:
+                                trace.eval_reason = eval_result.reason
+                            if eval_result.failure_mode:
+                                trace.failure_mode = eval_result.failure_mode
+
+                            _debug_log("Evaluation result:", eval_result)
+                        except Exception as e:
+                            print(f"[Auditi] Evaluator failed: {e}")
+
+                    # Prepare and log payload
+                    trace_payload = trace.model_dump(mode="json")
+                    _debug_log(f"Sending trace payload for '{trace_name}':", trace_payload)
+
+                    # Send Trace
+                    client.transport.send_trace(trace_payload)
+
+                return result
+
+            return wrapper
 
     return decorator
+
+
+def _capture_inputs(func, args, kwargs, model_hint=None):
+    """
+    Helper to capture and normalize inputs from function arguments.
+    Handles 'self' skipping, kwarg flattening, and fallback str conversion.
+    """
+    inputs = {}
+    effective_model = model_hint
+
+    try:
+        import inspect
+
+        sig = inspect.signature(func)
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+
+        # Capture all arguments as inputs
+        for arg_name, value in bound.arguments.items():
+            # Skip 'self' or 'cls' typically found in methods
+            if arg_name in ("self", "cls"):
+                continue
+
+            # Flatten **kwargs if they exist and are a dict
+            param = sig.parameters.get(arg_name)
+            if param and param.kind == inspect.Parameter.VAR_KEYWORD and isinstance(value, dict):
+                inputs.update({k: str(v)[:500] for k, v in value.items()})
+            else:
+                inputs[arg_name] = str(value)[:500]
+
+        # Check for model in arguments
+        if not effective_model:
+            if "model" in inputs:
+                effective_model = inputs["model"]
+            # Also check original bound args just in case normalization changed something
+            elif "model" in bound.arguments:
+                effective_model = str(bound.arguments["model"])
+
+    except Exception:
+        # Binding failed, ignore
+        pass
+
+    # Fallback model detection
+    if not effective_model:
+        if "model" in kwargs:
+            effective_model = str(kwargs["model"])
+        elif args and hasattr(args[0], "model"):
+            effective_model = str(args[0].model)
+
+    # Fallback input detection
+    if not inputs:
+        if args:
+            first_arg = args[0]
+            # Skip likely self/cls in fallback mode too (basic heuristic check)
+            start_idx = 0
+            if not isinstance(first_arg, (str, int, float, bool, list, dict, type(None))):
+                start_idx = 1
+
+            if len(args) > start_idx:
+                val = args[start_idx]
+                if isinstance(val, str):
+                    inputs["prompt"] = val
+                elif isinstance(val, (dict, list)):
+                    inputs["data"] = val
+                else:
+                    inputs["input"] = str(val)
+
+        if kwargs:
+            inputs.update({k: str(v)[:500] for k, v in kwargs.items()})
+
+    return inputs, effective_model
 
 
 def _trace_span(
@@ -503,6 +982,173 @@ def _trace_span(
     """
 
     def decorator(func: Callable) -> Callable:
+        # Check for async generator first
+        if inspect.isasyncgenfunction(func):
+
+            @functools.wraps(func)
+            async def async_gen_span_wrapper(*args, **kwargs) -> Any:
+                trace = get_current_trace()
+                if not trace:
+                    if standalone:
+                        # Create a standalone trace for this call
+                        # Note: Simple detection for standalone async gen not fully implemented in _execute_as_standalone_trace yet
+                        # For now, falling back to treating it as regular func (may need enhancement)
+                        async for item in func(*args, **kwargs):
+                            yield item
+                    else:
+                        async for item in func(*args, **kwargs):
+                            yield item
+                    return
+
+                parent = get_current_span()
+                span_id = uuid4()
+                start_time = datetime.utcnow()
+                span_name = name or func.__name__
+
+                # Use robust input capture
+                inputs, effective_model = _capture_inputs(func, args, kwargs, model)
+
+                _debug_log(
+                    f"Starting async generator span '{span_name}' (type: {span_type}):",
+                    {
+                        "span_id": str(span_id),
+                        "parent_id": str(parent.id) if parent else None,
+                        "model": effective_model,
+                        "trace_id": str(trace.id),
+                    },
+                )
+
+                span = SpanInput(
+                    id=span_id,
+                    trace_id=trace.id,
+                    parent_id=parent.id if parent else None,
+                    name=span_name,
+                    span_type=span_type,
+                    start_time=start_time,
+                    inputs=inputs,
+                    model=effective_model,
+                )
+
+                push_span(span)
+
+                accumulated_outputs = []
+
+                try:
+                    # Execute async generator
+                    gen = func(*args, **kwargs)
+
+                    async for item in gen:
+                        yield item
+                        # Only accumulate relevant content
+                        if isinstance(item, str):
+                            accumulated_outputs.append(item)
+                        elif isinstance(item, dict):
+                            evt_type = item.get("type")
+
+                            # Filter out internal events
+                            if evt_type in (
+                                "phase_start",
+                                "phase_end",
+                                "tool_exec_start",
+                                "tool_exec_end",
+                            ):
+                                continue
+
+                            if evt_type == "token" and "content" in item:
+                                accumulated_outputs.append(str(item["content"]))
+                            elif evt_type == "complete" and "content" in item:
+                                pass
+                            elif "content" in item:
+                                accumulated_outputs.append(str(item["content"]))
+
+                        elif hasattr(item, "content"):
+                            accumulated_outputs.append(str(item.content))
+                        else:
+                            accumulated_outputs.append(str(item))
+
+                    span.outputs = "".join(accumulated_outputs)[:2000]
+                    span.status = "ok"
+
+                except Exception as e:
+                    span.error = str(e)
+                    span.status = "error"
+                    _debug_log(f"Span '{span_name}' failed:", {"error": str(e)})
+                    # Don't raise here if we are yielding? Actually we should raise to propagate error
+                    raise
+                finally:
+                    span.end_time = datetime.utcnow()
+                    pop_span()
+
+                    span_payload = span.model_dump(mode="json")
+                    _debug_log(f"Adding span '{span_name}' to trace:", span_payload)
+                    trace.spans.append(span)
+
+            return async_gen_span_wrapper
+
+        # Check for regular async function
+        elif asyncio.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_span_wrapper(*args, **kwargs) -> Any:
+                trace = get_current_trace()
+                if not trace:
+                    if standalone:
+                        # Standalone async trace
+                        return _execute_as_standalone_trace(
+                            func, args, kwargs, span_type, name, model
+                        )
+                    else:
+                        return await func(*args, **kwargs)
+
+                parent = get_current_span()
+                span_id = uuid4()
+                start_time = datetime.utcnow()
+                span_name = name or func.__name__
+
+                # Use robust input capture
+                inputs, effective_model = _capture_inputs(func, args, kwargs, model)
+
+                span = SpanInput(
+                    id=span_id,
+                    trace_id=trace.id,
+                    parent_id=parent.id if parent else None,
+                    name=span_name,
+                    span_type=span_type,
+                    start_time=start_time,
+                    inputs=inputs,
+                    model=effective_model,
+                )
+
+                push_span(span)
+
+                try:
+                    result = await func(*args, **kwargs)
+
+                    # Capture output
+                    if isinstance(result, str):
+                        span.outputs = result[:2000]
+                    elif hasattr(result, "content"):
+                        span.outputs = str(result.content)[:2000]
+                    else:
+                        span.outputs = str(result)[:2000]
+
+                    span.status = "ok"
+                    return result
+
+                except Exception as e:
+                    span.error = str(e)
+                    span.status = "error"
+                    raise
+                finally:
+                    span.end_time = datetime.utcnow()
+                    pop_span()
+
+                    span_payload = span.model_dump(mode="json")
+                    _debug_log(f"Adding span '{span_name}' to trace:", span_payload)
+                    trace.spans.append(span)
+
+            return async_span_wrapper
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Any:
             trace = get_current_trace()

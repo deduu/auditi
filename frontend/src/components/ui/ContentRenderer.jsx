@@ -44,7 +44,31 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
                         detectedType: 'json'
                     };
                 } catch (e) {
-                    // parsing failed, fall through to markdown
+                    // 2. Strict parse failed. Content might be a Python repr() or JS object literals (single quotes).
+                    // We'll try to convert common Python values to JS and then safe-eval.
+                    try {
+                        // Safety check: Don't eval if it looks like code execution or too long
+                        if (trimmed.includes('function') || trimmed.includes('=>') || trimmed.includes('import ') || trimmed.length > 50000) {
+                            throw new Error("Unsafe content");
+                        }
+
+                        // Replace Python/None booleans with JS equivalents
+                        // We use a regex that matches whole words to avoid replacing inside strings roughly
+                        let jsFriendly = trimmed
+                            .replace(/\bNone\b/g, 'null')
+                            .replace(/\bTrue\b/g, 'true')
+                            .replace(/\bFalse\b/g, 'false');
+
+                        // Use Function constructor to parse valid JS object literals (which cover strict JSON + single quotes)
+                        // This is safer than eval but still allows executing expressions, hence the simple safety check above.
+                        const looseParsed = new Function('return ' + jsFriendly)();
+                        return {
+                            text: JSON.stringify(looseParsed, null, 2),
+                            detectedType: 'json'
+                        };
+                    } catch (err) {
+                        // console.warn("Auto-detect failed:", err);
+                    }
                 }
             }
 
@@ -64,16 +88,26 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
 
     if (processedContent.detectedType === 'json') {
         return (
-            <div className={`rounded-lg overflow-hidden border border-slate-700/50 ${className}`}>
+            <div className={`rounded-lg overflow-hidden border border-slate-700/50 text-sm ${className}`}>
                 <SyntaxHighlighter
                     language="json"
                     style={vscDarkPlus}
                     customStyle={{
                         margin: 0,
                         padding: '1rem',
-                        background: 'rgba(2, 6, 23, 0.5)', // slate-950/50
-                        fontSize: '0.875rem', // text-sm
+                        background: 'rgba(2, 6, 23, 0.5)',
+                        fontSize: '0.875rem',
                         lineHeight: '1.5',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-all',
+                        overflowWrap: 'anywhere'
+                    }}
+                    codeTagProps={{
+                        style: {
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-all',
+                            overflowWrap: 'anywhere'
+                        }
                     }}
                     wrapLongLines={true}
                 >
@@ -84,11 +118,17 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
     }
 
     // Markdown renderer
+    // Preprocess content to ensure newlines are respected (replace single \n with <space><space>\n for hard breaks)
+    const markdownContent = processedContent.text.replace(/\n/g, '  \n');
+
     return (
         <div className={`prose prose-invert max-w-none prose-pre:p-0 prose-pre:bg-transparent ${className}`}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
+                    p({ children }) {
+                        return <p className="text-base whitespace-pre-wrap break-words leading-relaxed mb-4">{children}</p>;
+                    },
                     code({ node, inline, className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || '');
                         return !inline && match ? (
@@ -104,7 +144,18 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
                                         padding: '1rem',
                                         background: 'rgba(2, 6, 23, 0.5)',
                                         fontSize: '0.875rem',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-all',
+                                        overflowWrap: 'anywhere'
                                     }}
+                                    codeTagProps={{
+                                        style: {
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-all',
+                                            overflowWrap: 'anywhere'
+                                        }
+                                    }}
+                                    wrapLongLines={true}
                                     PreTag="div"
                                     {...props}
                                 >

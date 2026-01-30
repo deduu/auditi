@@ -224,9 +224,14 @@ def get_traces(
         # Using string matching for robustness across JSON types (JSON vs JSONB)
         query = query.filter(cast(Trace.tags, String).like('%"standalone"%'))
 
-    if status:
+    if status and status != "all":
         query = query.filter(Trace.status == status)
-    if model:
+
+    if trace_type and trace_type != "all":
+        # Filter traces that contain at least one span of the specified type
+        query = query.filter(Trace.spans.any(Span.span_type == trace_type))
+
+    if model and model != "all":
         query = query.filter(Trace.model_name == model)
 
     # Order by start_time desc

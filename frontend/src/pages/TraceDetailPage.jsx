@@ -1,26 +1,13 @@
 
 import React from "react";
-import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target } from "lucide-react";
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import ContentRenderer from "../components/ui/ContentRenderer";
 import { format } from "date-fns";
-
-const StatusBadge = ({ status }) => {
-    const styles = {
-        pass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-        fail: "bg-red-500/10 text-red-400 border-red-500/20",
-        review: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        pending: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-    };
-    const style = styles[status] || styles.pending;
-    return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${style}`}>
-            {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Pending"}
-        </span>
-    );
-};
+import { EvaluationBadge } from "../components/ui/EvaluationBadge";
+import { SpanItem } from "../components/ui/SpanItem";
 
 export const TraceDetailPage = ({ traceId, onBack }) => {
     const { trace, loading, error } = useTraceDetail(traceId);
@@ -56,7 +43,7 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
                     <div>
                         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                             {trace.name || "Untitled Trace"}
-                            <StatusBadge status={trace.status} />
+                            <EvaluationBadge status={trace.status} score={trace.score} />
                         </h1>
                         <div className="flex items-center text-sm text-slate-400 mt-1 space-x-4">
                             <span className="flex items-center">
@@ -79,78 +66,77 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
             </div>
 
             {/* Evaluation Result */}
-            <Card className="p-6 bg-slate-900/50 border-slate-800">
-                <h3 className="text-lg font-semibold text-white mb-4">Evaluation Result</h3>
-                <div className="grid grid-cols-2 gap-8">
-                    <div>
-                        <div className="text-sm font-medium text-slate-500 mb-1">Score</div>
-                        <div className="text-3xl font-bold text-white mb-4">
-                            {trace.score !== null ? trace.score.toFixed(2) : "N/A"}
-                        </div>
-
-                        <div className="text-sm font-medium text-slate-500 mb-1">Failure Mode</div>
-                        {trace.failureMode ? (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
-                                {trace.failureMode}
-                            </span>
-                        ) : (
-                            <span className="text-slate-400 italic">None detected</span>
-                        )}
+            {/* Trace Content Stack */}
+            <div className="space-y-6">
+                {/* Input Card */}
+                <Card className="p-0 border-slate-800 overflow-hidden">
+                    <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center gap-2">
+                        <div className="bg-slate-700 rounded-full p-1"><User className="w-3 h-3 text-white" /></div>
+                        <span className="font-medium text-slate-300 text-sm">Input</span>
                     </div>
-                    <div>
-                        <div className="text-sm font-medium text-slate-500 mb-2">Reasoning</div>
-                        <div className="text-sm text-slate-300 leading-relaxed bg-slate-950/50 p-4 rounded-lg border border-slate-800/50">
-                            {trace.evalReason || "No evaluation reasoning available."}
-                        </div>
-                    </div>
-                </div>
-            </Card>
-
-            {/* I/O Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="p-0 border-slate-800 overflow-hidden flex flex-col h-full">
-                    <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 font-medium text-slate-300 text-sm">
-                        Input
-                    </div>
-                    <div className="p-4 bg-slate-950 text-sm text-slate-300 overflow-y-auto max-h-[500px]">
-                        <ContentRenderer content={trace.userInput} type="auto" />
+                    <div className="p-4 bg-slate-950/30">
+                        <ContentRenderer content={trace.userInput} type="auto" className="text-sm text-slate-200" />
                     </div>
                 </Card>
 
-                <Card className="p-0 border-slate-800 overflow-hidden flex flex-col h-full">
-                    <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 font-medium text-slate-300 text-sm">
-                        Output
+                {/* Spans */}
+                {trace.spans && trace.spans.length > 0 && (
+                    <div className="bg-slate-900/20 border border-slate-800 rounded-lg overflow-hidden">
+                        <div className="bg-slate-950/30 px-4 py-2 border-b border-slate-800/50">
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Execution Path (Trace)
+                            </p>
+                        </div>
+                        <div className="divide-y divide-slate-800/50">
+                            {(() => {
+                                // Find the last LLM/Agent span to mark as the final generator
+                                const finalGeneratorIndex = trace.spans.findLastIndex(
+                                    s => (s.type === 'llm' || s.type === 'agent' || s.spanType === 'llm')
+                                );
+
+                                return trace.spans.map((span, index) => (
+                                    <SpanItem
+                                        key={span.id}
+                                        span={span}
+                                        isFinalGenerator={index === finalGeneratorIndex && finalGeneratorIndex !== -1}
+                                    />
+                                ));
+                            })()}
+                        </div>
                     </div>
-                    <div className="p-4 bg-slate-950 text-sm text-slate-300 overflow-y-auto max-h-[500px]">
-                        <ContentRenderer content={trace.assistantOutput} type="auto" />
+                )}
+
+                {/* Detailed Evaluation Result (if available) */}
+                <Card className="p-0 border-slate-800 overflow-hidden bg-slate-900/30">
+                    <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-500/10 p-1 rounded-full"><Target className="w-3 h-3 text-blue-400" /></div>
+                            <span className="font-medium text-slate-300 text-sm">Trace Evaluation (End-to-End)</span>
+                        </div>
+                        <div className="text-2xl font-bold text-white">
+                            {trace.score !== null ? trace.score.toFixed(2) : "N/A"}
+                        </div>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        <div className="flex items-start space-x-3">
+                            <div className="flex-1">
+                                <p className="text-xs font-medium text-slate-400 mb-1">Reasoning</p>
+                                <p className="text-sm text-slate-300 leading-relaxed">{trace.evalReason || "No evaluation reasoning available."}</p>
+                            </div>
+                        </div>
+
+                        {trace.failureMode && (
+                            <div className="flex items-start space-x-3 bg-rose-900/10 p-3 rounded-lg border border-rose-500/10">
+                                <AlertCircle className="w-4 h-4 text-rose-400 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="text-xs font-medium text-rose-400 mb-1">Failure Mode</p>
+                                    <p className="text-sm text-rose-300">{trace.failureMode}</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Card>
             </div>
-
-            {/* Spans (Simplified View) */}
-            {trace.spans && trace.spans.length > 0 && (
-                <Card className="p-6 bg-slate-900/50 border-slate-800">
-                    <h3 className="text-lg font-semibold text-white mb-4">Execution Spans</h3>
-                    <div className="space-y-3">
-                        {trace.spans.map(span => (
-                            <div key={span.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                                <div className="flex items-center gap-3">
-                                    <span className={`px-2 py-0.5 text-xs font-medium rounded uppercase ${span.spanType === 'llm' ? 'bg-blue-500/10 text-blue-400' :
-                                        span.spanType === 'tool' ? 'bg-purple-500/10 text-purple-400' :
-                                            'bg-slate-500/10 text-slate-400'
-                                        }`}>
-                                        {span.spanType}
-                                    </span>
-                                    <span className="text-sm font-medium text-slate-200">{span.name}</span>
-                                </div>
-                                <div className="text-xs text-slate-500 font-mono">
-                                    {(span.durationMs / 1000).toFixed(3)}s
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </Card>
-            )}
         </div>
     );
 };

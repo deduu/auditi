@@ -3,8 +3,11 @@ import React, { useState } from "react";
 import { Filter, Eye, RefreshCw } from "lucide-react";
 import { TraceTable } from "../components/traces/TraceTable";
 import { useTraces } from "../hooks/useTraces";
+import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+
+import { useModels } from "../hooks/useModels";
 
 export const TracesPage = ({ onSelectTrace }) => {
     const { traces, loading, filters, setFilters, refetch } = useTraces({
@@ -13,7 +16,23 @@ export const TracesPage = ({ onSelectTrace }) => {
         model: 'all',
         standalone_only: true
     });
+    const { models } = useModels();
     const [showFilters, setShowFilters] = useState(false);
+
+    // Client-side pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
+    // Reset page when filters change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [filters]);
+
+    const totalPages = Math.ceil((traces?.length || 0) / pageSize);
+    const paginatedTraces = traces?.slice(
+        (currentPage - 1) * pageSize,
+        currentPage * pageSize
+    ) || [];
 
     const activeFilterCount = Object.keys(filters).filter(k => k !== 'standalone_only' && filters[k] && filters[k] !== 'all').length;
 
@@ -36,8 +55,8 @@ export const TracesPage = ({ onSelectTrace }) => {
                     <div className="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700 mr-4">
                         <button
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${filters.standalone_only
-                                    ? 'bg-blue-600 text-white shadow-lg ring-1 ring-blue-500/50'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                ? 'bg-blue-600 text-white shadow-lg ring-1 ring-blue-500/50'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                                 }`}
                             onClick={() => setFilters(prev => ({ ...prev, standalone_only: true }))}
                         >
@@ -45,8 +64,8 @@ export const TracesPage = ({ onSelectTrace }) => {
                         </button>
                         <button
                             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${!filters.standalone_only
-                                    ? 'bg-blue-600 text-white shadow-lg ring-1 ring-blue-500/50'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                ? 'bg-blue-600 text-white shadow-lg ring-1 ring-blue-500/50'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                                 }`}
                             onClick={() => setFilters(prev => ({ ...prev, standalone_only: false }))}
                         >
@@ -102,7 +121,21 @@ export const TracesPage = ({ onSelectTrace }) => {
                                 <option value="all">All Types</option>
                                 <option value="llm">LLM Call</option>
                                 <option value="tool">Tool Use</option>
+                                <option value="retrieval">Retrieval / RAG</option>
                                 <option value="embedding">Embedding</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-slate-400 mb-1.5">Model</label>
+                            <select
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                value={filters.model || "all"}
+                                onChange={(e) => setFilters(prev => ({ ...prev, model: e.target.value }))}
+                            >
+                                <option value="all">All Models</option>
+                                {models && models.map(model => (
+                                    <option key={model.name} value={model.name}>{model.name}</option>
+                                ))}
                             </select>
                         </div>
                         <div className="flex items-end">
@@ -125,10 +158,23 @@ export const TracesPage = ({ onSelectTrace }) => {
             {/* Trace Table */}
             <Card className="p-0 overflow-hidden border-slate-800 bg-slate-900/50">
                 <TraceTable
-                    traces={traces}
+                    traces={paginatedTraces}
                     loading={loading}
                     onSelectTrace={onSelectTrace}
                 />
+                {!loading && traces.length > 0 && (
+                    <PaginationFooter
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        onPageSizeChange={(newSize) => {
+                            setPageSize(newSize);
+                            setCurrentPage(1);
+                        }}
+                        disabled={loading}
+                    />
+                )}
             </Card>
         </div>
     );
