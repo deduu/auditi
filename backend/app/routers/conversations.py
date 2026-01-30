@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime, timedelta
 
 from app.database import get_db
@@ -255,3 +256,48 @@ def get_conversation_detail(conversation_id: str, db: Session = Depends(get_db))
         models=models,
         avgScore=avg_score,
     )
+
+
+@router.delete("/conversations")
+@router.delete("/v1/conversations")
+def delete_conversations(
+    ids: List[str] = Query(..., description="List of conversation IDs to delete"),
+    db: Session = Depends(get_db),
+):
+    """
+    Bulk delete conversations.
+    also deletes associated traces and spans.
+    """
+    if not ids:
+        return {"status": "success", "count": 0}
+
+    # 1. Find conversations
+    conversations = db.query(Conversation).filter(Conversation.id.in_(ids)).all()
+    if not conversations:
+        return {"status": "success", "count": 0}
+
+    # 2. Find all traces associated with these conversations
+    conversation_ids = [c.id for c in conversations]
+    traces = db.query(Trace).filter(Trace.conversation_id.in_(conversation_ids)).all()
+    trace_ids = [t.id for t in traces]
+
+    # 3. Delete spans for these traces
+    if trace_ids:
+        db.query(Span).filter(Span.trace_id.in_(trace_ids)).delete(
+            synchronize_session=False
+        )
+
+    # 4. Delete traces
+    if trace_ids:
+        db.query(Trace).filter(Trace.id.in_(trace_ids)).delete(
+            synchronize_session=False
+        )
+
+    # 5. Delete conversations
+    db.query(Conversation).filter(Conversation.id.in_(conversation_ids)).delete(
+        synchronize_session=False
+    )
+
+    db.commit()
+
+    return {"status": "success", "count": len(conversations)}

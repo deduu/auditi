@@ -29,3 +29,12 @@ export const getTraces = async (filters = {}, options = {}) => {
 export const getTraceDetail = async (traceId, options = {}) => {
   return await client.get(`/traces/${traceId}`, {}, options);
 };
+
+/**
+ * Bulk delete traces
+ * @param {Array<string>} ids - List of trace IDs to delete
+ * @param {Object} options - Request options
+ */
+export const deleteTraces = async (ids, options = {}) => {
+  return await client.delete("/traces", { ids }, options);
+};

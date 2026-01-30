@@ -1,28 +1,33 @@
 import React, { useState } from "react";
-import { Users, TrendingUp, Filter, Download, X, Calendar, Database, Shield } from "lucide-react";
+import { deleteConversations } from "../api/conversations";
+import { Users, TrendingUp, Filter, Download, X, Calendar, Database, Shield, Trash2, ChevronDown } from "lucide-react";
+import { useConversations } from "../hooks/useConversations";
+import { useModels } from "../hooks/useModels";
 import { MetricsOverview } from "../components/dashboard/MetricsOverview";
 import { ConversationTable } from "../components/conversations/ConversationTable";
-import { useConversations } from "../hooks/useConversations";
 import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { exportToCSV } from "../utils/exportUtils";
+import { Modal } from "../components/ui/Modal";
 
-import { useModels } from "../hooks/useModels";
+// ... existing imports
 
 export const ConversationsPage = ({ onSelectConversation }) => {
-  const { conversations, loading, filters, setFilters } = useConversations();
+  const { conversations, loading, filters, setFilters, refetch } = useConversations();
   const { models } = useModels();
   const [showFilters, setShowFilters] = useState(false);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Client-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10); // Standardize on 10, 25, 50
 
-  // Reset page when filters change
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [filters]);
+  // ... useEffect and other logic
 
   const totalPages = Math.ceil((conversations?.length || 0) / pageSize);
   const paginatedConversations = conversations?.slice(
@@ -30,7 +35,49 @@ export const ConversationsPage = ({ onSelectConversation }) => {
     currentPage * pageSize
   ) || [];
 
+  const handleToggleSelection = (id) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleToggleAll = (isChecked) => {
+    if (isChecked) {
+      const allIds = paginatedConversations.map(c => c.id);
+      setSelectedIds(new Set([...selectedIds, ...allIds]));
+    } else {
+      const newSelected = new Set(selectedIds);
+      paginatedConversations.forEach(c => newSelected.delete(c.id));
+      setSelectedIds(newSelected);
+    }
+  };
+
+  const confirmDelete = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    // Optimistically close modal
+    setShowDeleteModal(false);
+    try {
+      setIsDeleting(true);
+      await deleteConversations(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      refetch(); // Refresh list
+    } catch (error) {
+      console.error("Failed to delete conversations", error);
+      // Optionally show error toast here
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleExport = () => {
+    // ... exist logic
     // Basic data cleanup for export
     const exportData = conversations.map(c => ({
       ID: c.id,
@@ -167,9 +214,23 @@ export const ConversationsPage = ({ onSelectConversation }) => {
                 <p className="text-sm text-slate-400">{conversations?.length || 0} sessions • Click to view conversation details and evaluations</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-medium text-emerald-400">Live</span>
+
+            <div className="flex items-center space-x-3">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="danger"
+                  className="bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20 flex items-center"
+                  onClick={confirmDelete}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected ({selectedIds.size})
+                </Button>
+              )}
+
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-medium text-emerald-400">Live</span>
+              </div>
             </div>
           </div>
         </div>
@@ -177,6 +238,9 @@ export const ConversationsPage = ({ onSelectConversation }) => {
           conversations={paginatedConversations}
           loading={loading}
           onSelectConversation={onSelectConversation}
+          selectedIds={selectedIds}
+          onToggleSelection={handleToggleSelection}
+          onToggleAll={handleToggleAll}
         />
         {/* Pagination Footer */}
         {!loading && conversations.length > 0 && (
@@ -193,6 +257,29 @@ export const ConversationsPage = ({ onSelectConversation }) => {
           />
         )}
       </Card>
+
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Delete Conversations"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowDeleteModal(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-slate-300">
+            Are you sure you want to delete <span className="text-white font-semibold">{selectedIds.size}</span> conversations?
+            This action cannot be undone and will permanently remove all associated traces and data.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 };

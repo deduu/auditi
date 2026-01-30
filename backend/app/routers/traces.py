@@ -1,8 +1,9 @@
 """Trace ingestion API routes."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, cast, String
+from typing import List
 
 from app.database import get_db
 from app.models import Conversation, Trace, Span
@@ -314,3 +315,36 @@ def get_trace_detail(trace_id: str, db: Session = Depends(get_db)):
         evalReason=t.eval_reason,
         spans=spans,
     )
+
+
+@router.delete("/traces")
+@router.delete("/v1/traces")
+def delete_traces(
+    ids: List[str] = Query(..., description="List of trace IDs to delete"),
+    db: Session = Depends(get_db),
+):
+    """
+    Bulk delete traces.
+    Also deletes associated spans.
+    """
+    if not ids:
+        return {"status": "success", "count": 0}
+
+    # 1. Find traces
+    traces = db.query(Trace).filter(Trace.id.in_(ids)).all()
+    if not traces:
+        return {"status": "success", "count": 0}
+
+    found_ids = [t.id for t in traces]
+
+    # 2. Delete associated spans
+    db.query(Span).filter(Span.trace_id.in_(found_ids)).delete(
+        synchronize_session=False
+    )
+
+    # 3. Delete traces
+    db.query(Trace).filter(Trace.id.in_(found_ids)).delete(synchronize_session=False)
+
+    db.commit()
+
+    return {"status": "success", "count": len(traces)}

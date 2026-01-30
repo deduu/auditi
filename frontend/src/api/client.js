@@ -69,8 +69,21 @@ export const client = {
     });
   },
 
-  delete: (endpoint) => {
-    return request(endpoint, { method: "DELETE" });
+  delete: (endpoint, params = {}, options = {}) => {
+    const queryString = new URLSearchParams();
+    
+    // Handle array params correctly (e.g., ids=['1', '2'] -> ids=1&ids=2)
+    Object.keys(params).forEach(key => {
+        const value = params[key];
+        if (Array.isArray(value)) {
+            value.forEach(v => queryString.append(key, v));
+        } else if (value !== undefined && value !== null) {
+            queryString.append(key, value);
+        }
+    });
+    
+    const url = queryString.toString() ? `${endpoint}?${queryString.toString()}` : endpoint;
+    return request(url, { ...options, method: "DELETE" });
   },
 };
 

@@ -20,7 +20,17 @@ export function getConversationDetail(conversationId, options = {}) {
   return client.get(`/conversations/${conversationId}`, {}, options);
 }
 
+/**
+ * Bulk delete conversations
+ * @param {Array<string>} ids - List of conversation IDs to delete
+ * @param {Object} options - Request options
+ */
+export function deleteConversations(ids, options = {}) {
+  return client.delete("/conversations", { ids }, options);
+}
+
 export default {
   getConversations,
   getConversationDetail,
+  deleteConversations,
 };

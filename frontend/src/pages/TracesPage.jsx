@@ -1,13 +1,17 @@
 
 import React, { useState } from "react";
-import { Filter, Eye, RefreshCw } from "lucide-react";
-import { TraceTable } from "../components/traces/TraceTable";
+import { deleteTraces } from "../api/traces";
+import { Filter, Eye, RefreshCw, Trash2, ChevronDown } from "lucide-react";
 import { useTraces } from "../hooks/useTraces";
+import { useModels } from "../hooks/useModels";
+import { TraceTable } from "../components/traces/TraceTable";
 import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 
-import { useModels } from "../hooks/useModels";
+import { Modal } from "../components/ui/Modal";
+
+// ... other imports
 
 export const TracesPage = ({ onSelectTrace }) => {
     const { traces, loading, filters, setFilters, refetch } = useTraces({
@@ -19,6 +23,11 @@ export const TracesPage = ({ onSelectTrace }) => {
     const { models } = useModels();
     const [showFilters, setShowFilters] = useState(false);
 
+    // Selection state
+    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
     // Client-side pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -26,6 +35,7 @@ export const TracesPage = ({ onSelectTrace }) => {
     // Reset page when filters change
     React.useEffect(() => {
         setCurrentPage(1);
+        setSelectedIds(new Set());
     }, [filters]);
 
     const totalPages = Math.ceil((traces?.length || 0) / pageSize);
@@ -35,6 +45,47 @@ export const TracesPage = ({ onSelectTrace }) => {
     ) || [];
 
     const activeFilterCount = Object.keys(filters).filter(k => k !== 'standalone_only' && filters[k] && filters[k] !== 'all').length;
+
+    const handleToggleSelection = (id) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const handleToggleAll = (isChecked) => {
+        if (isChecked) {
+            const allIds = paginatedTraces.map(t => t.id);
+            setSelectedIds(new Set([...selectedIds, ...allIds]));
+        } else {
+            const newSelected = new Set(selectedIds);
+            paginatedTraces.forEach(t => newSelected.delete(t.id));
+            setSelectedIds(newSelected);
+        }
+    };
+
+    const confirmDelete = () => {
+        setShowDeleteModal(true);
+    };
+
+    const handleDelete = async () => {
+        // Optimistically close modal
+        setShowDeleteModal(false);
+        try {
+            setIsDeleting(true);
+            await deleteTraces(Array.from(selectedIds));
+            setSelectedIds(new Set());
+            refetch(); // Refresh list
+        } catch (error) {
+            console.error("Failed to delete traces", error);
+            // Optionally show error toast here
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -157,10 +208,27 @@ export const TracesPage = ({ onSelectTrace }) => {
 
             {/* Trace Table */}
             <Card className="p-0 overflow-hidden border-slate-800 bg-slate-900/50">
+                <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50">
+                    <div className="flex items-center justify-end">
+                        {selectedIds.size > 0 && (
+                            <Button
+                                variant="danger"
+                                className="bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20 flex items-center"
+                                onClick={confirmDelete}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Delete Selected ({selectedIds.size})
+                            </Button>
+                        )}
+                    </div>
+                </div>
                 <TraceTable
                     traces={paginatedTraces}
                     loading={loading}
                     onSelectTrace={onSelectTrace}
+                    selectedIds={selectedIds}
+                    onToggleSelection={handleToggleSelection}
+                    onToggleAll={handleToggleAll}
                 />
                 {!loading && traces.length > 0 && (
                     <PaginationFooter
@@ -176,6 +244,29 @@ export const TracesPage = ({ onSelectTrace }) => {
                     />
                 )}
             </Card>
+
+            <Modal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                title="Delete Traces"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setShowDeleteModal(false)} disabled={isDeleting}>
+                            Cancel
+                        </Button>
+                        <Button variant="danger" onClick={handleDelete} disabled={isDeleting}>
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <p className="text-slate-300">
+                        Are you sure you want to delete <span className="text-white font-semibold">{selectedIds.size}</span> traces?
+                        This action cannot be undone.
+                    </p>
+                </div>
+            </Modal>
         </div>
     );
 };

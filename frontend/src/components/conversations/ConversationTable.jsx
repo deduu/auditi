@@ -43,76 +43,15 @@ const getStatusBadge = (status, passCount, failCount) => {
   }
 };
 
-const SessionRow = ({ session, onClick }) => {
-  return (
-    <tr
-      className="hover:bg-slate-800/50 cursor-pointer transition-colors border-b border-slate-800 last:border-0"
-      onClick={() => onClick(session.id)}
-    >
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="text-sm font-medium text-white">
-          {new Date(session.startTime).toLocaleDateString()}
-        </div>
-        <div className="text-xs text-slate-500">
-          {new Date(session.startTime).toLocaleTimeString()}
-        </div>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className="text-sm font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded border border-slate-700">
-          {session.userId}
-        </span>
-      </td>
-      <td className="px-6 py-4">
-        <div className="text-sm text-slate-300 max-w-xs truncate">
-          {session.objective}
-        </div>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span className="text-sm text-slate-400">
-          {session.totalTurns} turns
-        </span>
-      </td>
-      <td className="px-6 py-4 text-sm text-slate-400">
-        <div className="flex flex-wrap gap-1">
-          {session.models?.map((model, idx) => (
-            <span
-              key={idx}
-              className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-xs border border-slate-700"
-            >
-              {model}
-            </span>
-          ))}
-        </div>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <span
-          className={`text-sm font-bold ${session.avgScore >= 8
-            ? "text-emerald-400"
-            : session.avgScore >= 6
-              ? "text-amber-400"
-              : "text-rose-400"
-            }`}
-        >
-          {session.avgScore?.toFixed(1)}
-        </span>
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        {getStatusBadge(session.overallStatus, session.passCount, session.failCount)}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-        {session.latency}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-        {session.cost}
-      </td>
-    </tr>
-  );
-};
+
 
 export const ConversationTable = ({
   conversations,
   loading,
   onSelectConversation,
+  selectedIds = new Set(),
+  onToggleSelection = () => { },
+  onToggleAll = () => { },
 }) => {
   if (loading) {
     return <Spinner size="lg" />;
@@ -126,11 +65,21 @@ export const ConversationTable = ({
     );
   }
 
+  const allSelected = conversations.length > 0 && conversations.every(c => selectedIds.has(c.id));
+
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full">
         <thead className="bg-slate-900/50 border-b border-slate-800">
           <tr>
+            <th className="px-6 py-3 w-4">
+              <input
+                type="checkbox"
+                className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50"
+                checked={allSelected}
+                onChange={(e) => onToggleAll(e.target.checked)}
+              />
+            </th>
             <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Date/Time
             </th>
@@ -161,13 +110,82 @@ export const ConversationTable = ({
           </tr>
         </thead>
         <tbody className="bg-transparent divide-y divide-slate-800">
-          {conversations.map((session) => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              onClick={onSelectConversation}
-            />
-          ))}
+          {conversations.map((session) => {
+            const isSelected = selectedIds.has(session.id);
+            return (
+              <tr
+                key={session.id}
+                className={`transition-colors border-b border-slate-800 last:border-0 ${isSelected ? 'bg-blue-900/10 hover:bg-blue-900/20' : 'hover:bg-slate-800/50'
+                  }`}
+                onClick={() => onSelectConversation(session.id)}
+              >
+                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50"
+                    checked={isSelected}
+                    onChange={() => onToggleSelection(session.id)}
+                  />
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-white">
+                    {new Date(session.startTime).toLocaleDateString()}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {new Date(session.startTime).toLocaleTimeString()}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-sm font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded border border-slate-700">
+                    {session.userId}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <div className="text-sm text-slate-300 max-w-xs truncate">
+                    {session.objective}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-sm text-slate-400">
+                    {session.totalTurns} turns
+                  </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-slate-400">
+                  <div className="flex flex-wrap gap-1">
+                    {session.models?.map((model, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-xs border border-slate-700"
+                      >
+                        {model}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span
+                    className={`text-sm font-bold ${session.avgScore >= 8
+                      ? "text-emerald-400"
+                      : session.avgScore >= 6
+                        ? "text-amber-400"
+                        : "text-rose-400"
+                      }`}
+                  >
+                    {session.avgScore?.toFixed(1)}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {getStatusBadge(session.overallStatus, session.passCount, session.failCount)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                  {session.latency}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                  {session.cost}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

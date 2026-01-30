@@ -50,7 +50,14 @@ const TypeIcon = ({ type }) => {
     }
 };
 
-export const TraceTable = ({ traces, loading, onSelectTrace }) => {
+export const TraceTable = ({
+    traces,
+    loading,
+    onSelectTrace,
+    selectedIds = new Set(),
+    onToggleSelection = () => { },
+    onToggleAll = () => { },
+}) => {
     if (loading) {
         return (
             <div className="p-8 text-center text-slate-400">
@@ -70,10 +77,20 @@ export const TraceTable = ({ traces, loading, onSelectTrace }) => {
         );
     }
 
+    const allSelected = traces.length > 0 && traces.every(t => selectedIds.has(t.id));
+
     return (
         <table className="w-full text-left border-collapse">
             <thead>
                 <tr className="border-b border-slate-800 text-xs font-medium text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 w-4">
+                        <input
+                            type="checkbox"
+                            className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50"
+                            checked={allSelected}
+                            onChange={(e) => onToggleAll(e.target.checked)}
+                        />
+                    </th>
                     <th className="px-6 py-4 w-16">Type</th>
                     <th className="px-6 py-4">Name</th>
                     <th className="px-6 py-4">Input / Output Preview</th>
@@ -85,77 +102,89 @@ export const TraceTable = ({ traces, loading, onSelectTrace }) => {
                 </tr>
             </thead>
             <tbody>
-                {traces.map((trace) => (
-                    <tr
-                        key={trace.id}
-                        onClick={() => onSelectTrace(trace.id)}
-                        className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors cursor-pointer group"
-                    >
-                        <td className="px-6 py-4">
-                            {/* Text Badge for Trace Type */}
-                            {(() => {
-                                const isTool = trace.tags?.includes('tool');
-                                const isAgent = trace.conversationId && !trace.tags?.includes('standalone');
-                                const isRetrieval = trace.tags?.includes('retrieval');
+                {traces.map((trace) => {
+                    const isSelected = selectedIds.has(trace.id);
+                    return (
+                        <tr
+                            key={trace.id}
+                            onClick={() => onSelectTrace(trace.id)}
+                            className={`border-b border-slate-800/50 transition-colors cursor-pointer group ${isSelected ? 'bg-blue-900/10 hover:bg-blue-900/20' : 'hover:bg-slate-800/30'
+                                }`}
+                        >
+                            <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                    type="checkbox"
+                                    className="rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50"
+                                    checked={isSelected}
+                                    onChange={() => onToggleSelection(trace.id)}
+                                />
+                            </td>
+                            <td className="px-6 py-4">
+                                {/* Text Badge for Trace Type */}
+                                {(() => {
+                                    const isTool = trace.tags?.includes('tool');
+                                    const isAgent = trace.conversationId && !trace.tags?.includes('standalone');
+                                    const isRetrieval = trace.tags?.includes('retrieval');
 
-                                let badgeClass = "bg-slate-800 text-slate-400 border-slate-700";
-                                let text = "LLM";
+                                    let badgeClass = "bg-slate-800 text-slate-400 border-slate-700";
+                                    let text = "LLM";
 
-                                if (isAgent) {
-                                    text = "AGENT";
-                                    badgeClass = "bg-purple-900/30 text-purple-400 border-purple-500/30";
-                                } else if (isTool) {
-                                    text = "TOOL";
-                                    badgeClass = "bg-amber-900/30 text-amber-400 border-amber-500/30";
-                                } else if (isRetrieval) {
-                                    text = "RAG";
-                                    badgeClass = "bg-emerald-900/30 text-emerald-400 border-emerald-500/30";
-                                } else {
-                                    // Default LLM standalone
-                                    badgeClass = "bg-blue-900/30 text-blue-400 border-blue-500/30";
-                                }
+                                    if (isAgent) {
+                                        text = "AGENT";
+                                        badgeClass = "bg-purple-900/30 text-purple-400 border-purple-500/30";
+                                    } else if (isTool) {
+                                        text = "TOOL";
+                                        badgeClass = "bg-amber-900/30 text-amber-400 border-amber-500/30";
+                                    } else if (isRetrieval) {
+                                        text = "RAG";
+                                        badgeClass = "bg-emerald-900/30 text-emerald-400 border-emerald-500/30";
+                                    } else {
+                                        // Default LLM standalone
+                                        badgeClass = "bg-blue-900/30 text-blue-400 border-blue-500/30";
+                                    }
 
-                                return (
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}`}>
-                                        {text}
-                                    </span>
-                                );
-                            })()}
-                        </td>
-                        <td className="px-6 py-4">
-                            <div className="font-medium text-slate-200">{trace.name || "Untitled Trace"}</div>
-                            <div className="text-xs text-slate-500 font-mono mt-0.5">{trace.modelName}</div>
-                        </td>
-                        <td className="px-6 py-4 max-w-xs">
-                            <div className="text-sm text-slate-300 truncate font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-800/50 mb-1">
-                                in: {trace.userInputPreview}
-                            </div>
-                            <div className="text-sm text-slate-400 truncate font-mono">
-                                out: {trace.assistantOutputPreview}
-                            </div>
-                        </td>
-                        <td className="px-6 py-4">
-                            <StatusBadge status={trace.status} />
-                            {trace.score !== null && (
-                                <div className="text-xs font-bold mt-1 text-slate-400">
-                                    Score: {trace.score.toFixed(2)}
+                                    return (
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}`}>
+                                            {text}
+                                        </span>
+                                    );
+                                })()}
+                            </td>
+                            <td className="px-6 py-4">
+                                <div className="font-medium text-slate-200">{trace.name || "Untitled Trace"}</div>
+                                <div className="text-xs text-slate-500 font-mono mt-0.5">{trace.modelName}</div>
+                            </td>
+                            <td className="px-6 py-4 max-w-xs">
+                                <div className="text-sm text-slate-300 truncate font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-800/50 mb-1">
+                                    in: {trace.userInputPreview}
                                 </div>
-                            )}
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm text-slate-400">
-                            {trace.totalTokens?.toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm text-slate-400">
-                            {(trace.latencyMs / 1000).toFixed(2)}s
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm text-slate-400 whitespace-nowrap">
-                            {format(new Date(trace.startTime), 'MMM d, HH:mm')}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                            <MoreHorizontal className="w-5 h-5 text-slate-600 group-hover:text-slate-400 transition-colors" />
-                        </td>
-                    </tr>
-                ))}
+                                <div className="text-sm text-slate-400 truncate font-mono">
+                                    out: {trace.assistantOutputPreview}
+                                </div>
+                            </td>
+                            <td className="px-6 py-4">
+                                <StatusBadge status={trace.status} />
+                                {trace.score !== null && (
+                                    <div className="text-xs font-bold mt-1 text-slate-400">
+                                        Score: {trace.score.toFixed(2)}
+                                    </div>
+                                )}
+                            </td>
+                            <td className="px-6 py-4 text-right text-sm text-slate-400">
+                                {trace.totalTokens?.toLocaleString()}
+                            </td>
+                            <td className="px-6 py-4 text-right text-sm text-slate-400">
+                                {(trace.latencyMs / 1000).toFixed(2)}s
+                            </td>
+                            <td className="px-6 py-4 text-right text-sm text-slate-400 whitespace-nowrap">
+                                {format(new Date(trace.startTime), 'MMM d, HH:mm')}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                                <MoreHorizontal className="w-5 h-5 text-slate-600 group-hover:text-slate-400 transition-colors" />
+                            </td>
+                        </tr>
+                    );
+                })}
             </tbody>
         </table>
     );
