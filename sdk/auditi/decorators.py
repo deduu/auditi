@@ -25,6 +25,7 @@ from .context import (
 from .client import get_client
 from .evaluator import BaseEvaluator
 from .providers import detect_provider
+from .events import EventType, INTERNAL_EVENTS, CONTENT_EVENTS
 
 # Debug flag - set via environment variable
 DEBUG = os.getenv("AUDITI_DEBUG", "false").lower() in ("true", "1", "yes")
@@ -1053,19 +1054,19 @@ def _trace_span(
                         elif isinstance(item, dict):
                             evt_type = item.get("type")
 
-                            # Filter out internal events
-                            if evt_type in (
-                                "phase_start",
-                                "phase_end",
-                                "tool_exec_start",
-                                "tool_exec_end",
-                            ):
+                            # Filter out internal events using standardized set
+                            if evt_type in {e.value for e in INTERNAL_EVENTS}:
+                                # Handle turn_metadata to extract usage before skipping
+                                if evt_type == EventType.TURN_METADATA.value:
+                                    if "usage" in item and item["usage"]:
+                                        _apply_usage_to_span(span, item["usage"])
                                 continue
 
-                            if evt_type == "token" and "content" in item:
+                            # Accumulate content from content events
+                            if evt_type == EventType.TOKEN.value and "content" in item:
                                 accumulated_outputs.append(str(item["content"]))
-                            elif evt_type == "complete" and "content" in item:
-                                pass
+                            elif evt_type == EventType.COMPLETE.value and "content" in item:
+                                pass  # Complete event content handled elsewhere
                             elif "content" in item:
                                 accumulated_outputs.append(str(item["content"]))
 
@@ -1073,6 +1074,8 @@ def _trace_span(
                             accumulated_outputs.append(str(item.content))
                         else:
                             accumulated_outputs.append(str(item))
+
+                    # If usage was not found in stream but captured via other means (e.g. side channel), we rely on it being yields.
 
                     span.outputs = "".join(accumulated_outputs)
                     span.status = "ok"

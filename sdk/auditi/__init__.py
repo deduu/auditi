@@ -13,6 +13,7 @@ from .client import get_client
 from .evaluator import BaseEvaluator
 from .transport import BaseTransport, SyncHttpTransport, DebugTransport
 from .types import TraceInput, SpanInput, EvaluationResult
+from .events import EventType, StreamEvent
 
 __version__ = "0.1.0"
 
@@ -40,4 +41,7 @@ __all__ = [
     "TraceInput",
     "SpanInput",
     "EvaluationResult",
+    # Events
+    "EventType",
+    "StreamEvent",
 ]
