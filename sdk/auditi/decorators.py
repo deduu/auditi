@@ -168,7 +168,7 @@ def _execute_as_standalone_trace(
     trace = TraceInput(
         id=trace_id,
         start_time=start_time,
-        user_input=user_input[:2000],
+        user_input=user_input,
         name=func_name,
         tags=["standalone", span_type],
     )
@@ -181,7 +181,7 @@ def _execute_as_standalone_trace(
         name=func_name,
         span_type=span_type,
         start_time=start_time,
-        inputs={"prompt": user_input[:500]} if user_input else {},
+        inputs={"prompt": user_input} if user_input else {},
         model=model,
     )
     push_span(span)
@@ -214,8 +214,8 @@ def _execute_as_standalone_trace(
             except (IndexError, AttributeError):
                 output = str(result)
 
-            trace.assistant_output = output[:2000]
-            span.outputs = output[:2000]
+            trace.assistant_output = output
+            span.outputs = output
 
             if hasattr(result, "usage") and result.usage:
                 _apply_usage_to_span(span, result.usage, response=result)
@@ -228,27 +228,27 @@ def _execute_as_standalone_trace(
             trace.assistant_output = span.outputs
 
         elif isinstance(result, str):
-            trace.assistant_output = result[:2000]
-            span.outputs = result[:2000]
+            trace.assistant_output = result
+            span.outputs = result
 
         elif isinstance(result, dict):
             content = (
                 result.get("content") or result.get("text") or result.get("response") or str(result)
             )
-            trace.assistant_output = str(content)[:2000]
-            span.outputs = str(content)[:2000]
+            trace.assistant_output = str(content)
+            span.outputs = str(content)
             if "usage" in result:
                 _apply_usage_to_span(span, result["usage"], response=result)
 
         elif hasattr(result, "content"):
-            trace.assistant_output = str(result.content)[:2000]
-            span.outputs = str(result.content)[:2000]
+            trace.assistant_output = str(result.content)
+            span.outputs = str(result.content)
             if hasattr(result, "usage"):
                 _apply_usage_to_span(span, result.usage, response=result)
 
         else:
-            trace.assistant_output = str(result)[:2000] if result else ""
-            span.outputs = str(result)[:2000] if result else ""
+            trace.assistant_output = str(result) if result else ""
+            span.outputs = str(result) if result else ""
 
         span.status = "ok"
 
@@ -918,9 +918,9 @@ def _capture_inputs(func, args, kwargs, model_hint=None):
             # Flatten **kwargs if they exist and are a dict
             param = sig.parameters.get(arg_name)
             if param and param.kind == inspect.Parameter.VAR_KEYWORD and isinstance(value, dict):
-                inputs.update({k: str(v)[:500] for k, v in value.items()})
+                inputs.update({k: str(v) for k, v in value.items()})
             else:
-                inputs[arg_name] = str(value)[:500]
+                inputs[arg_name] = str(value)
 
         # Check for model in arguments
         if not effective_model:
@@ -960,7 +960,7 @@ def _capture_inputs(func, args, kwargs, model_hint=None):
                     inputs["input"] = str(val)
 
         if kwargs:
-            inputs.update({k: str(v)[:500] for k, v in kwargs.items()})
+            inputs.update({k: str(v) for k, v in kwargs.items()})
 
     return inputs, effective_model
 
@@ -1066,7 +1066,7 @@ def _trace_span(
                         else:
                             accumulated_outputs.append(str(item))
 
-                    span.outputs = "".join(accumulated_outputs)[:2000]
+                    span.outputs = "".join(accumulated_outputs)
                     span.status = "ok"
 
                 except Exception as e:
@@ -1126,11 +1126,11 @@ def _trace_span(
 
                     # Capture output
                     if isinstance(result, str):
-                        span.outputs = result[:2000]
+                        span.outputs = result
                     elif hasattr(result, "content"):
-                        span.outputs = str(result.content)[:2000]
+                        span.outputs = str(result.content)
                     else:
-                        span.outputs = str(result)[:2000]
+                        span.outputs = str(result)
 
                     span.status = "ok"
                     return result
@@ -1188,9 +1188,9 @@ def _trace_span(
                         and param.kind == inspect.Parameter.VAR_KEYWORD
                         and isinstance(value, dict)
                     ):
-                        inputs.update({k: str(v)[:500] for k, v in value.items()})
+                        inputs.update({k: str(v) for k, v in value.items()})
                     else:
-                        inputs[arg_name] = str(value)[:500]
+                        inputs[arg_name] = str(value)
 
                 # Check for model in arguments
                 if not effective_model:
@@ -1222,7 +1222,7 @@ def _trace_span(
                     else:
                         inputs["input"] = str(first_arg)
                 if kwargs:
-                    inputs.update({k: str(v)[:500] for k, v in kwargs.items()})
+                    inputs.update({k: str(v) for k, v in kwargs.items()})
 
             _debug_log(
                 f"Starting span '{span_name}' (type: {span_type}):",
@@ -1265,11 +1265,11 @@ def _trace_span(
                     try:
                         choice = result.choices[0]
                         if hasattr(choice, "message") and hasattr(choice.message, "content"):
-                            span.outputs = str(choice.message.content)[:2000]
+                            span.outputs = str(choice.message.content)
                         elif hasattr(choice, "text"):  # Legacy completions API
-                            span.outputs = str(choice.text)[:2000]
+                            span.outputs = str(choice.text)
                     except (IndexError, AttributeError):
-                        span.outputs = str(result)[:2000]
+                        span.outputs = str(result)
 
                     # Extract usage from response using provider abstraction
                     if hasattr(result, "usage") and result.usage:
@@ -1277,11 +1277,11 @@ def _trace_span(
 
                 # Simple string result
                 elif isinstance(result, str):
-                    span.outputs = result[:2000]
+                    span.outputs = result
 
                 # Object with .content attribute (e.g., Anthropic)
                 elif hasattr(result, "content"):
-                    span.outputs = str(result.content)[:2000]
+                    span.outputs = str(result.content)
 
                     # Extract usage
                     if hasattr(result, "usage"):
@@ -1299,7 +1299,7 @@ def _trace_span(
                         or result.get("message")
                         or str(result)
                     )
-                    span.outputs = str(content)[:2000]
+                    span.outputs = str(content)
 
                     # Extract usage
                     if "usage" in result:
@@ -1307,7 +1307,7 @@ def _trace_span(
 
                 # Fallback for unknown types
                 else:
-                    span.outputs = str(result)[:2000]
+                    span.outputs = str(result)
 
                     # Try to extract usage
                     if hasattr(result, "usage"):
