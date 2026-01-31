@@ -25,3 +25,7 @@ class ModelStat(APIModel):
     latency_ms: float
     cost_per_1k: float
     requests: int
+    roi: float = 0.0
+    suggestions: list[str] = []
+    # Simplified task performance summary: {"summarization": {"quality": 0.9, "cost": 0.001}}
+    task_performance: dict = {}
