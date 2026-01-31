@@ -926,9 +926,13 @@ def _capture_inputs(func, args, kwargs, model_hint=None):
         if not effective_model:
             if "model" in inputs:
                 effective_model = inputs["model"]
+            elif "model_id" in inputs:  # ADD THIS
+                effective_model = inputs["model_id"]
             # Also check original bound args just in case normalization changed something
             elif "model" in bound.arguments:
                 effective_model = str(bound.arguments["model"])
+            elif "model_id" in bound.arguments:  # ADD THIS
+                effective_model = str(bound.arguments["model_id"])
 
     except Exception:
         # Binding failed, ignore
@@ -938,8 +942,12 @@ def _capture_inputs(func, args, kwargs, model_hint=None):
     if not effective_model:
         if "model" in kwargs:
             effective_model = str(kwargs["model"])
+        elif "model_id" in kwargs:  # ADD THIS
+            effective_model = str(kwargs["model_id"])
         elif args and hasattr(args[0], "model"):
             effective_model = str(args[0].model)
+        elif args and hasattr(args[0], "model_id"):  # ADD THIS
+            effective_model = str(args[0].model_id)
 
     # Fallback input detection
     if not inputs:
@@ -1194,11 +1202,14 @@ def _trace_span(
 
                 # Check for model in arguments
                 if not effective_model:
-                    if "model" in inputs:
-                        effective_model = inputs["model"]
-                    # Also check original bound args just in case normalization changed something
-                    elif "model" in bound.arguments:
-                        effective_model = str(bound.arguments["model"])
+                    if "model" in kwargs:
+                        effective_model = str(kwargs["model"])
+                    elif "model_id" in kwargs:  # ADD THIS
+                        effective_model = str(kwargs["model_id"])
+                    elif args and hasattr(args[0], "model"):
+                        effective_model = str(args[0].model)
+                    elif args and hasattr(args[0], "model_id"):  # ADD THIS
+                        effective_model = str(args[0].model_id)
 
             except Exception:
                 # If binding fails, valid case for built-ins or certain wrappers

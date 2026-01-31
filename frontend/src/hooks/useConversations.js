@@ -87,12 +87,15 @@ export const useConversations = (initialFilters = {}) => {
   const [filters, setFilters] = useState(initialFilters);
 
   const fetchConversations = useCallback(async (abortController) => {
+    // Handle optional abortController (it's undefined when called from refetch())
+    const signal = abortController ? abortController.signal : null;
+
     try {
       setLoading(true);
       // Pass signal to api call to actually cancel the request if component unmounts
-      const data = await api.getConversations(filters, { signal: abortController.signal });
+      const data = await api.getConversations(filters, { signal });
       
-      if (!abortController.signal.aborted) {
+      if (!signal || !signal.aborted) {
         // Map backend fields to frontend display format
         const formattedData = data.map(session => ({
           ...session,
@@ -104,7 +107,7 @@ export const useConversations = (initialFilters = {}) => {
         setError(null);
       }
     } catch (err) {
-      if (abortController.signal.aborted) return;
+      if (signal && signal.aborted) return;
       
       console.error("Failed to fetch conversations:", err);
       
@@ -119,7 +122,6 @@ export const useConversations = (initialFilters = {}) => {
         filtered = filtered.filter(s => s.models.includes(filters.model));
       }
       
-      // Simple range check (mock data is static, so we just simulate)
       if (filters.range === '24h') {
           // In a real app we'd filter by timestamp. Here we just show a subset.
           filtered = filtered.slice(0, 2); 
@@ -128,7 +130,7 @@ export const useConversations = (initialFilters = {}) => {
       setConversations(filtered);
       setError(null);
     } finally {
-      if (!abortController.signal.aborted) {
+      if (!signal || !signal.aborted) {
         setLoading(false);
       }
     }
