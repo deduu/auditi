@@ -1,12 +1,12 @@
 import React from "react";
 import {
-  MessageSquare,
   CheckCircle,
   AlertCircle,
   Clock,
 } from "lucide-react";
 import { useMetrics } from "../../hooks/useMetrics";
-import { Card } from "../ui/Card";
+import { ExpandableMetricCard } from "./ExpandableMetricCard";
+import { formatLatency, formatScore } from "../../utils/formatters";
 
 const Spinner = ({ size = "md" }) => {
   const sizes = {
@@ -24,42 +24,9 @@ const Spinner = ({ size = "md" }) => {
   );
 };
 
-const MetricCard = ({ title, value, unit = "", trend, icon: Icon }) => {
-  const getTrendColor = (trend) => {
-    if (!trend) return "text-slate-500";
-    return trend.direction === "up" ? "text-emerald-400" : "text-rose-400";
-  };
-
-  return (
-    <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-400 mb-2 font-medium">{title}</p>
-          <div className="flex items-baseline space-x-1">
-            <h3 className="text-2xl font-bold text-white">
-              {value}
-            </h3>
-            {unit && <span className="text-sm text-slate-500 font-medium">{unit}</span>}
-          </div>
-          {trend && (
-            <p className={`text-sm mt-2 flex items-center font-medium ${getTrendColor(trend)}`}>
-              <span className="mr-1">{trend.direction === "up" ? "↑" : "↓"}</span>
-              {Math.abs(trend.value)}%
-            </p>
-          )}
-        </div>
-        {Icon && (
-          <div className="p-3 rounded-lg bg-slate-800/50">
-            <Icon className="w-6 h-6 text-slate-400" />
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-};
-
-export const MetricsOverview = ({ timeRange = "7d" }) => {
-  const { metrics, loading, error } = useMetrics(timeRange);
+export const MetricsOverview = ({ timeRange = "7d", filters = {} }) => {
+  // Combine timeRange with other filters
+  const { metrics, loading, error } = useMetrics({ range: timeRange, ...filters });
 
   if (loading) return <Spinner />;
   if (error)
@@ -67,33 +34,55 @@ export const MetricsOverview = ({ timeRange = "7d" }) => {
   if (!metrics) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <MetricCard
-        title="Total Conversations"
-        value={metrics.totalConversations?.toLocaleString()}
-        trend={metrics.trends?.conversations}
-        icon={MessageSquare}
-      />
-      <MetricCard
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <ExpandableMetricCard
         title="Pass Rate"
-        value={metrics.passRate || 88}
+        value={metrics.passRate}
         unit="%"
         trend={metrics.trends?.passRate}
         icon={CheckCircle}
+        tooltip={(
+          <div>
+            <p className="mb-2">Percentage of evaluations that passed quality checks.</p>
+            <div className="text-[10px] text-slate-400 border-t border-slate-700 pt-2">
+              Calculated as: Passed Evaluations / Total Evaluations.
+            </div>
+          </div>
+        )}
       />
-      <MetricCard
+      <ExpandableMetricCard
         title="Avg Evaluation Score"
-        value={metrics.avgScore || 8.4}
-        unit="/10"
+        value={metrics.avgScore?.value || 0}
+        unit=""
         trend={metrics.trends?.score}
         icon={AlertCircle}
+        percentiles={metrics.avgScore}
+        formatter={formatScore}
+        tooltip={(
+          <div>
+            <p className="mb-2">Average quality score given by evaluation systems (LLM judge or human).</p>
+            <div className="text-[10px] text-slate-400 border-t border-slate-700 pt-2">
+              Scores range from 0 to 1.
+            </div>
+          </div>
+        )}
       />
-      <MetricCard
+      <ExpandableMetricCard
         title="Avg Latency"
-        value={metrics.avgLatency || 2.3}
-        unit="s"
+        value={metrics.avgLatencyMs?.value || 0}
+        unit=""
         trend={metrics.trends?.latency}
         icon={Clock}
+        percentiles={metrics.avgLatencyMs}
+        formatter={formatLatency}
+        tooltip={(
+          <div>
+            <p className="mb-2">Average time taken for the AI to produce a response.</p>
+            <div className="text-[10px] text-slate-400 border-t border-slate-700 pt-2">
+              Includes model processing and system overhead.
+            </div>
+          </div>
+        )}
       />
     </div>
   );

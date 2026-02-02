@@ -3,6 +3,7 @@ import { deleteConversations } from "../api/conversations";
 import { Users, TrendingUp, Filter, Download, X, Calendar, Database, Shield, Trash2, ChevronDown } from "lucide-react";
 import { useConversations } from "../hooks/useConversations";
 import { useModels } from "../hooks/useModels";
+import { useMetrics } from "../hooks/useMetrics";
 import { MetricsOverview } from "../components/dashboard/MetricsOverview";
 import { ConversationTable } from "../components/conversations/ConversationTable";
 import { PaginationFooter } from "../components/ui/PaginationFooter";
@@ -18,6 +19,7 @@ import { ConversationDetailPage } from "./ConversationDetailPage";
 export const ConversationsPage = ({ onSelectConversation }) => {
   const { conversations, loading, filters, setFilters, refetch } = useConversations();
   const { models } = useModels();
+  const { metrics } = useMetrics(filters); // Fetch metrics
   const [showFilters, setShowFilters] = useState(false);
 
   // Selection state
@@ -203,7 +205,7 @@ export const ConversationsPage = ({ onSelectConversation }) => {
       </div>
 
       {/* Metrics Section */}
-      <MetricsOverview />
+      <MetricsOverview filters={filters} />
 
       {/* Sessions Section */}
       <Card className="p-0 overflow-hidden border-slate-800 bg-slate-900/50">
@@ -230,6 +232,10 @@ export const ConversationsPage = ({ onSelectConversation }) => {
                   Delete Selected ({selectedIds.size})
                 </Button>
               )}
+
+              <div className="flex items-center space-x-2 px-3 py-1.5 bg-slate-800/50 border border-slate-700 rounded-lg">
+                <span className="text-xs font-semibold text-slate-300">Total Requests: {metrics?.totalRequests ? metrics.totalRequests.toLocaleString() : 0}</span>
+              </div>
 
               <div className="flex items-center space-x-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                 <TrendingUp className="w-4 h-4 text-emerald-400" />

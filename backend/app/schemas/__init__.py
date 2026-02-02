@@ -27,6 +27,7 @@ from .span import (
 # Metrics
 from .metrics import (
     MetricTrend,
+    MetricDetail,
     MetricsResponse,
 )
 
@@ -47,7 +48,6 @@ from .trace import (
 __all__ = [
     # Base
     "APIModel",
-
     # Conversation
     "UserMessage",
     "AssistantMessage",
@@ -55,20 +55,17 @@ __all__ = [
     "ConversationTurn",
     "ConversationSummary",
     "ConversationDetail",
-
     # Span
     "SpanDetail",
     "SpanEvaluation",
-
     # Metrics
     "MetricTrend",
+    "MetricDetail",
     "MetricsResponse",
-
     # Responses
     "FailureModeStat",
     "ActionResponse",
     "ModelStat",
-
     # Trace ingest
     "SpanIngest",
     "EvaluationIngest",
