@@ -42,8 +42,7 @@ export const EvaluationBadge = ({ status, score }) => {
                 </span>
             </div>
         );
-    } else {
-        // Review or unknown
+    } else if (status === "review") {
         return (
             <div className="flex items-center space-x-2">
                 <Badge
@@ -56,6 +55,19 @@ export const EvaluationBadge = ({ status, score }) => {
                 <span className="text-sm font-semibold text-amber-400">
                     {formatScore(score)}
                 </span>
+            </div>
+        );
+    } else {
+        // Pending / Unknown
+        return (
+            <div className="flex items-center space-x-2">
+                <Badge
+                    variant="secondary"
+                    className="bg-slate-500/10 text-slate-400 border border-slate-500/20"
+                >
+                    <div className="w-2 h-2 rounded-full bg-slate-400 mr-2" />
+                    Evaluation Needed
+                </Badge>
             </div>
         );
     }

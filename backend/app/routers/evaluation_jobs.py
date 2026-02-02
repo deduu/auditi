@@ -133,17 +133,29 @@ def get_traces_preview(
         elif status == "error":
             query = query.filter(Trace.status == "fail")
         elif status == "needs_evaluation":
-            # Status is null OR 'review' OR 'pending' AND score is null (not evaluated)
+            # Status is null OR 'review' OR 'pending' (combined view - legacy)
             query = query.filter(
-                and_(
-                    or_(
-                        Trace.status == None,
-                        Trace.status == "review",
-                        Trace.status == "pending",
-                    ),
-                    Trace.score == None,
+                or_(
+                    Trace.status.is_(None),
+                    Trace.status == "review",
+                    Trace.status == "pending",
                 )
             )
+        elif status == "pending":
+            # Only pending/unevaluated traces
+            query = query.filter(
+                or_(
+                    Trace.status.is_(None),
+                    Trace.status == "pending",
+                )
+            )
+        elif status == "review":
+            # Only traces flagged for review
+            query = query.filter(Trace.status == "review")
+        elif status == "pass":
+            query = query.filter(Trace.status == "pass")
+        elif status == "fail":
+            query = query.filter(Trace.status == "fail")
 
     # Get total count
     total = query.count()

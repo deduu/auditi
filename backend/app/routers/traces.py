@@ -226,7 +226,11 @@ def get_traces(
         query = query.filter(cast(Trace.tags, String).like('%"standalone"%'))
 
     if status and status != "all":
-        query = query.filter(Trace.status == status)
+        if status == "pending":
+            # Pending traces have status='pending' OR status=None
+            query = query.filter((Trace.status == "pending") | (Trace.status.is_(None)))
+        else:
+            query = query.filter(Trace.status == status)
 
     if trace_type and trace_type != "all":
         # Filter traces that contain at least one span of the specified type

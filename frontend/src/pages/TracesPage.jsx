@@ -10,6 +10,8 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 
 import { Modal } from "../components/ui/Modal";
+import { SlidePanel } from "../components/ui/SlidePanel";
+import { TraceDetailPage } from "./TraceDetailPage";
 
 // ... other imports
 
@@ -27,6 +29,7 @@ export const TracesPage = ({ onSelectTrace }) => {
     const [selectedIds, setSelectedIds] = useState(new Set());
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [selectedTraceId, setSelectedTraceId] = useState(null);
 
     // Client-side pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -225,7 +228,7 @@ export const TracesPage = ({ onSelectTrace }) => {
                 <TraceTable
                     traces={paginatedTraces}
                     loading={loading}
-                    onSelectTrace={onSelectTrace}
+                    onSelectTrace={(id) => setSelectedTraceId(id)}
                     selectedIds={selectedIds}
                     onToggleSelection={handleToggleSelection}
                     onToggleAll={handleToggleAll}
@@ -267,6 +270,21 @@ export const TracesPage = ({ onSelectTrace }) => {
                     </p>
                 </div>
             </Modal>
+
+            {/* Slide Panel for Trace Details */}
+            <SlidePanel
+                isOpen={!!selectedTraceId}
+                onClose={() => setSelectedTraceId(null)}
+                title="Trace Details"
+            >
+                {selectedTraceId && (
+                    <TraceDetailPage
+                        traceId={selectedTraceId}
+                        onBack={() => setSelectedTraceId(null)}
+                        inPanel={true}
+                    />
+                )}
+            </SlidePanel>
         </div>
     );
 };

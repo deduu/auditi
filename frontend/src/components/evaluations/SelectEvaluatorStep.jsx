@@ -4,7 +4,7 @@ import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import * as evaluatorsApi from "../../api/evaluatorsApi";
 
-export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, selectedEvaluatorId, onDoubleClickEvaluator }) => {
+export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, selectedEvaluatorId, onDoubleClickEvaluator, refreshTrigger = 0 }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [localSelectedId, setLocalSelectedId] = useState(selectedEvaluatorId || null);
     const [managedEvaluators, setManagedEvaluators] = useState([]);
@@ -28,7 +28,7 @@ export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, se
             }
         };
         loadEvaluators();
-    }, []);
+    }, [refreshTrigger]);
 
     useEffect(() => {
         setLocalSelectedId(selectedEvaluatorId);
@@ -96,8 +96,8 @@ export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, se
                                             <div className="flex items-center gap-2">
                                                 <h4 className="text-base font-medium text-white">{evaluator.name}</h4>
                                                 <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${evaluator.evaluation_scope === "simple" ? "bg-green-500/20 text-green-400" :
-                                                        evaluator.evaluation_scope === "trace" ? "bg-purple-500/20 text-purple-400" :
-                                                            "bg-blue-500/20 text-blue-400"
+                                                    evaluator.evaluation_scope === "trace" ? "bg-purple-500/20 text-purple-400" :
+                                                        "bg-blue-500/20 text-blue-400"
                                                     }`}>
                                                     {evaluator.evaluation_scope === "simple" ? "Simple" :
                                                         evaluator.evaluation_scope === "trace" ? "Trace" : "Auto"}
@@ -144,8 +144,8 @@ export const SelectEvaluatorStep = ({ onSelectEvaluator, onCreateCustomClick, se
                                         <div className="flex items-center gap-2">
                                             <h4 className="text-base font-medium text-white">{evaluator.name}</h4>
                                             <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${evaluator.evaluation_scope === "simple" ? "bg-green-500/20 text-green-400" :
-                                                    evaluator.evaluation_scope === "trace" ? "bg-purple-500/20 text-purple-400" :
-                                                        "bg-blue-500/20 text-blue-400"
+                                                evaluator.evaluation_scope === "trace" ? "bg-purple-500/20 text-purple-400" :
+                                                    "bg-blue-500/20 text-blue-400"
                                                 }`}>
                                                 {evaluator.evaluation_scope === "simple" ? "Simple" :
                                                     evaluator.evaluation_scope === "trace" ? "Trace" : "Auto"}

@@ -10,6 +10,8 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { exportToCSV } from "../utils/exportUtils";
 import { Modal } from "../components/ui/Modal";
+import { SlidePanel } from "../components/ui/SlidePanel";
+import { ConversationDetailPage } from "./ConversationDetailPage";
 
 // ... existing imports
 
@@ -22,6 +24,7 @@ export const ConversationsPage = ({ onSelectConversation }) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
 
   // Client-side pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -148,6 +151,7 @@ export const ConversationsPage = ({ onSelectConversation }) => {
                     <option value="pass">Pass</option>
                     <option value="fail">Fail</option>
                     <option value="review">Review</option>
+                    <option value="pending">Pending</option>
                   </select>
                 </div>
 
@@ -237,7 +241,7 @@ export const ConversationsPage = ({ onSelectConversation }) => {
         <ConversationTable
           conversations={paginatedConversations}
           loading={loading}
-          onSelectConversation={onSelectConversation}
+          onSelectConversation={(id) => setSelectedConversationId(id)}
           selectedIds={selectedIds}
           onToggleSelection={handleToggleSelection}
           onToggleAll={handleToggleAll}
@@ -280,6 +284,21 @@ export const ConversationsPage = ({ onSelectConversation }) => {
           </p>
         </div>
       </Modal>
+
+      {/* Slide Panel for Conversation Details */}
+      <SlidePanel
+        isOpen={!!selectedConversationId}
+        onClose={() => setSelectedConversationId(null)}
+        title="Conversation Details"
+      >
+        {selectedConversationId && (
+          <ConversationDetailPage
+            conversationId={selectedConversationId}
+            onBack={() => setSelectedConversationId(null)}
+            inPanel={true}
+          />
+        )}
+      </SlidePanel>
     </div>
   );
 };

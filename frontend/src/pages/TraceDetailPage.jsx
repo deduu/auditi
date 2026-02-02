@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { EvaluationBadge } from "../components/ui/EvaluationBadge";
 import { SpanItem } from "../components/ui/SpanItem";
 
-export const TraceDetailPage = ({ traceId, onBack }) => {
+export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
     const { trace, loading, error } = useTraceDetail(traceId);
 
     if (loading) {
@@ -26,7 +26,7 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
                 <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-slate-300">Failed to load trace</h3>
                 <p className="text-slate-500 mt-2">{error || "Trace not found"}</p>
-                <Button variant="secondary" className="mt-4" onClick={onBack}>Back to Traces</Button>
+                {!inPanel && <Button variant="secondary" className="mt-4" onClick={onBack}>Back to Traces</Button>}
             </div>
         );
     }
@@ -36,10 +36,12 @@ export const TraceDetailPage = ({ traceId, onBack }) => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                    <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-400 hover:text-white">
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Back
-                    </Button>
+                    {!inPanel && (
+                        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-400 hover:text-white">
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Back
+                        </Button>
+                    )}
                     <div>
                         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                             {trace.name || "Untitled Trace"}

@@ -12,11 +12,13 @@ import { LLMJudgePage } from "./pages/LLMJudgePage";
 import { TracesPage } from "./pages/TracesPage";
 import { TraceDetailPage } from "./pages/TraceDetailPage";
 import { Sidebar } from "./components/layout/Sidebar";
+import { SidebarProvider, useSidebar } from "./context/SidebarContext";
 
-function App() {
+function AppContent() {
     const [activeTab, setActiveTab] = useState("conversations");
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [selectedTrace, setSelectedTrace] = useState(null);
+    const { sidebarWidth } = useSidebar();
 
     const renderPage = () => {
         if (activeTab === "conversations" && selectedConversation) {
@@ -60,7 +62,7 @@ function App() {
                         Datasets Page (Coming Soon)
                     </div>
                 );
-            case "evaluations": // Keeping for legacy/fallback if needed, though Sidebar removed it
+            case "evaluations":
                 return <EvaluationsPage />;
             case "failure-modes":
                 return <FailureModesPage />;
@@ -81,12 +83,23 @@ function App() {
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500/30">
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-            <main className="ml-64 min-h-screen transition-all duration-300 ease-in-out">
+            <main
+                style={{ marginLeft: `${sidebarWidth}px` }}
+                className="min-h-screen transition-all duration-300 ease-in-out"
+            >
                 <div className="w-full px-8 py-8">
                     {renderPage()}
                 </div>
             </main>
         </div>
+    );
+}
+
+function App() {
+    return (
+        <SidebarProvider>
+            <AppContent />
+        </SidebarProvider>
     );
 }
 

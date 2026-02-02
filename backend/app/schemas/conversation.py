@@ -9,22 +9,28 @@ from .span import SpanDetail
 # CONVERSATION TURN SCHEMAS
 # ============================================================================
 
+
 class UserMessage(APIModel):
     """User's input message."""
+
     content: str
 
 
 class AssistantEvaluation(APIModel):
     """Evaluation results for assistant's response."""
+
     status: str  # "pass", "fail", "review", "pending"
     score: Optional[float] = None
     failure_mode: Optional[str] = Field(None, alias="failureMode")
     reason: Optional[str] = None
-    recommended_action: Optional[str] = Field(None, alias="recommendedAction")  # null or string, never "None"
+    recommended_action: Optional[str] = Field(
+        None, alias="recommendedAction"
+    )  # null or string, never "None"
 
 
 class AssistantMessage(APIModel):
     """Assistant's response message with evaluation."""
+
     content: str
     model: str
     latency_ms: float = Field(..., alias="latencyMs")  # Changed to milliseconds
@@ -33,6 +39,7 @@ class AssistantMessage(APIModel):
 
 class ConversationTurn(APIModel):
     """A single turn in a conversation (user input + assistant response)."""
+
     id: str
     user: UserMessage
     assistant: AssistantMessage
@@ -43,8 +50,10 @@ class ConversationTurn(APIModel):
 # CONVERSATION SUMMARY & DETAIL SCHEMAS
 # ============================================================================
 
+
 class ConversationSummary(APIModel):
     """Summary view of a conversation for list display."""
+
     id: str
     user_id: Optional[str] = Field(None, alias="userId")
     start_time: datetime = Field(..., alias="startTime")
@@ -53,7 +62,9 @@ class ConversationSummary(APIModel):
     pass_count: int = Field(..., alias="passCount")
     fail_count: int = Field(..., alias="failCount")
 
-    overall_status: str = Field(..., alias="overallStatus")  # "pass", "fail", "review"
+    overall_status: Optional[str] = Field(
+        None, alias="overallStatus"
+    )  # "pass", "fail", "review", or None (pending)
     models: List[str] = Field(default_factory=list)
 
     avg_score: float = Field(..., alias="avgScore")
@@ -64,6 +75,7 @@ class ConversationSummary(APIModel):
 
 class ConversationDetail(APIModel):
     """Detailed view of a conversation with all turns and spans."""
+
     id: str
     user_id: Optional[str] = Field(None, alias="userId")
     start_time: datetime = Field(..., alias="startTime")

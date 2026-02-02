@@ -23,6 +23,7 @@ export const LLMJudgePage = () => {
     const [showCreateEvaluatorModal, setShowCreateEvaluatorModal] = useState(false);
     const [showEditEvaluatorModal, setShowEditEvaluatorModal] = useState(false);
     const [evaluatorToEdit, setEvaluatorToEdit] = useState(null);
+    const [evaluatorsRefreshTrigger, setEvaluatorsRefreshTrigger] = useState(0);
 
     const steps = [
         { id: 0, label: "Set up default model" },
@@ -165,6 +166,7 @@ export const LLMJudgePage = () => {
         try {
             const created = await evaluatorsApi.createEvaluator(evaluatorConfig);
             setSelectedEvaluator(created);
+            setEvaluatorsRefreshTrigger(prev => prev + 1);
             setShowCreateEvaluatorModal(false);
         } catch (error) {
             console.error("Failed to create evaluator:", error);
@@ -199,6 +201,7 @@ export const LLMJudgePage = () => {
             if (selectedEvaluator?.id === evaluatorToEdit.id) {
                 setSelectedEvaluator(updated);
             }
+            setEvaluatorsRefreshTrigger(prev => prev + 1);
             setShowEditEvaluatorModal(false);
         } catch (error) {
             console.error("Failed to update evaluator:", error);
@@ -323,6 +326,7 @@ export const LLMJudgePage = () => {
                             onCreateCustomClick={() => setShowCreateEvaluatorModal(true)}
                             selectedEvaluatorId={selectedEvaluator?.id}
                             onDoubleClickEvaluator={handleEvaluatorDoubleClick}
+                            refreshTrigger={evaluatorsRefreshTrigger}
                         />
                         {selectedEvaluator && (
                             <div className="flex justify-end mt-6">

@@ -35,7 +35,7 @@ const StatusBadge = ({ status }) => {
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${style}`}>
             <Icon className="w-3 h-3 mr-1" />
-            {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Pending"}
+            {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Evaluation Needed"}
         </span>
     );
 };

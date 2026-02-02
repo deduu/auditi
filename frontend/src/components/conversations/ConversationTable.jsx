@@ -33,11 +33,18 @@ const getStatusBadge = (status, passCount, failCount) => {
         Fail ({passCount}/{passCount + failCount})
       </Badge>
     );
-  } else {
+  } else if (status === "review") {
     return (
       <Badge variant="warning">
         <AlertCircle className="w-3 h-3 mr-1" />
         Review ({passCount}/{passCount + failCount})
+      </Badge>
+    );
+  } else {
+    return (
+      <Badge variant="secondary" className="bg-slate-500/10 text-slate-400 border-slate-500/20">
+        <div className="w-2 h-2 rounded-full bg-slate-400 mr-2" />
+        Evaluation Needed
       </Badge>
     );
   }

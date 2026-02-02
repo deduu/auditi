@@ -31,7 +31,7 @@ const TurnCard = ({ turn, turnNumber }) => {
   const evaluation = turn?.assistant?.evaluation ?? {};
   const [expanded, setExpanded] = useState(true); // keep your default expanded behavior
 
-  const status = evaluation?.status ?? "review";
+  const status = evaluation?.status;
   const isFail = status === "fail";
   const isReview = status === "review";
 
@@ -211,7 +211,7 @@ const TurnCard = ({ turn, turnNumber }) => {
   );
 };
 
-export const ConversationDetailPage = ({ conversationId, onBack }) => {
+export const ConversationDetailPage = ({ conversationId, onBack, inPanel = false }) => {
   const { detail, loading, error } = useConversationDetail(conversationId);
 
   if (loading) {
@@ -252,14 +252,16 @@ export const ConversationDetailPage = ({ conversationId, onBack }) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button
-          onClick={onBack}
-          variant="secondary"
-          className="bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border-slate-700"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Sessions
-        </Button>
+        {!inPanel && (
+          <Button
+            onClick={onBack}
+            variant="secondary"
+            className="bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border-slate-700"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Sessions
+          </Button>
+        )}
         <div className="flex items-center space-x-4">
           <Badge
             variant="success"

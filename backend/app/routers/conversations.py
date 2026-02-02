@@ -209,7 +209,17 @@ def get_conversations(
                 passCount=pass_count,
                 failCount=fail_count,
                 overallStatus=(
-                    "fail" if fail_count > 0 else "pass" if pass_count > 0 else "review"
+                    "fail"
+                    if fail_count > 0
+                    else (
+                        "pass"
+                        if pass_count > 0
+                        else (
+                            "review"
+                            if any(t.status == "review" for t in traces)
+                            else None
+                        )
+                    )
                 ),
                 models=models,
                 avgScore=avg_score,

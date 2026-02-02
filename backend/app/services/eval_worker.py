@@ -150,20 +150,25 @@ def get_evaluator_config(db: Session) -> dict:
         .first()
     )
 
-    if not state or not state.active_evaluator_id:
-        result["reason"] = "No active evaluator selected"
+    if not state:
+        result["reason"] = "No setup state found"
+        return result
+
+    # Use active evaluator (auto-eval) OR selected evaluator (manual/pending config)
+    target_evaluator_id = state.active_evaluator_id or state.selected_evaluator_id
+
+    if not target_evaluator_id:
+        result["reason"] = "No evaluator selected"
         return result
 
     evaluator = (
         db.query(Evaluator)
-        .filter(Evaluator.id == state.active_evaluator_id, Evaluator.is_active == True)
+        .filter(Evaluator.id == target_evaluator_id, Evaluator.is_active == True)
         .first()
     )
 
     if not evaluator:
-        result["reason"] = (
-            f"Active evaluator {state.active_evaluator_id} not found or inactive"
-        )
+        result["reason"] = f"Evaluator {target_evaluator_id} not found or inactive"
         return result
 
     result["evaluator"] = evaluator
@@ -477,7 +482,7 @@ async def run_eval_worker(
 
     # Track when to reload config
     last_config_check = 0
-    config_check_interval = 30  # Re-check config every 30 seconds
+    config_check_interval = 2  # Re-check config every 2 seconds
 
     # Cached evaluator
     cached_evaluator = None

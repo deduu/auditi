@@ -7,6 +7,8 @@ import {
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { PaginationFooter } from "../ui/PaginationFooter";
+import { SlidePanel } from "../ui/SlidePanel";
+import { TraceDetailPage } from "../../pages/TraceDetailPage";
 
 // ... imports
 
@@ -36,8 +38,9 @@ export const RunEvaluatorPage = ({
         models: [],
         traceName: "",
         tags: [],
-        status: "needs_evaluation" // Default to smart filter: Review + Pending
+        status: "pending" // Default to pending (not yet evaluated)
     });
+    const [selectedTraceId, setSelectedTraceId] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
 
     // Sampling and delay
@@ -406,9 +409,10 @@ export const RunEvaluatorPage = ({
                                     className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                                 >
                                     <option value="all">All</option>
-                                    <option value="needs_evaluation">Pending / Review</option>
-                                    <option value="success">Success</option>
-                                    <option value="error">Error</option>
+                                    <option value="pending">Pending (Not Evaluated)</option>
+                                    <option value="review">Review (Needs Attention)</option>
+                                    <option value="pass">Pass</option>
+                                    <option value="fail">Fail</option>
                                 </select>
                             </div>
 
@@ -485,6 +489,7 @@ export const RunEvaluatorPage = ({
                                         <th className="text-left px-3 py-2 text-slate-500 font-medium">Name</th>
                                         <th className="text-left px-3 py-2 text-slate-500 font-medium">Input</th>
                                         <th className="text-left px-3 py-2 text-slate-500 font-medium">Output</th>
+                                        <th className="text-left px-3 py-2 text-slate-500 font-medium">Status</th>
                                         <th className="text-right px-3 py-2 text-slate-500 font-medium">Latency</th>
                                         <th className="text-right px-3 py-2 text-slate-500 font-medium">Tokens</th>
                                     </tr>
@@ -492,13 +497,13 @@ export const RunEvaluatorPage = ({
                                 <tbody>
                                     {loadingPreview ? (
                                         <tr>
-                                            <td colSpan={7} className="text-center py-8 text-slate-500">
+                                            <td colSpan={8} className="text-center py-8 text-slate-500">
                                                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
                                             </td>
                                         </tr>
                                     ) : previewTraces.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="text-center py-8 text-slate-500">
+                                            <td colSpan={8} className="text-center py-8 text-slate-500">
                                                 No traces match the current filters
                                             </td>
                                         </tr>
@@ -508,7 +513,7 @@ export const RunEvaluatorPage = ({
                                                 key={trace.id}
                                                 className={`border-b border-slate-800 hover:bg-slate-800/30 cursor-pointer transition-colors ${selectedTraceIds.has(trace.id) ? 'bg-blue-500/5' : ''
                                                     }`}
-                                                onClick={() => toggleTraceSelection(trace.id)}
+                                                onClick={() => setSelectedTraceId(trace.id)}
                                             >
                                                 <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                                                     <input
@@ -527,6 +532,17 @@ export const RunEvaluatorPage = ({
                                                 </td>
                                                 <td className="px-3 py-2 text-slate-300 max-w-32 truncate">
                                                     {trace.assistant_output?.substring(0, 50) || "—"}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {trace.status === 'pass' ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Pass</span>
+                                                    ) : trace.status === 'fail' ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">Fail</span>
+                                                    ) : trace.status === 'review' ? (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">Review</span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-500/10 text-slate-400 border border-slate-500/20">Pending</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-2 text-slate-400 text-right">
                                                     {trace.latency ? `${trace.latency.toFixed(0)}ms` : "—"}
@@ -699,6 +715,21 @@ export const RunEvaluatorPage = ({
                     )}
                 </Button>
             </div>
+
+            {/* Slide Panel for Trace Details */}
+            <SlidePanel
+                isOpen={!!selectedTraceId}
+                onClose={() => setSelectedTraceId(null)}
+                title="Trace Details"
+            >
+                {selectedTraceId && (
+                    <TraceDetailPage
+                        traceId={selectedTraceId}
+                        onBack={() => setSelectedTraceId(null)}
+                        inPanel={true}
+                    />
+                )}
+            </SlidePanel>
         </div>
     );
 };
