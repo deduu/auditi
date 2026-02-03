@@ -6,6 +6,9 @@ from .span import Span
 from .action import Action
 from .llm_connection import LLMConnection
 from .evaluator import Evaluator, EvaluatorSetupState
+from .score_config import ScoreConfig
+from .annotation_queue import AnnotationQueue, AnnotationQueueItem
+from .annotation import Annotation
 
 __all__ = [
     "Conversation",
@@ -15,4 +18,8 @@ __all__ = [
     "LLMConnection",
     "Evaluator",
     "EvaluatorSetupState",
+    "ScoreConfig",
+    "AnnotationQueue",
+    "AnnotationQueueItem",
+    "Annotation",
 ]

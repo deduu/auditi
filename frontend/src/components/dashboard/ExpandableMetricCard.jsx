@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, HelpCircle } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Tooltip } from "../ui/Tooltip";
 
-export const ExpandableMetricCard = ({ title, value, unit = "", trend, icon: Icon, percentiles, tooltip, formatter = (v) => v }) => {
+export const ExpandableMetricCard = ({ title, value, unit = "", trend, percentiles, tooltip, formatter = (v) => v }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     const getTrendColor = (trend) => {
@@ -25,18 +25,13 @@ export const ExpandableMetricCard = ({ title, value, unit = "", trend, icon: Ico
     return (
         <Card className="p-6 bg-slate-900/50 border-slate-800 backdrop-blur-sm transition-all duration-300 relative group">
             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                    <p className="text-sm text-slate-400 font-medium">{title}</p>
-                    {tooltip && (
-                        <Tooltip content={tooltip}>
-                            <HelpCircle className="w-3.5 h-3.5 text-slate-600 hover:text-slate-400 cursor-help" />
-                        </Tooltip>
-                    )}
-                </div>
-                {Icon && (
-                    <div className="p-2 rounded-lg bg-slate-800/50">
-                        <Icon className="w-5 h-5 text-slate-400" />
-                    </div>
+                <p className="text-sm text-slate-400 font-medium">{title}</p>
+                {tooltip && (
+                    <Tooltip content={tooltip}>
+                        <div className="p-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors cursor-help">
+                            <HelpCircle className="w-5 h-5 text-slate-400 hover:text-slate-200" />
+                        </div>
+                    </Tooltip>
                 )}
             </div>
 

@@ -24,6 +24,8 @@ from app.routers import (
     settings_router,
     llm_connections_router,
     evaluators_router,
+    annotations_router,
+    analytics_router,
 )
 from app.routers.evaluation_jobs import router as evaluation_jobs_router
 from app.services.eval_worker import run_eval_worker
@@ -101,6 +103,8 @@ app.include_router(settings_router, prefix="/api/v1")
 app.include_router(llm_connections_router, prefix="/api/v1")
 app.include_router(evaluators_router, prefix="/api/v1")
 app.include_router(evaluation_jobs_router, prefix="/api/v1")
+app.include_router(annotations_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
 
 
 @app.get("/")

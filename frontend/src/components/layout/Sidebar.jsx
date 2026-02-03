@@ -13,7 +13,9 @@ import {
   User,
   Gavel,
   UserCheck,
-  BarChart2
+  BarChart2,
+  TrendingUp,
+  Wrench
 } from 'lucide-react';
 import { useSidebar } from '../../context/SidebarContext';
 
@@ -61,9 +63,11 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
       id: 'analytics',
       label: 'Analytics',
       items: [
-        { id: 'failure-modes', label: 'Failure Modes', icon: AlertTriangle },
+        { id: 'trends', label: 'Trends', icon: TrendingUp },
         { id: 'models', label: 'Models', icon: Zap },
-        { id: 'actions', label: 'Recommended Actions', icon: LayoutDashboard },
+        { id: 'tool-calls', label: 'Tool Calls', icon: Wrench },
+        { id: 'failure-modes', label: 'Failure Modes', icon: AlertTriangle },
+        { id: 'actions', label: 'Recommendations', icon: LayoutDashboard },
       ]
     }
   ];

@@ -8,6 +8,9 @@ import { ActionsPage } from "./pages/ActionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ScoresPage } from "./pages/ScoresPage";
 import { LLMJudgePage } from "./pages/LLMJudgePage";
+import { HumanAnnotationPage } from "./pages/HumanAnnotationPage";
+import { TrendsPage } from "./pages/TrendsPage";
+import { ToolCallsPage } from "./pages/ToolCallsPage";
 
 import { TracesPage } from "./pages/TracesPage";
 import { TraceDetailPage } from "./pages/TraceDetailPage";
@@ -51,11 +54,7 @@ function AppContent() {
             case "llm-judge":
                 return <LLMJudgePage />;
             case "human-annotation":
-                return (
-                    <div className="flex items-center justify-center h-full text-slate-500">
-                        Human Annotation Page (Coming Soon)
-                    </div>
-                );
+                return <HumanAnnotationPage />;
             case "datasets":
                 return (
                     <div className="flex items-center justify-center h-full text-slate-500">
@@ -64,6 +63,10 @@ function AppContent() {
                 );
             case "evaluations":
                 return <EvaluationsPage />;
+            case "trends":
+                return <TrendsPage />;
+            case "tool-calls":
+                return <ToolCallsPage />;
             case "failure-modes":
                 return <FailureModesPage />;
             case "models":

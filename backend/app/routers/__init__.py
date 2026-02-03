@@ -9,6 +9,8 @@ from .evaluations import router as evaluations_router
 from .settings import router as settings_router
 from .llm_connections import router as llm_connections_router
 from .evaluators import router as evaluators_router
+from .annotations import router as annotations_router
+from .analytics import router as analytics_router
 
 __all__ = [
     "traces_router",
@@ -20,4 +22,6 @@ __all__ = [
     "settings_router",
     "llm_connections_router",
     "evaluators_router",
+    "annotations_router",
+    "analytics_router",
 ]

@@ -11,6 +11,8 @@ export * as modelsApi from "./models";
 export * as actionsApi from "./actions";
 export * as settingsApi from "./settings";
 export * as tracesApi from "./traces";
+export * as annotationsApi from "./annotations";
+export * as analyticsApi from "./analytics";
 
 // Legacy default export for backward compatibility
 import client from "./client";
@@ -20,34 +22,46 @@ import { getEvaluations, getFailureModes, getFailureTrends } from "./evaluations
 import { getModels, getModelPerformance } from "./models";
 import { getRecommendedActions, updateActionStatus } from "./actions";
 import * as tracesApi from "./traces";
+import * as annotationsApi from "./annotations";
+import * as analyticsApi from "./analytics";
 
 const api = {
   // Client methods
   request: client.get,
-  
+
   // Metrics
   getMetrics,
-  
+
   // Conversations
   getConversations,
   getConversationDetail,
-  
+
   // Evaluations
   getEvaluations,
   getFailureModes,
   getFailureTrends,
-  
+
   // Models
   getModels,
   getModelPerformance,
-  
+
   // Actions
   getRecommendedActions,
   updateActionStatus,
-  
+
   // Traces
   getTraces: tracesApi.getTraces,
-  getTraceDetail: tracesApi.getTraceDetail
+  getTraceDetail: tracesApi.getTraceDetail,
+
+  // Annotations (Human Annotation)
+  ...annotationsApi,
+
+  // Analytics
+  getScoreDistribution: analyticsApi.getScoreDistribution,
+  getLowScoringTraces: analyticsApi.getLowScoringTraces,
+  getTrends: analyticsApi.getTrends,
+  getModelComparison: analyticsApi.getModelComparison,
+  getToolAnalytics: analyticsApi.getToolAnalytics,
 };
 
 export default api;
