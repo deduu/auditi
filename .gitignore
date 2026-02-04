@@ -73,3 +73,7 @@ uploads/
 generated/
 
 frontend/node_modules/
+
+# Agents
+.agentt
+.claude

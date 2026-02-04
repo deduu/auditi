@@ -531,27 +531,36 @@ def get_next_queue_item(
                 elif span.processing_time:
                     span_duration_ms = span.processing_time * 1000
 
-                spans_data.append(
-                    {
-                        "id": span.id,
-                        "name": span.name,
-                        "spanType": span.span_type,
-                        "model": span.model,
-                        "startTime": (
-                            span.start_time.isoformat() if span.start_time else None
-                        ),
-                        "endTime": span.end_time.isoformat() if span.end_time else None,
-                        "durationMs": span_duration_ms,
-                        "inputs": span.inputs,
-                        "outputs": span.outputs,
-                        "inputTokens": span.input_tokens or 0,
-                        "outputTokens": span.output_tokens or 0,
-                        "tokens": span.tokens or 0,
-                        "cost": span.cost or 0.0,
-                        "status": span.status or "ok",
-                        "error": span.error,
+                span_data = {
+                    "id": span.id,
+                    "name": span.name,
+                    "spanType": span.span_type,
+                    "model": span.model,
+                    "startTime": (
+                        span.start_time.isoformat() if span.start_time else None
+                    ),
+                    "endTime": span.end_time.isoformat() if span.end_time else None,
+                    "durationMs": span_duration_ms,
+                    "inputs": span.inputs,
+                    "outputs": span.outputs,
+                    "inputTokens": span.input_tokens or 0,
+                    "outputTokens": span.output_tokens or 0,
+                    "tokens": span.tokens or 0,
+                    "cost": span.cost or 0.0,
+                    "status": span.status or "ok",
+                    "error": span.error,
+                }
+
+                # Include LLM-as-a-judge evaluation data if available
+                if span.eval_quality_score is not None or span.eval_relevant is not None:
+                    span_data["evaluation"] = {
+                        "evalQualityScore": span.eval_quality_score,
+                        "evalRelevant": span.eval_relevant,
+                        "evalReasoning": span.eval_reasoning,
+                        "evalIssues": span.eval_issues,
                     }
-                )
+
+                spans_data.append(span_data)
 
             object_data = {
                 "id": trace.id,
@@ -886,6 +895,8 @@ def create_bulk_annotations(
 def export_queue_annotations(
     queue_id: str,
     format: str = Query("csv", description="Export format: csv, jsonl, or parquet"),
+    include_execution_path: bool = Query(False, description="Include execution path (spans) data"),
+    include_llm_evaluation: bool = Query(False, description="Include LLM evaluation data for spans"),
     db: Session = Depends(get_db),
 ):
     """
@@ -895,6 +906,10 @@ def export_queue_annotations(
     - csv: Standard CSV format
     - jsonl: JSON Lines format (recommended for fine-tuning)
     - parquet: Apache Parquet format (requires pyarrow)
+
+    Options:
+    - include_execution_path: Include spans/execution path data for traces
+    - include_llm_evaluation: Include LLM-as-a-judge evaluation data for spans
     """
     queue = db.query(AnnotationQueue).filter(AnnotationQueue.id == queue_id).first()
     if not queue:
@@ -937,6 +952,67 @@ def export_queue_annotations(
                 row["user_input"] = trace.user_input or ""
                 row["assistant_output"] = trace.assistant_output or ""
                 row["model_name"] = trace.model_name or ""
+                row["latency"] = trace.latency or 0.0
+                row["status"] = trace.status or ""
+
+                # Include execution path (spans) if requested
+                if include_execution_path and trace.spans:
+                    spans_data = []
+                    for span in sorted(
+                        trace.spans,
+                        key=lambda s: (
+                            s.start_time or datetime.min,
+                            s.end_time or datetime.min,
+                        ),
+                    ):
+                        span_info = {
+                            "id": span.id,
+                            "name": span.name,
+                            "type": span.span_type,
+                            "model": span.model,
+                            "inputs": span.inputs,
+                            "outputs": span.outputs,
+                            "input_tokens": span.input_tokens or 0,
+                            "output_tokens": span.output_tokens or 0,
+                            "tokens": span.tokens or 0,
+                            "cost": span.cost or 0.0,
+                            "status": span.status or "ok",
+                            "error": span.error,
+                        }
+
+                        # Calculate duration
+                        if span.end_time and span.start_time:
+                            span_info["duration_ms"] = (
+                                span.end_time - span.start_time
+                            ).total_seconds() * 1000
+                        elif span.processing_time:
+                            span_info["duration_ms"] = span.processing_time * 1000
+                        else:
+                            span_info["duration_ms"] = 0.0
+
+                        # Include LLM evaluation if requested
+                        if include_llm_evaluation and span.eval_quality_score is not None:
+                            span_info["llm_evaluation"] = {
+                                "quality_score": span.eval_quality_score,
+                                "relevant": span.eval_relevant,
+                                "reasoning": span.eval_reasoning,
+                                "issues": span.eval_issues,
+                            }
+
+                        spans_data.append(span_info)
+
+                    # For JSON formats, include as nested object
+                    if format in ["jsonl", "parquet"]:
+                        row["execution_path"] = spans_data
+                    else:
+                        # For CSV, flatten the execution path
+                        row["execution_path_json"] = json.dumps(spans_data, ensure_ascii=False)
+                        row["span_count"] = len(spans_data)
+                        # Include summary of tool calls
+                        tool_calls = [s for s in spans_data if s.get("type") == "tool"]
+                        row["tool_calls_count"] = len(tool_calls)
+                        row["tool_names"] = ", ".join([s.get("name", "") for s in tool_calls])
+
         elif item.object_type == "span":
             span = db.query(Span).filter(Span.id == item.object_id).first()
             if span:
@@ -944,6 +1020,13 @@ def export_queue_annotations(
                 row["span_type"] = span.span_type or ""
                 row["inputs"] = json.dumps(span.inputs) if span.inputs else ""
                 row["outputs"] = json.dumps(span.outputs) if span.outputs else ""
+
+                # Include LLM evaluation for span-level annotations if requested
+                if include_llm_evaluation and span.eval_quality_score is not None:
+                    row["llm_quality_score"] = span.eval_quality_score
+                    row["llm_relevant"] = span.eval_relevant
+                    row["llm_reasoning"] = span.eval_reasoning
+                    row["llm_issues"] = json.dumps(span.eval_issues) if span.eval_issues else ""
 
         # Get annotations for this item
         annotations = (

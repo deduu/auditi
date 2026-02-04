@@ -263,8 +263,8 @@ export const ModelsPage = () => {
                                 <p className="text-xs text-slate-500 mt-1">Average evaluation score per model</p>
                             </div>
                             <div className="p-6">
-                                <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-64 min-w-0">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <BarChart data={modelComparison} layout="vertical">
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
                                             <XAxis type="number" domain={[0, 100]} stroke="#64748b" fontSize={12} />
@@ -295,8 +295,8 @@ export const ModelsPage = () => {
                                 <p className="text-xs text-slate-500 mt-1">Bubble size = request volume</p>
                             </div>
                             <div className="p-6">
-                                <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-64 min-w-0">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <ScatterChart>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                             <XAxis
@@ -337,8 +337,8 @@ export const ModelsPage = () => {
                             <p className="text-xs text-slate-500 mt-1">Response time percentiles by model</p>
                         </div>
                         <div className="p-6">
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
+                            <div className="h-64 min-w-0">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <BarChart data={modelComparison}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                         <XAxis

@@ -1081,12 +1081,16 @@ const ViewCompletedModal = ({ isOpen, onClose, queue, scoreConfigs }) => {
 // Export Modal
 const ExportModal = ({ isOpen, onClose, queue }) => {
   const [format, setFormat] = useState("jsonl");
+  const [includeExecutionPath, setIncludeExecutionPath] = useState(false);
+  const [includeLLMEvaluation, setIncludeLLMEvaluation] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isOpen) {
       setFormat("jsonl");
+      setIncludeExecutionPath(false);
+      setIncludeLLMEvaluation(false);
       setError(null);
     }
   }, [isOpen]);
@@ -1096,7 +1100,11 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
     setExporting(true);
     setError(null);
     try {
-      await annotationsApi.exportQueueAnnotations(queue.id, format);
+      await annotationsApi.exportQueueAnnotations(queue.id, {
+        format,
+        includeExecutionPath,
+        includeLLMEvaluation,
+      });
       onClose();
     } catch (err) {
       setError(err.message || "Export failed");
@@ -1116,7 +1124,7 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
       isOpen={isOpen}
       onClose={onClose}
       title="Export Annotations"
-      size="sm"
+      size="md"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -1130,7 +1138,7 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-6">
         <p className="text-slate-400">
           Export <span className="text-white font-medium">{queue?.completed_items || 0}</span> completed annotations for model training.
         </p>
@@ -1141,6 +1149,7 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
           </div>
         )}
 
+        {/* Format Selection */}
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-2">Format</label>
           <div className="space-y-2">
@@ -1173,6 +1182,97 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
             ))}
           </div>
         </div>
+
+        {/* Additional Data Options */}
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Include Additional Data</label>
+          <div className="space-y-3">
+            {/* Execution Path Toggle */}
+            <label className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
+              includeExecutionPath
+                ? "border-emerald-500 bg-emerald-500/10"
+                : "border-slate-700 hover:border-slate-600"
+            }`}>
+              <input
+                type="checkbox"
+                checked={includeExecutionPath}
+                onChange={(e) => setIncludeExecutionPath(e.target.checked)}
+                className="sr-only"
+              />
+              <div className="flex-1">
+                <div className="font-medium text-white flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  Execution Path (Spans)
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Include tool calls, LLM invocations, and intermediate steps
+                </div>
+              </div>
+              <div className={`w-10 h-6 rounded-full transition-colors ${
+                includeExecutionPath ? "bg-emerald-500" : "bg-slate-700"
+              }`}>
+                <div className={`w-4 h-4 rounded-full bg-white mt-1 transition-transform ${
+                  includeExecutionPath ? "translate-x-5" : "translate-x-1"
+                }`} />
+              </div>
+            </label>
+
+            {/* LLM Evaluation Toggle */}
+            <label className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
+              includeLLMEvaluation
+                ? "border-purple-500 bg-purple-500/10"
+                : "border-slate-700 hover:border-slate-600"
+            } ${!includeExecutionPath ? "opacity-50 pointer-events-none" : ""}`}>
+              <input
+                type="checkbox"
+                checked={includeLLMEvaluation}
+                onChange={(e) => setIncludeLLMEvaluation(e.target.checked)}
+                disabled={!includeExecutionPath}
+                className="sr-only"
+              />
+              <div className="flex-1">
+                <div className="font-medium text-white flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                  LLM Evaluation Data
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  Include LLM-as-a-judge scores, reasoning, and issues for spans
+                </div>
+              </div>
+              <div className={`w-10 h-6 rounded-full transition-colors ${
+                includeLLMEvaluation ? "bg-purple-500" : "bg-slate-700"
+              }`}>
+                <div className={`w-4 h-4 rounded-full bg-white mt-1 transition-transform ${
+                  includeLLMEvaluation ? "translate-x-5" : "translate-x-1"
+                }`} />
+              </div>
+            </label>
+            {!includeExecutionPath && (
+              <p className="text-xs text-slate-500 pl-3">
+                Enable "Execution Path" to include LLM evaluation data
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Export Preview Info */}
+        {(includeExecutionPath || includeLLMEvaluation) && (
+          <div className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg">
+            <p className="text-xs text-slate-400">
+              <span className="text-slate-300 font-medium">Export will include:</span>
+              <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                <li>User input & assistant output</li>
+                <li>Human annotations</li>
+                {includeExecutionPath && <li>Execution path with tool calls and spans</li>}
+                {includeLLMEvaluation && <li>LLM-as-a-judge evaluation scores</li>}
+              </ul>
+            </p>
+          </div>
+        )}
       </div>
     </Modal>
   );

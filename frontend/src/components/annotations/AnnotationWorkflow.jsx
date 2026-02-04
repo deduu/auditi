@@ -12,6 +12,9 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
+  Eye,
+  EyeOff,
+  Sparkles,
 } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -22,7 +25,6 @@ import { SpanItem } from '../ui/SpanItem';
 export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
   const [currentItem, setCurrentItem] = useState(null);
   const [scoreConfigs, setScoreConfigs] = useState([]);
-  const [existingAnnotations, setExistingAnnotations] = useState([]);
   const [progress, setProgress] = useState({ total: 0, completed: 0, remaining: 0 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,6 +33,9 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
   const [scores, setScores] = useState({});
   const [comment, setComment] = useState('');
   const [hasDraft, setHasDraft] = useState(false);
+
+  // Toggle for showing LLM evaluation insights
+  const [showLLMEvaluation, setShowLLMEvaluation] = useState(false);
 
   // Helper to generate draft storage key
   const getDraftKey = (itemId) => `annotation_draft_${queue.id}_${itemId}`;
@@ -47,7 +52,6 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
       if (response.item) {
         setCurrentItem(response.item);
         setScoreConfigs(response.score_configs || []);
-        setExistingAnnotations(response.existing_annotations || []);
         setProgress(response.queue_progress || { total: 0, completed: 0, remaining: 0 });
 
         // Check for saved draft first
@@ -62,10 +66,10 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
             setHasDraft(true);
           } catch (e) {
             console.error('Failed to parse draft:', e);
-            initializeScoresFromAnnotations(response);
+            initializeScores(response);
           }
         } else {
-          initializeScoresFromAnnotations(response);
+          initializeScores(response);
         }
       } else {
         // Queue is complete
@@ -79,13 +83,11 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
     }
   };
 
-  const initializeScoresFromAnnotations = (response) => {
+  const initializeScores = (response) => {
+    // Initialize all scores as null - don't pre-fill with existing annotations to avoid bias
     const initialScores = {};
     response.score_configs?.forEach((config) => {
-      const existing = response.existing_annotations?.find(
-        (a) => a.score_config_id === config.id
-      );
-      initialScores[config.id] = existing?.value ?? null;
+      initialScores[config.id] = null;
     });
     setScores(initialScores);
     setComment('');
@@ -209,7 +211,40 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Content to Review */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-white">Content to Review</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">Content to Review</h3>
+
+            {/* LLM Evaluation Toggle - Show when spans exist and have evaluation data */}
+            {currentItem?.object_data?.spans?.length > 0 && (
+              (() => {
+                const hasEvaluations = currentItem.object_data.spans.some(s => s.evaluation);
+                return hasEvaluations ? (
+                  <button
+                    onClick={() => setShowLLMEvaluation(!showLLMEvaluation)}
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                      showLLMEvaluation
+                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                    }`}
+                    title={showLLMEvaluation ? 'Hide LLM insights to avoid bias' : 'Show LLM evaluation insights'}
+                  >
+                    {showLLMEvaluation ? (
+                      <>
+                        <Eye className="w-4 h-4" />
+                        <Sparkles className="w-3 h-3" />
+                        <span>LLM Insights ON</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-4 h-4" />
+                        <span>LLM Insights OFF</span>
+                      </>
+                    )}
+                  </button>
+                ) : null;
+              })()
+            )}
+          </div>
 
           {currentItem.object_type === 'trace' && currentItem.object_data && (
             <Card className="space-y-4">
@@ -229,7 +264,7 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
 
               {/* Execution Path (Spans) */}
               {currentItem.object_data.spans && currentItem.object_data.spans.length > 0 && (
-                <ExecutionPath spans={currentItem.object_data.spans} />
+                <ExecutionPath spans={currentItem.object_data.spans} showEvaluation={showLLMEvaluation} />
               )}
 
               {/* Assistant Output */}
@@ -378,25 +413,7 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
             </div>
           </Card>
 
-          {/* Existing Annotations */}
-          {existingAnnotations.length > 0 && (
-            <Card className="p-4">
-              <h4 className="text-sm font-medium text-slate-300 mb-3">Previous Annotations</h4>
-              <div className="space-y-2">
-                {existingAnnotations.map((ann) => (
-                  <div
-                    key={ann.id}
-                    className="flex items-center justify-between text-sm p-2 bg-slate-800/50 rounded"
-                  >
-                    <span className="text-slate-400">
-                      {scoreConfigs.find((c) => c.id === ann.score_config_id)?.name || 'Unknown'}
-                    </span>
-                    <span className="text-white font-medium">{ann.value}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
+          {/* Previous Annotations section removed to avoid biasing human evaluators */}
         </div>
       </div>
     </div>
@@ -404,13 +421,16 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
 };
 
 // Collapsible Execution Path component
-const ExecutionPath = ({ spans }) => {
+const ExecutionPath = ({ spans, showEvaluation = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Find the last LLM/Agent span to mark as the final generator
   const finalGeneratorIndex = spans.findLastIndex(
     (s) => s.spanType === 'llm' || s.type === 'llm' || s.spanType === 'agent'
   );
+
+  // Check if any span has evaluation data
+  const hasEvaluations = spans.some(s => s.evaluation);
 
   return (
     <div className="border border-slate-700 rounded-lg overflow-hidden">
@@ -425,6 +445,16 @@ const ExecutionPath = ({ spans }) => {
           <span className="text-xs text-slate-500">
             ({spans.length} step{spans.length !== 1 ? 's' : ''})
           </span>
+          {hasEvaluations && (
+            <span className={`text-xs px-1.5 py-0.5 rounded ${
+              showEvaluation
+                ? 'bg-purple-500/20 text-purple-300'
+                : 'bg-slate-700 text-slate-400'
+            }`}>
+              <Sparkles className="w-3 h-3 inline mr-1" />
+              LLM Evaluated
+            </span>
+          )}
         </div>
         {isExpanded ? (
           <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -440,6 +470,7 @@ const ExecutionPath = ({ spans }) => {
               key={span.id}
               span={span}
               isFinalGenerator={index === finalGeneratorIndex && finalGeneratorIndex !== -1}
+              showEvaluation={showEvaluation}
             />
           ))}
         </div>

@@ -18,7 +18,7 @@ export * as analyticsApi from "./analytics";
 import client from "./client";
 import { getMetrics } from "./metrics";
 import { getConversations, getConversationDetail } from "./conversations";
-import { getEvaluations, getFailureModes, getFailureTrends } from "./evaluations";
+import { getEvaluations, getFailureModes, getFailureTrends, getFailuresByModel, getFailureAnalytics } from "./evaluations";
 import { getModels, getModelPerformance } from "./models";
 import { getRecommendedActions, updateActionStatus } from "./actions";
 import * as tracesApi from "./traces";
@@ -40,6 +40,8 @@ const api = {
   getEvaluations,
   getFailureModes,
   getFailureTrends,
+  getFailuresByModel,
+  getFailureAnalytics,
 
   // Models
   getModels,
@@ -62,6 +64,10 @@ const api = {
   getTrends: analyticsApi.getTrends,
   getModelComparison: analyticsApi.getModelComparison,
   getToolAnalytics: analyticsApi.getToolAnalytics,
+  getCorrelations: analyticsApi.getCorrelations,
+  getCostForecast: analyticsApi.getCostForecast,
+  getInsights: analyticsApi.getInsights,
+  getAnomalies: analyticsApi.getAnomalies,
 };
 
 export default api;

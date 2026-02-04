@@ -206,11 +206,26 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000
 /**
  * Export annotations from a queue for model training
  * @param {string} queueId - Queue ID
- * @param {string} format - Export format: 'csv', 'jsonl', or 'parquet'
+ * @param {Object} options - Export options
+ * @param {string} options.format - Export format: 'csv', 'jsonl', or 'parquet'
+ * @param {boolean} options.includeExecutionPath - Include execution path (spans) data
+ * @param {boolean} options.includeLLMEvaluation - Include LLM evaluation data for spans
  */
-export async function exportQueueAnnotations(queueId, format = "csv") {
+export async function exportQueueAnnotations(queueId, options = {}) {
+  const {
+    format = "csv",
+    includeExecutionPath = false,
+    includeLLMEvaluation = false,
+  } = options;
+
+  const params = new URLSearchParams({
+    format,
+    include_execution_path: includeExecutionPath.toString(),
+    include_llm_evaluation: includeLLMEvaluation.toString(),
+  });
+
   const response = await fetch(
-    `${API_BASE_URL}/annotations/queues/${queueId}/export?format=${format}`,
+    `${API_BASE_URL}/annotations/queues/${queueId}/export?${params}`,
     { method: "GET" }
   );
 

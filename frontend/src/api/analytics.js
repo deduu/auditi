@@ -56,10 +56,54 @@ export function getToolAnalytics({ timeRange = "7d", spanType = null } = {}) {
   return client.get("/analytics/tools", params);
 }
 
+/**
+ * Get correlation analysis data
+ * @param {string} timeRange - Time range filter
+ * @returns {Promise<{correlations: Array}>}
+ */
+export function getCorrelations(timeRange = "7d") {
+  return client.get("/analytics/correlations", { timeRange });
+}
+
+/**
+ * Get cost forecast data
+ * @param {Object} params - Query parameters
+ * @param {string} params.timeRange - Time range for historical data
+ * @param {number} params.forecastDays - Number of days to forecast
+ * @returns {Promise<{historical: Array, forecast: Array, projected_total: number}>}
+ */
+export function getCostForecast({ timeRange = "7d", forecastDays = 7 } = {}) {
+  return client.get("/analytics/cost-forecast", { timeRange, forecast_days: forecastDays });
+}
+
+/**
+ * Get data-driven insights and recommendations
+ * @param {string} timeRange - Time range filter
+ * @returns {Promise<{insights: Array, summary: Object}>}
+ */
+export function getInsights(timeRange = "7d") {
+  return client.get("/analytics/insights", { timeRange });
+}
+
+/**
+ * Get anomaly detection data
+ * @param {Object} params - Query parameters
+ * @param {string} params.timeRange - Time range filter
+ * @param {number} params.zThreshold - Z-score threshold for anomaly detection (default 2.0)
+ * @returns {Promise<{metrics: Array, total_anomalies: number, summary: string}>}
+ */
+export function getAnomalies({ timeRange = "7d", zThreshold = 2.0 } = {}) {
+  return client.get("/analytics/anomalies", { timeRange, zThreshold });
+}
+
 export default {
   getScoreDistribution,
   getLowScoringTraces,
   getTrends,
   getModelComparison,
   getToolAnalytics,
+  getCorrelations,
+  getCostForecast,
+  getInsights,
+  getAnomalies,
 };

@@ -274,8 +274,8 @@ export const ToolCallsPage = () => {
                                 <p className="text-xs text-slate-500 mt-1">Distribution of span types</p>
                             </div>
                             <div className="p-6">
-                                <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-64 min-w-0">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <PieChart>
                                             <Pie
                                                 data={pieData}
@@ -310,8 +310,8 @@ export const ToolCallsPage = () => {
                                 <p className="text-xs text-slate-500 mt-1">Most frequently called tools</p>
                             </div>
                             <div className="p-6">
-                                <div className="h-64">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div className="h-64 min-w-0">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <BarChart data={topTools} layout="vertical">
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
                                             <XAxis type="number" stroke="#64748b" fontSize={12} />
@@ -339,8 +339,8 @@ export const ToolCallsPage = () => {
                             <p className="text-xs text-slate-500 mt-1">Response time percentiles</p>
                         </div>
                         <div className="p-6">
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
+                            <div className="h-64 min-w-0">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                     <BarChart data={topTools}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                         <XAxis
