@@ -249,11 +249,10 @@ export const ActionsPage = () => {
         <nav className="flex space-x-8">
           <button
             onClick={() => setActiveTab("insights")}
-            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "insights"
+            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "insights"
                 ? "border-blue-500 text-blue-400"
                 : "border-transparent text-slate-400 hover:text-white"
-            }`}
+              }`}
           >
             <Lightbulb className="w-4 h-4 inline mr-2" />
             Data-Driven Insights
@@ -265,11 +264,10 @@ export const ActionsPage = () => {
           </button>
           <button
             onClick={() => setActiveTab("actions")}
-            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "actions"
+            className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "actions"
                 ? "border-blue-500 text-blue-400"
                 : "border-transparent text-slate-400 hover:text-white"
-            }`}
+              }`}
           >
             <CheckCircle2 className="w-4 h-4 inline mr-2" />
             Action Items
@@ -291,11 +289,11 @@ export const ActionsPage = () => {
               <h3 className="text-lg font-semibold text-white mb-4">Summary</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{insightsSummary.total_traces || 0}</p>
+                  <p className="text-2xl font-bold text-white">{insightsSummary.total_volume || 0}</p>
                   <p className="text-sm text-slate-400">Traces Analyzed</p>
                 </div>
                 <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{insightsSummary.avg_score?.toFixed(1) || 0}</p>
+                  <p className="text-2xl font-bold text-white">{insightsSummary.current_score?.toFixed(1) || 0}%</p>
                   <p className="text-sm text-slate-400">Avg Score</p>
                 </div>
                 <div className="text-center p-4 bg-slate-800/50 rounded-lg">
@@ -303,7 +301,7 @@ export const ActionsPage = () => {
                   <p className="text-sm text-slate-400">Total Cost</p>
                 </div>
                 <div className="text-center p-4 bg-slate-800/50 rounded-lg">
-                  <p className="text-2xl font-bold text-white">{((insightsSummary.error_rate || 0) * 100).toFixed(1)}%</p>
+                  <p className="text-2xl font-bold text-white">{insightsSummary.current_error_rate?.toFixed(1) || 0}%</p>
                   <p className="text-sm text-slate-400">Error Rate</p>
                 </div>
               </div>

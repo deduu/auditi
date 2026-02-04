@@ -9,6 +9,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { ScoresPage } from "./pages/ScoresPage";
 import { LLMJudgePage } from "./pages/LLMJudgePage";
 import { HumanAnnotationPage } from "./pages/HumanAnnotationPage";
+import { DatasetsPage } from "./pages/DatasetsPage";
 import { TrendsPage } from "./pages/TrendsPage";
 import { ToolCallsPage } from "./pages/ToolCallsPage";
 
@@ -56,11 +57,7 @@ function AppContent() {
             case "human-annotation":
                 return <HumanAnnotationPage />;
             case "datasets":
-                return (
-                    <div className="flex items-center justify-center h-full text-slate-500">
-                        Datasets Page (Coming Soon)
-                    </div>
-                );
+                return <DatasetsPage />;
             case "evaluations":
                 return <EvaluationsPage />;
             case "trends":

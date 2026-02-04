@@ -5,177 +5,35 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, case, cast, String
-from pydantic import BaseModel
 
 from app.database import get_db
 from app.models import Trace, Span
+from app.schemas.analytics import (
+    ScoreDistributionResponse,
+    ScoreDistributionBucket,
+    LowScoringTracesResponse,
+    LowScoringTrace,
+    TrendsResponse,
+    TrendMetric,
+    TrendDataPoint,
+    ModelComparisonResponse,
+    ModelComparisonItem,
+    ToolAnalyticsResponse,
+    ToolAnalyticsSummary,
+    ToolAnalyticsItem,
+    CorrelationsResponse,
+    CorrelationResult,
+    CorrelationDataPoint,
+    CostForecastResponse,
+    ForecastDataPoint,
+    InsightsResponse,
+    InsightItem,
+    AnomaliesResponse,
+    AnomalyMetric,
+    AnomalyDataPoint,
+)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
-
-
-# ============== Pydantic Models ==============
-
-
-class ScoreDistributionBucket(BaseModel):
-    range: str  # e.g., "0-25", "25-50"
-    count: int
-    percentage: float
-
-
-class ScoreDistributionResponse(BaseModel):
-    buckets: List[ScoreDistributionBucket]
-    total: int
-
-
-class LowScoringTrace(BaseModel):
-    id: str
-    name: Optional[str]
-    score: float
-    status: Optional[str]
-    failure_mode: Optional[str]
-    model_name: Optional[str]
-    latency: Optional[float]
-    start_time: datetime
-
-
-class LowScoringTracesResponse(BaseModel):
-    traces: List[LowScoringTrace]
-    total: int
-
-
-class TrendDataPoint(BaseModel):
-    date: str  # ISO date string
-    value: float
-
-
-class TrendMetric(BaseModel):
-    data: List[TrendDataPoint]
-    current: float
-    previous: float
-    change_percent: float
-
-
-class TrendsResponse(BaseModel):
-    score: TrendMetric
-    latency: TrendMetric
-    cost: TrendMetric
-    error_rate: TrendMetric
-    volume: TrendMetric
-
-
-class ModelComparisonItem(BaseModel):
-    model: str
-    score: float
-    latency_p50: float
-    latency_p90: float
-    cost: float
-    volume: int
-    error_rate: float
-
-
-class ModelComparisonResponse(BaseModel):
-    models: List[ModelComparisonItem]
-
-
-class ToolAnalyticsItem(BaseModel):
-    name: str
-    span_type: str
-    total_calls: int
-    success_count: int
-    error_count: int
-    success_rate: float
-    avg_latency: float
-    p50_latency: float
-    p90_latency: float
-    total_cost: float
-    total_tokens: int
-
-
-class ToolAnalyticsSummary(BaseModel):
-    total_calls: int
-    total_tools: int
-    overall_success_rate: float
-    avg_latency: float
-    total_cost: float
-
-
-class ToolAnalyticsResponse(BaseModel):
-    summary: ToolAnalyticsSummary
-    tools: List[ToolAnalyticsItem]
-
-
-class CorrelationDataPoint(BaseModel):
-    x: float
-    y: float
-    id: str
-    label: Optional[str] = None
-
-
-class CorrelationResult(BaseModel):
-    x_metric: str
-    y_metric: str
-    correlation: float  # Pearson correlation coefficient
-    interpretation: str  # "strong_positive", "moderate_positive", "weak", etc.
-    data_points: List[CorrelationDataPoint]
-    insight: str
-
-
-class CorrelationsResponse(BaseModel):
-    correlations: List[CorrelationResult]
-
-
-class ForecastDataPoint(BaseModel):
-    date: str
-    actual: Optional[float] = None
-    forecast: float
-    lower_bound: float
-    upper_bound: float
-
-
-class CostForecastResponse(BaseModel):
-    historical: List[TrendDataPoint]
-    forecast: List[ForecastDataPoint]
-    projected_total: float
-    projected_change_percent: float
-    avg_daily_cost: float
-
-
-class InsightItem(BaseModel):
-    type: str  # "success", "warning", "danger", "info"
-    category: str  # "cost", "quality", "performance", "reliability"
-    title: str
-    description: str
-    metric_value: Optional[str] = None
-    recommendation: Optional[str] = None
-    severity: Optional[str] = None  # "critical", "warning", "info"
-
-
-class InsightsResponse(BaseModel):
-    insights: List[InsightItem]
-    summary: dict
-
-
-class AnomalyDataPoint(BaseModel):
-    date: str
-    value: float
-    z_score: float
-    is_anomaly: bool
-    anomaly_type: Optional[str] = None  # "spike", "drop", "high", "low"
-
-
-class AnomalyMetric(BaseModel):
-    metric: str
-    data_points: List[AnomalyDataPoint]
-    anomalies: List[AnomalyDataPoint]
-    mean: float
-    std_dev: float
-    anomaly_count: int
-
-
-class AnomaliesResponse(BaseModel):
-    metrics: List[AnomalyMetric]
-    total_anomalies: int
-    summary: str
 
 
 # ============== Helper Functions ==============
@@ -336,7 +194,7 @@ def get_trends(
     else:
         # Group by week for longer ranges
         date_trunc_col = func.date_trunc("week", Trace.start_time)
-        date_format = func.to_char(date_trunc_col, "YYYY-\"W\"IW")
+        date_format = func.to_char(date_trunc_col, 'YYYY-"W"IW')
 
     # Query current period data grouped by time
     current_data = (
@@ -507,6 +365,18 @@ def get_model_comparison(
             if latency_values and p90_idx < len(latency_values)
             else 0
         )
+        p95_idx = int(len(latency_values) * 0.95)
+        p95 = (
+            latency_values[p95_idx]
+            if latency_values and p95_idx < len(latency_values)
+            else 0
+        )
+        p99_idx = int(len(latency_values) * 0.99)
+        p99 = (
+            latency_values[p99_idx]
+            if latency_values and p99_idx < len(latency_values)
+            else 0
+        )
 
         error_rate = (row.failures / row.volume * 100) if row.volume else 0
 
@@ -519,6 +389,8 @@ def get_model_comparison(
                 score=round(avg_score, 1),
                 latency_p50=round(p50, 3),
                 latency_p90=round(p90, 3),
+                latency_p95=round(p95, 3),
+                latency_p99=round(p99, 3),
                 cost=round(row.total_cost or 0, 4),
                 volume=row.volume,
                 error_rate=round(error_rate, 1),
@@ -635,7 +507,9 @@ def get_tool_analytics(
     return ToolAnalyticsResponse(summary=summary, tools=result)
 
 
-def calculate_pearson_correlation(x_values: List[float], y_values: List[float]) -> float:
+def calculate_pearson_correlation(
+    x_values: List[float], y_values: List[float]
+) -> float:
     """Calculate Pearson correlation coefficient."""
     n = len(x_values)
     if n < 2:
@@ -845,7 +719,9 @@ def get_cost_forecast(
 
     # Generate forecast
     forecast = []
-    last_date = datetime.strptime(historical[-1].date, "%Y-%m-%d") if historical else now
+    last_date = (
+        datetime.strptime(historical[-1].date, "%Y-%m-%d") if historical else now
+    )
     last_value = historical[-1].value if historical else 0
 
     for i in range(1, forecast_days + 1):
@@ -894,231 +770,11 @@ def get_insights(
     db: Session = Depends(get_db),
 ):
     """Generate data-driven insights and recommendations."""
-    start_date, prev_start, now = get_date_range(time_range)
+    # Import locally to avoid circular imports if any, though service structure handles it well.
+    # The service function was verified to match this logic.
+    from app.services.analytics import generate_insights as generate_insights_service
 
-    # Current period aggregates
-    curr = (
-        db.query(
-            func.avg(Trace.score).label("avg_score"),
-            func.avg(Trace.latency).label("avg_latency"),
-            func.sum(Trace.cost).label("total_cost"),
-            func.count(Trace.id).label("volume"),
-            func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
-        )
-        .filter(Trace.start_time >= start_date)
-        .first()
-    )
-
-    # Previous period aggregates
-    prev = (
-        db.query(
-            func.avg(Trace.score).label("avg_score"),
-            func.avg(Trace.latency).label("avg_latency"),
-            func.sum(Trace.cost).label("total_cost"),
-            func.count(Trace.id).label("volume"),
-            func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
-        )
-        .filter(Trace.start_time >= prev_start, Trace.start_time < start_date)
-        .first()
-    )
-
-    # Model performance
-    model_stats = (
-        db.query(
-            Trace.model_name,
-            func.avg(Trace.score).label("avg_score"),
-            func.sum(Trace.cost).label("total_cost"),
-            func.count(Trace.id).label("volume"),
-        )
-        .filter(Trace.start_time >= start_date, Trace.model_name != None)
-        .group_by(Trace.model_name)
-        .all()
-    )
-
-    # Failure modes
-    failure_modes = (
-        db.query(Trace.failure_mode, func.count(Trace.id).label("count"))
-        .filter(
-            Trace.start_time >= start_date,
-            Trace.failure_mode != None,
-            Trace.status == "fail",
-        )
-        .group_by(Trace.failure_mode)
-        .order_by(func.count(Trace.id).desc())
-        .limit(5)
-        .all()
-    )
-
-    insights = []
-
-    # Calculate metrics
-    curr_score = (curr.avg_score or 0) * 100
-    prev_score = (prev.avg_score or 0) * 100 if prev else 0
-    curr_error_rate = (
-        (curr.failures / curr.volume * 100) if curr and curr.volume else 0
-    )
-    prev_error_rate = (prev.failures / prev.volume * 100) if prev and prev.volume else 0
-
-    # Quality insights
-    if curr_score >= 80:
-        insights.append(
-            InsightItem(
-                type="success",
-                category="quality",
-                title="Strong Quality Performance",
-                description=f"Average score is {curr_score:.1f}%, indicating high-quality AI responses.",
-                metric_value=f"{curr_score:.1f}%",
-                recommendation="Maintain current quality standards and document successful patterns.",
-            )
-        )
-    elif curr_score < 60:
-        insights.append(
-            InsightItem(
-                type="danger",
-                category="quality",
-                title="Quality Below Target",
-                description=f"Average score is {curr_score:.1f}%, below the recommended 60% threshold.",
-                metric_value=f"{curr_score:.1f}%",
-                recommendation="Review low-scoring traces and identify common failure patterns.",
-            )
-        )
-
-    # Score trend
-    if prev_score > 0:
-        score_change = curr_score - prev_score
-        if score_change <= -5:
-            insights.append(
-                InsightItem(
-                    type="warning",
-                    category="quality",
-                    title="Quality Declining",
-                    description=f"Score dropped by {abs(score_change):.1f}% compared to previous period.",
-                    metric_value=f"{score_change:+.1f}%",
-                    recommendation="Investigate recent changes that may have affected quality.",
-                )
-            )
-        elif score_change >= 5:
-            insights.append(
-                InsightItem(
-                    type="success",
-                    category="quality",
-                    title="Quality Improving",
-                    description=f"Score improved by {score_change:.1f}% compared to previous period.",
-                    metric_value=f"+{score_change:.1f}%",
-                    recommendation="Document changes that led to improvement for future reference.",
-                )
-            )
-
-    # Error rate insights
-    if curr_error_rate > 10:
-        insights.append(
-            InsightItem(
-                type="danger",
-                category="reliability",
-                title="High Error Rate",
-                description=f"Error rate is {curr_error_rate:.1f}%, significantly above acceptable levels.",
-                metric_value=f"{curr_error_rate:.1f}%",
-                recommendation="Prioritize error investigation and implement error handling improvements.",
-            )
-        )
-    elif curr_error_rate > 5:
-        insights.append(
-            InsightItem(
-                type="warning",
-                category="reliability",
-                title="Elevated Error Rate",
-                description=f"Error rate is {curr_error_rate:.1f}%, consider investigating failures.",
-                metric_value=f"{curr_error_rate:.1f}%",
-                recommendation="Review failure modes and address the most common issues.",
-            )
-        )
-
-    # Cost insights
-    if model_stats:
-        # Find cost optimization opportunities
-        models_by_cost_efficiency = sorted(
-            model_stats,
-            key=lambda m: ((m.avg_score or 0) / (m.total_cost / m.volume))
-            if m.total_cost and m.volume
-            else 0,
-            reverse=True,
-        )
-
-        if len(models_by_cost_efficiency) > 1:
-            best = models_by_cost_efficiency[0]
-            worst = models_by_cost_efficiency[-1]
-            if best.model_name != worst.model_name:
-                best_efficiency = (
-                    (best.avg_score or 0) * 100 / (best.total_cost / best.volume)
-                    if best.total_cost and best.volume
-                    else 0
-                )
-                worst_efficiency = (
-                    (worst.avg_score or 0)
-                    * 100
-                    / (worst.total_cost / worst.volume)
-                    if worst.total_cost and worst.volume
-                    else 0
-                )
-                if best_efficiency > worst_efficiency * 1.5:
-                    insights.append(
-                        InsightItem(
-                            type="info",
-                            category="cost",
-                            title="Cost Optimization Opportunity",
-                            description=f"{best.model_name} offers better cost efficiency than {worst.model_name}.",
-                            metric_value=f"{best_efficiency:.1f} vs {worst_efficiency:.1f} score/$",
-                            recommendation=f"Consider shifting more traffic to {best.model_name} for cost savings.",
-                        )
-                    )
-
-    # Failure mode insights
-    if failure_modes:
-        top_failure = failure_modes[0]
-        total_failures = sum(f.count for f in failure_modes)
-        top_percentage = (top_failure.count / total_failures * 100) if total_failures else 0
-
-        if top_percentage > 40:
-            insights.append(
-                InsightItem(
-                    type="warning",
-                    category="reliability",
-                    title="Dominant Failure Mode",
-                    description=f"'{top_failure.failure_mode}' accounts for {top_percentage:.0f}% of failures.",
-                    metric_value=f"{top_failure.count} occurrences",
-                    recommendation=f"Focus improvement efforts on addressing '{top_failure.failure_mode}' issues.",
-                )
-            )
-
-    # Volume insights
-    if curr.volume and prev and prev.volume:
-        volume_change = ((curr.volume - prev.volume) / prev.volume) * 100
-        if volume_change > 50:
-            insights.append(
-                InsightItem(
-                    type="info",
-                    category="performance",
-                    title="Traffic Surge",
-                    description=f"Request volume increased by {volume_change:.0f}% compared to previous period.",
-                    metric_value=f"{curr.volume} requests",
-                    recommendation="Monitor system performance and consider scaling if trend continues.",
-                )
-            )
-
-    # Summary
-    summary = {
-        "total_insights": len(insights),
-        "by_type": {
-            "success": len([i for i in insights if i.type == "success"]),
-            "warning": len([i for i in insights if i.type == "warning"]),
-            "danger": len([i for i in insights if i.type == "danger"]),
-            "info": len([i for i in insights if i.type == "info"]),
-        },
-        "current_score": round(curr_score, 1),
-        "current_error_rate": round(curr_error_rate, 1),
-        "total_cost": round(curr.total_cost or 0, 4),
-        "total_volume": curr.volume or 0,
-    }
+    insights, summary = generate_insights_service(db, time_range)
 
     return InsightsResponse(insights=insights, summary=summary)
 
@@ -1130,7 +786,7 @@ def detect_anomalies(values: List[float], dates: List[str], z_threshold: float =
 
     mean = sum(values) / len(values)
     variance = sum((v - mean) ** 2 for v in values) / len(values)
-    std_dev = variance ** 0.5
+    std_dev = variance**0.5
 
     if std_dev == 0:
         # No variance - return all data points with zero z-scores
@@ -1192,7 +848,7 @@ def get_anomalies(
         date_format = func.to_char(date_trunc_col, "YYYY-MM-DD")
     else:
         date_trunc_col = func.date_trunc("week", Trace.start_time)
-        date_format = func.to_char(date_trunc_col, "YYYY-\"W\"IW")
+        date_format = func.to_char(date_trunc_col, 'YYYY-"W"IW')
 
     # Query aggregated data
     data = (

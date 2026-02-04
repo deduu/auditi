@@ -354,7 +354,7 @@ export const TrendsPage = () => {
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                             <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
                                             <YAxis domain={[0, 100]} stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                                            <Tooltip content={<CustomTooltip />} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                             <Area type="monotone" dataKey="value" name="Score" stroke="#3b82f6" fill="url(#scoreGradient)" strokeWidth={2} />
                                         </AreaChart>
                                     </ResponsiveContainer>
@@ -370,7 +370,7 @@ export const TrendsPage = () => {
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                                 <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
                                                 <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}s`} />
-                                                <Tooltip content={<CustomTooltip />} />
+                                                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
                                                 <Line type="monotone" dataKey="value" name="Latency" stroke="#a855f7" strokeWidth={2} dot={false} />
                                             </LineChart>
                                         </ResponsiveContainer>
@@ -390,7 +390,7 @@ export const TrendsPage = () => {
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                                 <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
                                                 <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${v}`} />
-                                                <Tooltip content={<CustomTooltip />} />
+                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                                 <Area type="monotone" dataKey="value" name="Cost" stroke="#f59e0b" fill="url(#costGradient)" strokeWidth={2} />
                                             </AreaChart>
                                         </ResponsiveContainer>
@@ -410,7 +410,7 @@ export const TrendsPage = () => {
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                                 <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
                                                 <YAxis domain={[0, 'auto']} stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                                                <Tooltip content={<CustomTooltip />} />
+                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                                 <Area type="monotone" dataKey="value" name="Error Rate" stroke="#f43f5e" fill="url(#errorGradient)" strokeWidth={2} />
                                             </AreaChart>
                                         </ResponsiveContainer>
@@ -424,7 +424,7 @@ export const TrendsPage = () => {
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                                 <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
                                                 <YAxis stroke="#64748b" fontSize={12} />
-                                                <Tooltip content={<CustomTooltip />} />
+                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                                 <Bar dataKey="value" name="Volume" fill="#10b981" radius={[4, 4, 0, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
@@ -499,6 +499,7 @@ export const TrendsPage = () => {
                                                         }
                                                         return null;
                                                     }}
+                                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
                                                 />
                                                 {/* Reference lines for mean and thresholds */}
                                                 <ReferenceLine
@@ -659,7 +660,7 @@ export const TrendsPage = () => {
                                                                     fontSize={10}
                                                                     tickFormatter={(v) => `${v.toFixed(0)}%`}
                                                                 />
-                                                                <Tooltip content={<ScatterTooltip />} />
+                                                                <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3', stroke: 'rgba(255, 255, 255, 0.2)' }} />
                                                                 <Scatter
                                                                     data={corr.data_points}
                                                                     fill={CORRELATION_COLORS[corr.interpretation]}
@@ -777,7 +778,7 @@ export const TrendsPage = () => {
                                                 fontSize={12}
                                                 tickFormatter={(v) => `$${v.toFixed(3)}`}
                                             />
-                                            <Tooltip content={<CustomTooltip />} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                             <Legend />
 
                                             {/* Confidence interval area */}

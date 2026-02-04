@@ -9,6 +9,7 @@ from .evaluator import Evaluator, EvaluatorSetupState
 from .score_config import ScoreConfig
 from .annotation_queue import AnnotationQueue, AnnotationQueueItem
 from .annotation import Annotation
+from .dataset import Dataset, DatasetItem
 
 __all__ = [
     "Conversation",
@@ -22,4 +23,6 @@ __all__ = [
     "AnnotationQueue",
     "AnnotationQueueItem",
     "Annotation",
+    "Dataset",
+    "DatasetItem",
 ]

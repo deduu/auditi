@@ -1,3 +1,5 @@
+from datetime import datetime
+from typing import Optional
 from .base import APIModel
 
 
@@ -9,12 +11,15 @@ class FailureModeStat(APIModel):
 
 
 class ActionResponse(APIModel):
-    id: int
+    id: str  # UUID
     title: str
     description: str
     priority: str  # high | medium | low
     status: str  # pending | in_progress | completed
     category: str
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[str] = None
+    resolution_notes: Optional[str] = None
 
 
 class ModelStat(APIModel):

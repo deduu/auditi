@@ -11,6 +11,7 @@ from .llm_connections import router as llm_connections_router
 from .evaluators import router as evaluators_router
 from .annotations import router as annotations_router
 from .analytics import router as analytics_router
+from .datasets import router as datasets_router
 
 __all__ = [
     "traces_router",
@@ -24,4 +25,5 @@ __all__ = [
     "evaluators_router",
     "annotations_router",
     "analytics_router",
+    "datasets_router",
 ]

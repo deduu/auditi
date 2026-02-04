@@ -26,6 +26,7 @@ from app.routers import (
     evaluators_router,
     annotations_router,
     analytics_router,
+    datasets_router,
 )
 from app.routers.evaluation_jobs import router as evaluation_jobs_router
 from app.services.eval_worker import run_eval_worker
@@ -105,6 +106,7 @@ app.include_router(evaluators_router, prefix="/api/v1")
 app.include_router(evaluation_jobs_router, prefix="/api/v1")
 app.include_router(annotations_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
+app.include_router(datasets_router, prefix="/api/v1")
 
 
 @app.get("/")

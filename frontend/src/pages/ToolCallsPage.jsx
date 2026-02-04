@@ -323,7 +323,7 @@ export const ToolCallsPage = () => {
                                                 width={100}
                                                 tickFormatter={(v) => v.length > 15 ? v.slice(0, 15) + '...' : v}
                                             />
-                                            <Tooltip content={<CustomTooltip />} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                             <Bar dataKey="total_calls" name="Calls" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -350,7 +350,7 @@ export const ToolCallsPage = () => {
                                             tickFormatter={(v) => v.length > 10 ? v.slice(0, 10) + '...' : v}
                                         />
                                         <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}s`} />
-                                        <Tooltip content={<CustomTooltip />} />
+                                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                         <Legend />
                                         <Bar dataKey="p50_latency" name="P50" fill="#10b981" radius={[4, 4, 0, 0]} />
                                         <Bar dataKey="p90_latency" name="P90" fill="#f59e0b" radius={[4, 4, 0, 0]} />

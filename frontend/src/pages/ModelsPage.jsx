@@ -276,7 +276,7 @@ export const ModelsPage = () => {
                                                 width={100}
                                                 tickFormatter={(v) => v.length > 15 ? v.slice(0, 15) + '...' : v}
                                             />
-                                            <Tooltip content={<CustomTooltip />} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                             <Bar dataKey="score" name="Score" radius={[0, 4, 4, 0]}>
                                                 {modelComparison.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={getScoreColor(entry.score)} />
@@ -317,7 +317,7 @@ export const ModelsPage = () => {
                                                 tickFormatter={(v) => `${v}%`}
                                             />
                                             <ZAxis type="number" dataKey="z" range={[50, 400]} name="Volume" />
-                                            <Tooltip content={<ScatterTooltip />} />
+                                            <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3' }} />
                                             <Scatter data={scatterData} name="Models">
                                                 {scatterData.map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -333,7 +333,7 @@ export const ModelsPage = () => {
                     {/* Latency Comparison */}
                     <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden">
                         <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-                            <h2 className="text-lg font-semibold text-white">Latency Comparison (P50 vs P90)</h2>
+                            <h2 className="text-lg font-semibold text-white">Latency Comparison (P50 vs P90 vs P95 vs P99)</h2>
                             <p className="text-xs text-slate-500 mt-1">Response time percentiles by model</p>
                         </div>
                         <div className="p-6">
@@ -352,10 +352,12 @@ export const ModelsPage = () => {
                                             fontSize={12}
                                             tickFormatter={(v) => `${v}s`}
                                         />
-                                        <Tooltip content={<CustomTooltip />} />
+                                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                                         <Legend />
                                         <Bar dataKey="latency_p50" name="P50 Latency" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                                         <Bar dataKey="latency_p90" name="P90 Latency" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="latency_p95" name="P95 Latency" fill="#d8b4fe" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="latency_p99" name="P99 Latency" fill="#e9d5ff" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -375,6 +377,8 @@ export const ModelsPage = () => {
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Score</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">P50 Latency</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">P90 Latency</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">P95 Latency</th>
+                                        <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">P99 Latency</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Error Rate</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Cost</th>
                                         <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Requests</th>
@@ -413,6 +417,12 @@ export const ModelsPage = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
                                                 {model.latency_p90.toFixed(3)}s
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                                                {model.latency_p95?.toFixed(3) || '-'}s
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                                                {model.latency_p99?.toFixed(3) || '-'}s
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className={`text-sm font-medium ${model.error_rate > 10 ? 'text-rose-400' : model.error_rate > 5 ? 'text-amber-400' : 'text-emerald-400'}`}>

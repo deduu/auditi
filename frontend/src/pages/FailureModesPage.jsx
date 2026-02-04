@@ -171,7 +171,7 @@ export const FailureModesPage = () => {
                     className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors ${timeRange === range.id
                       ? 'bg-blue-600/10 text-blue-400'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                    }`}
+                      }`}
                   >
                     {range.label}
                   </button>
@@ -276,7 +276,7 @@ export const FailureModesPage = () => {
                       width={120}
                       tickFormatter={(value) => value.length > 15 ? value.substring(0, 15) + '...' : value}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                     <Bar dataKey="count" name="Failures" fill="#f43f5e" radius={[0, 4, 4, 0]}>
                       {modes.slice(0, 7).map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -368,7 +368,7 @@ export const FailureModesPage = () => {
                   <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
                   <YAxis yAxisId="left" stroke="#64748b" fontSize={12} />
                   <YAxis yAxisId="right" orientation="right" stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                   <Legend />
                   <Area
                     yAxisId="left"
@@ -421,7 +421,7 @@ export const FailureModesPage = () => {
                     tickFormatter={(value) => value.length > 20 ? value.substring(0, 20) + '...' : value}
                   />
                   <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
                   <Bar dataKey="failure_rate" name="Failure Rate %" fill="#f43f5e" radius={[4, 4, 0, 0]}>
                     {byModel.map((entry, index) => (
                       <Cell
@@ -453,15 +453,14 @@ export const FailureModesPage = () => {
               {insights.map((insight, index) => (
                 <div
                   key={index}
-                  className={`p-4 rounded-lg border ${
-                    insight.type === 'danger'
+                  className={`p-4 rounded-lg border ${insight.type === 'danger'
                       ? 'bg-red-500/5 border-red-500/20'
                       : insight.type === 'warning'
-                      ? 'bg-amber-500/5 border-amber-500/20'
-                      : insight.type === 'success'
-                      ? 'bg-emerald-500/5 border-emerald-500/20'
-                      : 'bg-blue-500/5 border-blue-500/20'
-                  }`}
+                        ? 'bg-amber-500/5 border-amber-500/20'
+                        : insight.type === 'success'
+                          ? 'bg-emerald-500/5 border-emerald-500/20'
+                          : 'bg-blue-500/5 border-blue-500/20'
+                    }`}
                 >
                   <div className="flex items-start space-x-3">
                     {getInsightIcon(insight.type)}
