@@ -42,6 +42,13 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
   /* Navigation Configuration */
   const navSections = [
     {
+      id: 'dashboard',
+      label: 'Dashboard',
+      items: [
+        { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+      ]
+    },
+    {
       id: 'monitoring',
       label: 'Monitoring',
       items: [

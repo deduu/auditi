@@ -69,6 +69,8 @@ const api = {
   getCostForecast: analyticsApi.getCostForecast,
   getInsights: analyticsApi.getInsights,
   getAnomalies: analyticsApi.getAnomalies,
+  getDashboardKpis: analyticsApi.getDashboardKpis,
+  getObservationsByLevel: analyticsApi.getObservationsByLevel,
 };
 
 export default api;

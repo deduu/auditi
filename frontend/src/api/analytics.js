@@ -96,6 +96,29 @@ export function getAnomalies({ timeRange = "7d", zThreshold = 2.0 } = {}) {
   return client.get("/analytics/anomalies", { timeRange, zThreshold });
 }
 
+/**
+ * Get dashboard KPI data with breakdowns
+ * @param {Object} params - Query parameters
+ * @param {string} params.timeRange - Time range filter
+ * @param {number} params.limit - Number of items per breakdown
+ * @param {string} params.traceType - Optional trace type filter (agent, standalone)
+ * @returns {Promise<{traces: Object, model_costs: Object, scores: Object}>}
+ */
+export function getDashboardKpis({ timeRange = "7d", limit = 5, traceType = null } = {}) {
+  const params = { timeRange, limit };
+  if (traceType) params.traceType = traceType;
+  return client.get("/analytics/dashboard-kpis", params);
+}
+
+/**
+ * Get observations by level over time
+ * @param {string} timeRange - Time range filter
+ * @returns {Promise<{data: Array, levels: Array}>}
+ */
+export function getObservationsByLevel(timeRange = "7d") {
+  return client.get("/analytics/observations-by-level", { timeRange });
+}
+
 export default {
   getScoreDistribution,
   getLowScoringTraces,
@@ -106,4 +129,6 @@ export default {
   getCostForecast,
   getInsights,
   getAnomalies,
+  getDashboardKpis,
+  getObservationsByLevel,
 };

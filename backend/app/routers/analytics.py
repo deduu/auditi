@@ -4,10 +4,12 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, case, cast, String
+from sqlalchemy import func, and_, case, cast, String, desc
 
 from app.database import get_db
 from app.models import Trace, Span
+from app.models.annotation import Annotation
+from app.models.score_config import ScoreConfig
 from app.schemas.analytics import (
     ScoreDistributionResponse,
     ScoreDistributionBucket,
@@ -72,6 +74,183 @@ def get_time_bucket(time_range: str) -> str:
 
 
 # ============== Endpoints ==============
+
+
+@router.get("/dashboard-kpis")
+def get_dashboard_kpis(
+    time_range: str = Query("7d", alias="timeRange"),
+    limit: int = Query(5),
+    trace_type: Optional[str] = Query(
+        None, alias="traceType"
+    ),  # agent, standalone, or None
+    db: Session = Depends(get_db),
+):
+    """
+    Get KPI data for the dashboard with breakdown views:
+    - traces_by_name: Traces grouped by name with counts
+    - model_costs: Model costs with token breakdowns
+    - score_evaluations: Score breakdown by evaluator with pass/fail counts
+    """
+    start_date, _, _ = get_date_range(time_range)
+
+    # 1. Traces by name
+    trace_query = db.query(Trace.name, func.count(Trace.id).label("count")).filter(
+        Trace.start_time >= start_date, Trace.name != None
+    )
+
+    if trace_type == "agent":
+        trace_query = trace_query.filter(Trace.spans.any(Span.span_type == "agent"))
+    elif trace_type == "standalone":
+        trace_query = trace_query.filter(~Trace.spans.any(Span.span_type == "agent"))
+
+    traces_by_name_data = (
+        trace_query.group_by(Trace.name).order_by(desc("count")).limit(limit).all()
+    )
+
+    traces_by_name = [
+        {"name": row.name or "unknown", "count": row.count}
+        for row in traces_by_name_data
+    ]
+
+    total_traces_query = db.query(func.count(Trace.id)).filter(
+        Trace.start_time >= start_date
+    )
+    if trace_type == "agent":
+        total_traces_query = total_traces_query.filter(
+            Trace.spans.any(Span.span_type == "agent")
+        )
+    elif trace_type == "standalone":
+        total_traces_query = total_traces_query.filter(
+            ~Trace.spans.any(Span.span_type == "agent")
+        )
+
+    total_traces = total_traces_query.scalar() or 0
+
+    # 2. Model costs with tokens
+    model_costs_data = (
+        db.query(
+            Span.model,
+            func.sum(Span.input_tokens + Span.output_tokens).label("total_tokens"),
+            func.sum(Span.cost).label("total_cost"),
+        )
+        .filter(
+            Span.span_type == "llm", Span.model != None, Span.start_time >= start_date
+        )
+        .group_by(Span.model)
+        .order_by(desc("total_cost"))
+        .limit(limit)
+        .all()
+    )
+
+    model_costs = [
+        {
+            "model": row.model,
+            "tokens": row.total_tokens or 0,
+            "cost": row.total_cost or 0.0,
+        }
+        for row in model_costs_data
+    ]
+    total_cost = (
+        db.query(func.sum(Span.cost))
+        .filter(Span.span_type == "llm", Span.start_time >= start_date)
+        .scalar()
+        or 0.0
+    )
+
+    # 3. Score evaluations breakdown (by score config name)
+    score_evaluations_data = (
+        db.query(
+            ScoreConfig.name,
+            func.count(Annotation.id).label("count"),
+            func.avg(Annotation.value).label("avg_value"),
+            func.sum(case((Annotation.value == 0, 1), else_=0)).label("fail_count"),
+            func.sum(case((Annotation.value == 1, 1), else_=0)).label("pass_count"),
+        )
+        .join(ScoreConfig, Annotation.score_config_id == ScoreConfig.id)
+        .filter(Annotation.created_at >= start_date)
+        .group_by(ScoreConfig.name)
+        .order_by(desc("count"))
+        .limit(limit)
+        .all()
+    )
+
+    score_evaluations = [
+        {
+            "name": f"{row.name} (eval)",
+            "count": row.count,
+            "avg": round(row.avg_value, 2) if row.avg_value else 0,
+            "fail_count": row.fail_count or 0,
+            "pass_count": row.pass_count or 0,
+        }
+        for row in score_evaluations_data
+    ]
+    total_scores = (
+        db.query(func.count(Annotation.id))
+        .filter(Annotation.created_at >= start_date)
+        .scalar()
+        or 0
+    )
+
+    return {
+        "traces": {"total": total_traces, "by_name": traces_by_name},
+        "model_costs": {"total": total_cost, "by_model": model_costs},
+        "scores": {"total": total_scores, "by_evaluator": score_evaluations},
+    }
+
+
+@router.get("/observations-by-level")
+def get_observations_by_level(
+    time_range: str = Query("7d", alias="timeRange"), db: Session = Depends(get_db)
+):
+    """Get observations (spans) count breakdown by level (span_type) over time."""
+    start_date, prev_start, now = get_date_range(time_range)
+
+    if time_range == "24h":
+        date_trunc_col = func.date_trunc("hour", Span.start_time)
+        date_format = func.to_char(date_trunc_col, "HH24:00")
+    elif time_range in ["7d", "30d"]:
+        date_trunc_col = func.date_trunc("day", Span.start_time)
+        date_format = func.to_char(date_trunc_col, "YYYY-MM-DD")
+    else:
+        date_trunc_col = func.date_trunc("week", Span.start_time)
+        date_format = func.to_char(date_trunc_col, 'YYYY-"W"IW')
+
+    # Query spans grouped by time and type
+    results = (
+        db.query(
+            date_format.label("period"),
+            Span.span_type,
+            func.count(Span.id).label("count"),
+        )
+        .filter(Span.start_time >= start_date)
+        .group_by(date_trunc_col, Span.span_type)
+        .order_by(date_trunc_col)
+        .all()
+    )
+
+    # Process into chart-friendly format: [{date: "...", agent: 10, llm: 5, tool: 2}]
+    data_map = {}
+    all_types = set()
+
+    for row in results:
+        period = row.period
+        if period not in data_map:
+            data_map[period] = {"date": period}
+
+        # Normalize span types
+        s_type = row.span_type.lower() if row.span_type else "unknown"
+        data_map[period][s_type] = row.count
+        all_types.add(s_type)
+
+    # Ensure all periods have all keys (for Recharts stacking/ordering if needed, usually optional)
+    # Recharts handles missing keys fine, but good for consistency
+    chart_data = list(data_map.values())
+
+    # Sort by date
+    # Note: dictionary iteration order is insertion order in modern python,
+    # and we ordered by date_trunc_col, so it should be sorted.
+
+    return {"data": chart_data, "levels": list(all_types)}
 
 
 @router.get("/score-distribution", response_model=ScoreDistributionResponse)

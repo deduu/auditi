@@ -17,6 +17,9 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
@@ -44,6 +47,8 @@ export const DatasetsPage = () => {
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [datasetForAction, setDatasetForAction] = useState(null);
 
   useEffect(() => {
@@ -88,6 +93,16 @@ export const DatasetsPage = () => {
     setShowDeleteModal(true);
   };
 
+  const handleEdit = (dataset) => {
+    setDatasetForAction(dataset);
+    setShowEditModal(true);
+  };
+
+  const handleAddItem = (dataset) => {
+    setDatasetForAction(dataset);
+    setShowAddItemModal(true);
+  };
+
   const confirmDelete = async () => {
     if (!datasetForAction) return;
     try {
@@ -113,6 +128,8 @@ export const DatasetsPage = () => {
           onBack={handleBackToList}
           onExport={handleExport}
           onDelete={handleDelete}
+          onEdit={handleEdit}
+          onAddItem={handleAddItem}
         />
 
         {/* Modals - must be rendered in detail view too */}
@@ -133,6 +150,35 @@ export const DatasetsPage = () => {
           }}
           dataset={datasetForAction}
           onConfirm={confirmDelete}
+        />
+
+        <EditDatasetModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setDatasetForAction(null);
+          }}
+          dataset={datasetForAction}
+          onSave={(updatedDataset) => {
+            setSelectedDataset(updatedDataset);
+            setShowEditModal(false);
+            setDatasetForAction(null);
+          }}
+        />
+
+        <AddItemModal
+          isOpen={showAddItemModal}
+          onClose={() => {
+            setShowAddItemModal(false);
+            setDatasetForAction(null);
+          }}
+          dataset={datasetForAction}
+          onSave={() => {
+            setShowAddItemModal(false);
+            setDatasetForAction(null);
+            // Trigger reload in detail view
+            setSelectedDataset({ ...selectedDataset });
+          }}
         />
       </>
     );
@@ -267,6 +313,7 @@ export const DatasetsPage = () => {
                   onView={handleViewDataset}
                   onExport={handleExport}
                   onDelete={handleDelete}
+                  onEdit={handleEdit}
                 />
               ))}
 
@@ -343,12 +390,40 @@ export const DatasetsPage = () => {
         dataset={datasetForAction}
         onConfirm={confirmDelete}
       />
+
+      <EditDatasetModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setDatasetForAction(null);
+        }}
+        dataset={datasetForAction}
+        onSave={() => {
+          loadData();
+          setShowEditModal(false);
+          setDatasetForAction(null);
+        }}
+      />
+
+      <AddItemModal
+        isOpen={showAddItemModal}
+        onClose={() => {
+          setShowAddItemModal(false);
+          setDatasetForAction(null);
+        }}
+        dataset={datasetForAction}
+        onSave={() => {
+          loadData();
+          setShowAddItemModal(false);
+          setDatasetForAction(null);
+        }}
+      />
     </div>
   );
 };
 
 // Dataset Card Component
-const DatasetCard = ({ dataset, onView, onExport, onDelete }) => {
+const DatasetCard = ({ dataset, onView, onExport, onDelete, onEdit }) => {
   const sourceLabel = {
     manual: "Manual",
     annotation_queue: "From Annotations",
@@ -391,6 +466,9 @@ const DatasetCard = ({ dataset, onView, onExport, onDelete }) => {
             <Eye className="w-4 h-4 mr-1" />
             View
           </Button>
+          <Button size="sm" variant="ghost" onClick={() => onEdit(dataset)}>
+            <Pencil className="w-4 h-4" />
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => onExport(dataset)}>
             <Download className="w-4 h-4" />
           </Button>
@@ -404,7 +482,7 @@ const DatasetCard = ({ dataset, onView, onExport, onDelete }) => {
 };
 
 // Dataset Detail View Component
-const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
+const DatasetDetailView = ({ dataset, onBack, onExport, onDelete, onEdit, onAddItem }) => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedItems, setExpandedItems] = useState(new Set());
@@ -413,6 +491,10 @@ const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
   const [totalItems, setTotalItems] = useState(0);
   const [stats, setStats] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [savingItem, setSavingItem] = useState(false);
+  const [itemError, setItemError] = useState(null);
 
   useEffect(() => {
     loadItems();
@@ -459,6 +541,56 @@ const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const startEditItem = (item) => {
+    setEditingItemId(item.id);
+    setEditFormData({
+      input: JSON.stringify(item.input, null, 2),
+      expected_output: item.expected_output ? JSON.stringify(item.expected_output, null, 2) : "",
+      metadata: item.metadata ? JSON.stringify(item.metadata, null, 2) : "",
+    });
+    setItemError(null);
+  };
+
+  const cancelEditItem = () => {
+    setEditingItemId(null);
+    setEditFormData({});
+    setItemError(null);
+  };
+
+  const saveEditItem = async (itemId) => {
+    setSavingItem(true);
+    setItemError(null);
+    try {
+      // Parse JSON fields
+      const input = JSON.parse(editFormData.input);
+      const expectedOutput = editFormData.expected_output.trim()
+        ? JSON.parse(editFormData.expected_output)
+        : null;
+      const metadata = editFormData.metadata.trim()
+        ? JSON.parse(editFormData.metadata)
+        : null;
+
+      await datasetsApi.updateDatasetItem(dataset.id, itemId, {
+        input,
+        expectedOutput,
+        metadata,
+      });
+
+      // Reload items
+      await loadItems();
+      setEditingItemId(null);
+      setEditFormData({});
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        setItemError("Invalid JSON format. Please check your input.");
+      } else {
+        setItemError(err.message || "Failed to save item");
+      }
+    } finally {
+      setSavingItem(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* Header */}
@@ -481,6 +613,14 @@ const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="secondary" onClick={() => onAddItem(dataset)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Item
+          </Button>
+          <Button variant="secondary" onClick={() => onEdit(dataset)}>
+            <Pencil className="w-4 h-4 mr-2" />
+            Edit
+          </Button>
           <Button variant="secondary" onClick={() => onExport(dataset)}>
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -572,32 +712,85 @@ const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
                 {/* Expanded Content */}
                 {expandedItems.has(item.id) && (
                   <div className="p-4 border-t border-slate-700 bg-slate-900/30 space-y-4">
+                    {/* Edit/View Toggle */}
+                    <div className="flex items-center justify-end space-x-2">
+                      {editingItemId === item.id ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={cancelEditItem}
+                            disabled={savingItem}
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => saveEditItem(item.id)}
+                            disabled={savingItem}
+                          >
+                            <Save className="w-4 h-4 mr-1" />
+                            {savingItem ? "Saving..." : "Save"}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditItem(item)}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit Item
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Error Message */}
+                    {editingItemId === item.id && itemError && (
+                      <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+                        {itemError}
+                      </div>
+                    )}
+
                     {/* Input */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-slate-300">Input</h4>
-                        <button
-                          onClick={() => copyToClipboard(JSON.stringify(item.input, null, 2), `input-${item.id}`)}
-                          className="text-xs text-slate-400 hover:text-white flex items-center"
-                        >
-                          {copiedId === `input-${item.id}` ? (
-                            <Check className="w-3 h-3 mr-1" />
-                          ) : (
-                            <Copy className="w-3 h-3 mr-1" />
-                          )}
-                          Copy
-                        </button>
+                        <h4 className="text-sm font-medium text-slate-300">Input *</h4>
+                        {editingItemId !== item.id && (
+                          <button
+                            onClick={() => copyToClipboard(JSON.stringify(item.input, null, 2), `input-${item.id}`)}
+                            className="text-xs text-slate-400 hover:text-white flex items-center"
+                          >
+                            {copiedId === `input-${item.id}` ? (
+                              <Check className="w-3 h-3 mr-1" />
+                            ) : (
+                              <Copy className="w-3 h-3 mr-1" />
+                            )}
+                            Copy
+                          </button>
+                        )}
                       </div>
-                      <pre className="p-3 bg-slate-800 rounded text-xs text-slate-300 overflow-x-auto">
-                        {JSON.stringify(item.input, null, 2)}
-                      </pre>
+                      {editingItemId === item.id ? (
+                        <textarea
+                          value={editFormData.input}
+                          onChange={(e) => setEditFormData({ ...editFormData, input: e.target.value })}
+                          rows={6}
+                          className="w-full p-3 bg-slate-800 border border-slate-600 rounded text-xs text-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder='{"key": "value"}'
+                        />
+                      ) : (
+                        <pre className="p-3 bg-slate-800 rounded text-xs text-slate-300 overflow-x-auto">
+                          {JSON.stringify(item.input, null, 2)}
+                        </pre>
+                      )}
                     </div>
 
                     {/* Expected Output */}
-                    {item.expected_output && (
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-medium text-slate-300">Expected Output</h4>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium text-slate-300">Expected Output</h4>
+                        {editingItemId !== item.id && item.expected_output && (
                           <button
                             onClick={() => copyToClipboard(JSON.stringify(item.expected_output, null, 2), `output-${item.id}`)}
                             className="text-xs text-slate-400 hover:text-white flex items-center"
@@ -609,14 +802,48 @@ const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
                             )}
                             Copy
                           </button>
-                        </div>
+                        )}
+                      </div>
+                      {editingItemId === item.id ? (
+                        <textarea
+                          value={editFormData.expected_output}
+                          onChange={(e) => setEditFormData({ ...editFormData, expected_output: e.target.value })}
+                          rows={6}
+                          className="w-full p-3 bg-slate-800 border border-slate-600 rounded text-xs text-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder='{"expected": "output"} (optional)'
+                        />
+                      ) : item.expected_output ? (
                         <pre className="p-3 bg-slate-800 rounded text-xs text-slate-300 overflow-x-auto">
                           {JSON.stringify(item.expected_output, null, 2)}
                         </pre>
-                      </div>
-                    )}
+                      ) : (
+                        <p className="text-xs text-slate-500 italic">No expected output defined</p>
+                      )}
+                    </div>
 
-                    {/* Annotations */}
+                    {/* Metadata */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium text-slate-300">Metadata</h4>
+                      </div>
+                      {editingItemId === item.id ? (
+                        <textarea
+                          value={editFormData.metadata}
+                          onChange={(e) => setEditFormData({ ...editFormData, metadata: e.target.value })}
+                          rows={4}
+                          className="w-full p-3 bg-slate-800 border border-slate-600 rounded text-xs text-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder='{"key": "value"} (optional)'
+                        />
+                      ) : item.metadata && Object.keys(item.metadata).length > 0 ? (
+                        <pre className="p-3 bg-slate-800 rounded text-xs text-slate-300 overflow-x-auto max-h-40">
+                          {JSON.stringify(item.metadata, null, 2)}
+                        </pre>
+                      ) : (
+                        <p className="text-xs text-slate-500 italic">No metadata</p>
+                      )}
+                    </div>
+
+                    {/* Annotations (read-only) */}
                     {item.annotations && Object.keys(item.annotations).length > 0 && (
                       <div>
                         <h4 className="text-sm font-medium text-slate-300 mb-2">Annotations</h4>
@@ -633,16 +860,6 @@ const DatasetDetailView = ({ dataset, onBack, onExport, onDelete }) => {
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Metadata */}
-                    {item.metadata && Object.keys(item.metadata).length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-slate-300 mb-2">Metadata</h4>
-                        <pre className="p-3 bg-slate-800 rounded text-xs text-slate-300 overflow-x-auto max-h-40">
-                          {JSON.stringify(item.metadata, null, 2)}
-                        </pre>
                       </div>
                     )}
 
@@ -1039,6 +1256,204 @@ const DeleteConfirmModal = ({ isOpen, onClose, dataset, onConfirm }) => {
           This will archive the dataset and its {dataset?.item_count || 0} items.
         </p>
       </div>
+    </Modal>
+  );
+};
+
+// Edit Dataset Modal
+const EditDatasetModal = ({ isOpen, onClose, dataset, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && dataset) {
+      setFormData({
+        name: dataset.name || "",
+        description: dataset.description || "",
+      });
+      setError(null);
+    }
+  }, [isOpen, dataset]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!dataset) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updatedDataset = await datasetsApi.updateDataset(dataset.id, formData);
+      onSave(updatedDataset);
+    } catch (err) {
+      setError(err.message || "Failed to update dataset");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Edit Dataset"
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={saving || !formData.name}>
+            {saving ? "Saving..." : "Save Changes"}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Dataset Name *</label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="e.g., customer-support-eval-v1"
+            className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+          <textarea
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="What is this dataset for?"
+            rows={3}
+            className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </form>
+    </Modal>
+  );
+};
+
+// Add Item Modal
+const AddItemModal = ({ isOpen, onClose, dataset, onSave }) => {
+  const [formData, setFormData] = useState({
+    input: '{\n  "user_input": ""\n}',
+    expected_output: "",
+    metadata: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        input: '{\n  "user_input": ""\n}',
+        expected_output: "",
+        metadata: "",
+      });
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!dataset) return;
+    setSaving(true);
+    setError(null);
+    try {
+      // Parse JSON fields
+      const input = JSON.parse(formData.input);
+      const expectedOutput = formData.expected_output.trim()
+        ? JSON.parse(formData.expected_output)
+        : null;
+      const metadata = formData.metadata.trim()
+        ? JSON.parse(formData.metadata)
+        : null;
+
+      await datasetsApi.createDatasetItem(dataset.id, {
+        input,
+        expectedOutput,
+        metadata,
+      });
+
+      onSave();
+    } catch (err) {
+      if (err instanceof SyntaxError) {
+        setError("Invalid JSON format. Please check your input.");
+      } else {
+        setError(err.message || "Failed to add item");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Add Dataset Item"
+      size="lg"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? "Adding..." : "Add Item"}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Input * (JSON)</label>
+          <textarea
+            value={formData.input}
+            onChange={(e) => setFormData({ ...formData, input: e.target.value })}
+            rows={6}
+            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder='{"user_input": "What is the weather?"}'
+          />
+          <p className="text-xs text-slate-500 mt-1">The test input data in JSON format</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Expected Output (JSON, optional)</label>
+          <textarea
+            value={formData.expected_output}
+            onChange={(e) => setFormData({ ...formData, expected_output: e.target.value })}
+            rows={6}
+            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder='{"response": "The expected response..."}'
+          />
+          <p className="text-xs text-slate-500 mt-1">The expected/ideal output (ground truth)</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Metadata (JSON, optional)</label>
+          <textarea
+            value={formData.metadata}
+            onChange={(e) => setFormData({ ...formData, metadata: e.target.value })}
+            rows={3}
+            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder='{"category": "greeting", "difficulty": "easy"}'
+          />
+          <p className="text-xs text-slate-500 mt-1">Additional context about this item</p>
+        </div>
+      </form>
     </Modal>
   );
 };

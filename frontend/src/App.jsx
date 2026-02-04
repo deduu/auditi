@@ -12,6 +12,7 @@ import { HumanAnnotationPage } from "./pages/HumanAnnotationPage";
 import { DatasetsPage } from "./pages/DatasetsPage";
 import { TrendsPage } from "./pages/TrendsPage";
 import { ToolCallsPage } from "./pages/ToolCallsPage";
+import { DashboardPage } from "./pages/DashboardPage";
 
 import { TracesPage } from "./pages/TracesPage";
 import { TraceDetailPage } from "./pages/TraceDetailPage";
@@ -19,7 +20,7 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "./context/SidebarContext";
 
 function AppContent() {
-    const [activeTab, setActiveTab] = useState("conversations");
+    const [activeTab, setActiveTab] = useState("dashboard");
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [selectedTrace, setSelectedTrace] = useState(null);
     const { sidebarWidth } = useSidebar();
@@ -35,6 +36,8 @@ function AppContent() {
         }
 
         switch (activeTab) {
+            case "dashboard":
+                return <DashboardPage />;
             case "conversations":
                 return (
                     <ConversationsPage onSelectConversation={setSelectedConversation} />
