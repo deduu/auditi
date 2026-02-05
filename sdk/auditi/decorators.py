@@ -127,6 +127,33 @@ def _apply_usage_to_trace(trace: TraceInput, usage: Any, model: Optional[str] = 
     trace.cost = (trace.cost or 0.0) + incremental_cost
 
 
+def _ensure_str_input(value: Any) -> str:
+    """
+    Convert various input formats to a plain string for user_input.
+
+    Handles:
+      - str: returned as-is
+      - list of message dicts (OpenAI/chat format): extracts last user message content
+      - dict with 'content' or 'message' key: extracts the value
+      - anything else: str() conversion
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        # Try to extract the last user message from chat-format messages
+        for msg in reversed(value):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                content = msg.get("content", "")
+                return str(content) if not isinstance(content, str) else content
+        # Fallback: stringify the list
+        return str(value)
+    if isinstance(value, dict):
+        return value.get("content") or value.get("message") or str(value)
+    if value is None:
+        return ""
+    return str(value)
+
+
 def _execute_as_standalone_trace(
     func: Callable,
     args: tuple,
@@ -151,19 +178,11 @@ def _execute_as_standalone_trace(
     # Extract user input from args/kwargs
     user_input = ""
     if args:
-        first_arg = args[0]
-        if isinstance(first_arg, str):
-            user_input = first_arg
-        elif isinstance(first_arg, list):
-            # Could be messages array
-            user_input = str(first_arg)
-        elif isinstance(first_arg, dict):
-            user_input = first_arg.get("content") or first_arg.get("message") or str(first_arg)
-        else:
-            user_input = str(first_arg)
+        user_input = _ensure_str_input(args[0])
 
     if not user_input:
-        user_input = kwargs.get("prompt") or kwargs.get("message") or kwargs.get("query") or ""
+        raw = kwargs.get("prompt") or kwargs.get("message") or kwargs.get("messages") or kwargs.get("query") or ""
+        user_input = _ensure_str_input(raw)
 
     # Create trace
     trace = TraceInput(
@@ -352,25 +371,19 @@ def trace_agent(
 
                     # Get the actual user input from the correct position
                     if len(args) > start_idx:
-                        first_arg = args[start_idx]
-                        if isinstance(first_arg, str):
-                            user_input = first_arg
-                        elif isinstance(first_arg, dict) and "message" in first_arg:
-                            user_input = first_arg["message"]
-                        elif isinstance(first_arg, dict) and "content" in first_arg:
-                            user_input = first_arg["content"]
-                        else:
-                            user_input = str(first_arg)
+                        user_input = _ensure_str_input(args[start_idx])
 
                 # Also check for user_input/message/query in kwargs
                 if not user_input:
-                    user_input = (
+                    raw = (
                         kwargs.get("user_input")
                         or kwargs.get("message")
+                        or kwargs.get("messages")
                         or kwargs.get("query")
                         or kwargs.get("prompt")
                         or ""
                     )
+                    user_input = _ensure_str_input(raw)
 
                 _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
 
@@ -544,25 +557,19 @@ def trace_agent(
 
                     # Get the actual user input from the correct position
                     if len(args) > start_idx:
-                        first_arg = args[start_idx]
-                        if isinstance(first_arg, str):
-                            user_input = first_arg
-                        elif isinstance(first_arg, dict) and "message" in first_arg:
-                            user_input = first_arg["message"]
-                        elif isinstance(first_arg, dict) and "content" in first_arg:
-                            user_input = first_arg["content"]
-                        else:
-                            user_input = str(first_arg)
+                        user_input = _ensure_str_input(args[start_idx])
 
                 # Also check for user_input/message/query in kwargs
                 if not user_input:
-                    user_input = (
+                    raw = (
                         kwargs.get("user_input")
                         or kwargs.get("message")
+                        or kwargs.get("messages")
                         or kwargs.get("query")
                         or kwargs.get("prompt")
                         or ""
                     )
+                    user_input = _ensure_str_input(raw)
 
                 _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
 
@@ -747,25 +754,19 @@ def trace_agent(
 
                     # Get the actual user input from the correct position
                     if len(args) > start_idx:
-                        first_arg = args[start_idx]
-                        if isinstance(first_arg, str):
-                            user_input = first_arg
-                        elif isinstance(first_arg, dict) and "message" in first_arg:
-                            user_input = first_arg["message"]
-                        elif isinstance(first_arg, dict) and "content" in first_arg:
-                            user_input = first_arg["content"]
-                        else:
-                            user_input = str(first_arg)
+                        user_input = _ensure_str_input(args[start_idx])
 
                 # Also check for user_input/message/query in kwargs
                 if not user_input:
-                    user_input = (
+                    raw = (
                         kwargs.get("user_input")
                         or kwargs.get("message")
+                        or kwargs.get("messages")
                         or kwargs.get("query")
                         or kwargs.get("prompt")
                         or ""
                     )
+                    user_input = _ensure_str_input(raw)
 
                 _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
 

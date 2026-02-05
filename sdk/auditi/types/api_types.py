@@ -82,7 +82,18 @@ class TraceInput(BaseModel):
 
     @field_validator("user_input", mode="before")
     def normalize_user_input(cls, v):
-        return v or ""
+        if isinstance(v, str):
+            return v
+        if isinstance(v, list):
+            # Extract last user message from chat-format messages
+            for msg in reversed(v):
+                if isinstance(msg, dict) and msg.get("role") == "user":
+                    content = msg.get("content", "")
+                    return str(content) if not isinstance(content, str) else content
+            return str(v)
+        if v is None:
+            return ""
+        return str(v)
 
 
 class EvaluationResult(BaseModel):

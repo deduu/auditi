@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import asyncio
-from auditi.decorators import trace_agent, trace_tool, trace_llm
+from auditi.decorators import trace_agent, trace_tool, trace_llm, _ensure_str_input
 from auditi.client import init
 from auditi.context import clear_current_trace
 from auditi.types import TraceInput
@@ -102,3 +102,64 @@ def test_trace_llm_standalone(mock_client):
     # Based on my read, it calls _execute_as_standalone_trace if no current trace.
 
     assert mock_client.transport.send_trace.called
+
+
+# --- Tests for _ensure_str_input and message-list handling ---
+
+
+def test_ensure_str_input_with_string():
+    assert _ensure_str_input("hello") == "hello"
+
+
+def test_ensure_str_input_with_none():
+    assert _ensure_str_input(None) == ""
+
+
+def test_ensure_str_input_with_message_list():
+    messages = [
+        {"role": "user", "content": "What is AI?"},
+        {"role": "assistant", "content": "AI is..."},
+        {"role": "user", "content": "Tell me more"},
+    ]
+    assert _ensure_str_input(messages) == "Tell me more"
+
+
+def test_ensure_str_input_with_single_user_message():
+    messages = [{"role": "user", "content": "Hello world"}]
+    assert _ensure_str_input(messages) == "Hello world"
+
+
+def test_ensure_str_input_with_dict():
+    assert _ensure_str_input({"content": "test"}) == "test"
+    assert _ensure_str_input({"message": "test2"}) == "test2"
+
+
+def test_trace_agent_with_messages_list(mock_client):
+    """Test that trace_agent handles OpenAI-format message lists without crashing."""
+
+    @trace_agent(name="ChatAgent")
+    def chat_agent(messages):
+        return f"Response to: {messages[-1]['content']}"
+
+    messages = [{"role": "user", "content": "Jelaskan WAP"}]
+    result = chat_agent(messages)
+
+    assert result == "Response to: Jelaskan WAP"
+    mock_client.transport.send_trace.assert_called_once()
+
+    call_args = mock_client.transport.send_trace.call_args[0][0]
+    assert call_args["user_input"] == "Jelaskan WAP"
+
+
+def test_trace_input_validator_with_list():
+    """Test that TraceInput.normalize_user_input handles list input."""
+    from uuid import uuid4
+    from datetime import datetime
+
+    trace = TraceInput(
+        id=uuid4(),
+        start_time=datetime.utcnow(),
+        name="test",
+        user_input=[{"role": "user", "content": "Hello from list"}],
+    )
+    assert trace.user_input == "Hello from list"

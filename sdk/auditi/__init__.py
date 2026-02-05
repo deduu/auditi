@@ -15,6 +15,8 @@ from .transport import BaseTransport, SyncHttpTransport, DebugTransport
 from .types import TraceInput, SpanInput, EvaluationResult
 from .events import EventType, StreamEvent
 
+from .instrumentation import instrument
+
 __version__ = "0.1.0"
 
 __all__ = [
@@ -22,6 +24,8 @@ __all__ = [
     "init",
     "get_client",
     "AuditiClient",
+    # Instrumentation
+    "instrument",
     # Context
     "set_context",
     "get_context",
