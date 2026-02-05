@@ -20,20 +20,29 @@ class SpanEvaluation(BaseModel):
 class EvalResult(BaseModel):
     """
     Comprehensive evaluation result for a trace.
-    
+
     Includes both overall trace evaluation AND individual span evaluations.
+    Supports flexible custom schemas through metadata field.
     """
-    # Overall trace evaluation
+
+    # Core evaluation fields (always extracted)
     status: str  # "pass", "fail", or "review"
     score: float = Field(ge=0.0, le=1.0)
     failure_mode: Optional[str] = None
     reason: str = ""
-    recommended_action: Optional[str] = None 
-    
-    # NEW: Span-level evaluations
+    recommended_action: Optional[str] = None
+
+    # Span-level evaluations
     span_evaluations: List[SpanEvaluation] = Field(default_factory=list)
-    
-    # Optional metadata
+
+    # Flexible metadata for custom schema support
+    # Structure:
+    # {
+    #   "custom_fields": {...},      # Any extra fields from custom schema
+    #   "schema_warnings": [...],    # Validation warnings encountered
+    #   "evaluated_at": "...",       # ISO timestamp
+    #   "evaluator_id": "...",       # ID of evaluator used
+    # }
     metadata: Dict[str, Any] = Field(default_factory=dict)
     
     def model_dump(self, **kwargs) -> Dict[str, Any]:

@@ -513,6 +513,7 @@ def create_evaluator(data: EvaluatorCreate, db: Session = Depends(get_db)):
         name=data.name,
         description=data.description,
         evaluator_type="custom",
+        evaluation_scope=data.evaluation_scope,
         use_default_model=data.use_default_model,
         connection_id=data.connection_id,
         model_name=data.model_name,
@@ -521,6 +522,8 @@ def create_evaluator(data: EvaluatorCreate, db: Session = Depends(get_db)):
         simple_eval_prompt=data.simple_eval_prompt,
         prompt=data.prompt,
         score_reasoning_prompt=data.score_reasoning_prompt,
+        output_schema=data.output_schema,
+        schema_mode=data.schema_mode,
     )
     db.add(evaluator)
     db.commit()

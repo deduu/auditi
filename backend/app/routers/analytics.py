@@ -94,14 +94,23 @@ def get_dashboard_kpis(
     start_date, _, _ = get_date_range(time_range)
 
     # 1. Traces by name
+    # Filter by trace type based on tags:
+    # - Agent traces: do NOT have "standalone" in tags
+    # - Standalone traces: have "standalone" in tags
     trace_query = db.query(Trace.name, func.count(Trace.id).label("count")).filter(
         Trace.start_time >= start_date, Trace.name != None
     )
 
     if trace_type == "agent":
-        trace_query = trace_query.filter(Trace.spans.any(Span.span_type == "agent"))
+        # Agent traces don't have "standalone" tag
+        trace_query = trace_query.filter(
+            ~func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
+        )
     elif trace_type == "standalone":
-        trace_query = trace_query.filter(~Trace.spans.any(Span.span_type == "agent"))
+        # Standalone traces have "standalone" tag
+        trace_query = trace_query.filter(
+            func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
+        )
 
     traces_by_name_data = (
         trace_query.group_by(Trace.name).order_by(desc("count")).limit(limit).all()
@@ -116,12 +125,14 @@ def get_dashboard_kpis(
         Trace.start_time >= start_date
     )
     if trace_type == "agent":
+        # Agent traces don't have "standalone" tag
         total_traces_query = total_traces_query.filter(
-            Trace.spans.any(Span.span_type == "agent")
+            ~func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
         )
     elif trace_type == "standalone":
+        # Standalone traces have "standalone" tag
         total_traces_query = total_traces_query.filter(
-            ~Trace.spans.any(Span.span_type == "agent")
+            func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
         )
 
     total_traces = total_traces_query.scalar() or 0

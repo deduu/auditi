@@ -38,7 +38,10 @@ class Trace(Base):
     eval_reason = Column(Text, nullable=True)
     recommended_action = Column(
         Text, nullable=True
-    )  # NEW: Action recommendation for failed/review traces
+    )  # Action recommendation for failed/review traces
+
+    # Flexible evaluation metadata - stores custom schema fields and warnings
+    eval_metadata = Column(JSON, nullable=True)
 
     # Relationships
     conversation = relationship("Conversation", back_populates="traces")

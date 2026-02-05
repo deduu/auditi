@@ -2,7 +2,7 @@
 Evaluator model for storing custom evaluator configurations.
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.sql import func
 from ..database import Base
 
@@ -32,6 +32,16 @@ class Evaluator(Base):
     # Legacy fields (kept for backward compatibility)
     prompt = Column(Text, nullable=True)
     score_reasoning_prompt = Column(Text, nullable=True)
+
+    # Custom output schema definition (JSON Schema format)
+    # Allows developers to define additional fields beyond core schema
+    output_schema = Column(JSON, nullable=True)
+
+    # Schema enforcement mode: "strict", "flexible", "none"
+    # - strict: Warns on missing required fields, validates types
+    # - flexible: Extracts what it can, logs warnings (default)
+    # - none: No custom schema validation
+    schema_mode = Column(String(20), default="flexible")
 
     # Status
     is_active = Column(Boolean, default=True)

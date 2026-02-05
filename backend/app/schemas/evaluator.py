@@ -40,6 +40,15 @@ class EvaluatorBase(BaseModel):
         None, description="Legacy score reasoning prompt"
     )
 
+    # Custom schema support
+    output_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for custom output fields"
+    )
+    schema_mode: str = Field(
+        "flexible",
+        description="Schema validation mode: 'strict', 'flexible', or 'none'",
+    )
+
 
 class EvaluatorCreate(EvaluatorBase):
     """Schema for creating a new evaluator."""
@@ -62,6 +71,8 @@ class EvaluatorUpdate(BaseModel):
     prompt: Optional[str] = None
     score_reasoning_prompt: Optional[str] = None
     is_active: Optional[bool] = None
+    output_schema: Optional[Dict[str, Any]] = None
+    schema_mode: Optional[str] = None
 
 
 class EvaluatorResponse(BaseModel):
@@ -80,6 +91,8 @@ class EvaluatorResponse(BaseModel):
     simple_eval_prompt: Optional[str] = None
     prompt: Optional[str] = None
     score_reasoning_prompt: Optional[str] = None
+    output_schema: Optional[Dict[str, Any]] = None
+    schema_mode: str = "flexible"
     is_active: bool
     created_at: datetime
     updated_at: datetime

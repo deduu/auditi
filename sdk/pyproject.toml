@@ -30,19 +30,23 @@ dependencies = [
     "httpx>=0.25.0",
 ]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.23.0",
     "black>=23.0.0",
     "mypy>=1.0.0",
     "ruff>=0.1.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/auditi/auditi-python"
-Documentation = "https://docs.auditi.dev"
-Repository = "https://github.com/auditi/auditi-python"
+Homepage = "https://github.com/deduu/auditi"
+Documentation = "https://github.com/deduu/auditi#readme"
+Repository = "https://github.com/deduu/auditi"
 
 [tool.hatch.build.targets.wheel]
 packages = ["auditi"]

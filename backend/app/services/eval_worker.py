@@ -179,16 +179,26 @@ def get_evaluator_config(db: Session) -> dict:
 def create_evaluator_from_config(evaluator_config, connection) -> LLMEvaluator:
     """
     Create an LLMEvaluator instance from database configuration.
+
+    Includes support for custom output schemas and schema validation modes.
     """
     # Build custom prompts dict
     custom_prompts = evaluator_config.get_custom_prompts() if evaluator_config else None
 
-    # Create evaluator with connection settings
+    # Get custom schema configuration
+    custom_schema = getattr(evaluator_config, "output_schema", None)
+    schema_mode = getattr(evaluator_config, "schema_mode", "flexible") or "flexible"
+    evaluator_id = getattr(evaluator_config, "id", None)
+
+    # Create evaluator with connection settings and schema config
     return LLMEvaluator(
         api_key=connection.api_key_encrypted,  # TODO: Decrypt
         model=connection.default_model or "gpt-4o",
         base_url=connection.base_url,
         custom_prompts=custom_prompts,
+        custom_schema=custom_schema,
+        schema_mode=schema_mode,
+        evaluator_id=evaluator_id,
     )
 
 
@@ -426,6 +436,16 @@ async def process_evaluation(
         trace.failure_mode = result.failure_mode
         trace.eval_reason = result.reason
         trace.recommended_action = result.recommended_action
+
+        # Store flexible evaluation metadata (custom fields, warnings, etc.)
+        if result.metadata:
+            trace.eval_metadata = result.metadata
+            custom_fields = result.metadata.get("custom_fields", {})
+            schema_warnings = result.metadata.get("schema_warnings", [])
+            if custom_fields:
+                print(f"  - Custom fields: {list(custom_fields.keys())}")
+            if schema_warnings:
+                print(f"  - Schema warnings: {len(schema_warnings)}")
 
         db.commit()
 

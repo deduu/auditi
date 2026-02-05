@@ -372,7 +372,9 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
         useDefaultModel: true,
         spanEvalPrompt: "",
         traceEvalPrompt: "",
-        simpleEvalPrompt: ""
+        simpleEvalPrompt: "",
+        schemaMode: "flexible",
+        customFields: []
     });
     const [saving, setSaving] = useState(false);
     const [showPrompts, setShowPrompts] = useState({
@@ -380,6 +382,46 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
         trace: false,
         simple: false
     });
+    const [showSchemaBuilder, setShowSchemaBuilder] = useState(false);
+
+    // Build output_schema from customFields
+    const buildOutputSchema = () => {
+        if (formData.customFields.length === 0) return null;
+        const schema = {
+            type: "object",
+            properties: {},
+            required: []
+        };
+        formData.customFields.forEach(field => {
+            if (field.name) {
+                schema.properties[field.name] = { type: field.type || "string" };
+                if (field.required) {
+                    schema.required.push(field.name);
+                }
+            }
+        });
+        return schema.required.length > 0 || Object.keys(schema.properties).length > 0 ? schema : null;
+    };
+
+    const addCustomField = () => {
+        setFormData({
+            ...formData,
+            customFields: [...formData.customFields, { name: "", type: "string", required: false }]
+        });
+    };
+
+    const updateCustomField = (index, key, value) => {
+        const updated = [...formData.customFields];
+        updated[index] = { ...updated[index], [key]: value };
+        setFormData({ ...formData, customFields: updated });
+    };
+
+    const removeCustomField = (index) => {
+        setFormData({
+            ...formData,
+            customFields: formData.customFields.filter((_, i) => i !== index)
+        });
+    };
 
     const handleSubmit = async () => {
         setSaving(true);
@@ -391,7 +433,9 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
                 use_default_model: formData.useDefaultModel,
                 span_eval_prompt: formData.spanEvalPrompt || null,
                 trace_eval_prompt: formData.traceEvalPrompt || null,
-                simple_eval_prompt: formData.simpleEvalPrompt || null
+                simple_eval_prompt: formData.simpleEvalPrompt || null,
+                schema_mode: formData.schemaMode,
+                output_schema: buildOutputSchema()
             });
             setFormData({
                 name: "",
@@ -400,7 +444,9 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
                 useDefaultModel: true,
                 spanEvalPrompt: "",
                 traceEvalPrompt: "",
-                simpleEvalPrompt: ""
+                simpleEvalPrompt: "",
+                schemaMode: "flexible",
+                customFields: []
             });
         } finally {
             setSaving(false);
@@ -479,6 +525,106 @@ export const CreateEvaluatorModal = ({ isOpen, onClose, onSave, defaultModel }) 
                             </span>
                         )}
                     </div>
+                </div>
+
+                {/* Schema Validation Mode */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Schema Validation</label>
+                    <select
+                        value={formData.schemaMode}
+                        onChange={(e) => setFormData({ ...formData, schemaMode: e.target.value })}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    >
+                        <option value="flexible">Flexible (Recommended)</option>
+                        <option value="strict">Strict</option>
+                        <option value="none">None</option>
+                    </select>
+                    <p className="mt-1 text-xs text-slate-500">
+                        {formData.schemaMode === "flexible" && "Extracts core fields with smart normalization. Logs warnings but doesn't fail."}
+                        {formData.schemaMode === "strict" && "Validates all fields strictly. Reports errors for missing required fields."}
+                        {formData.schemaMode === "none" && "No custom schema validation. Only core fields are extracted."}
+                    </p>
+                </div>
+
+                {/* Custom Output Fields */}
+                <div className="border-t border-slate-800 pt-4">
+                    <button
+                        type="button"
+                        onClick={() => setShowSchemaBuilder(!showSchemaBuilder)}
+                        className="flex items-center justify-between w-full p-3 bg-slate-800/50 border border-slate-700 rounded-lg text-left hover:bg-slate-800 transition-colors"
+                    >
+                        <div>
+                            <span className="text-sm font-medium text-slate-300">Custom Output Fields</span>
+                            <p className="text-xs text-slate-500 mt-0.5">Define additional fields beyond status, score, reason</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            {formData.customFields.length > 0 && (
+                                <span className="text-xs text-emerald-400">{formData.customFields.length} field(s)</span>
+                            )}
+                            {showSchemaBuilder ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                        </div>
+                    </button>
+                    {showSchemaBuilder && (
+                        <div className="mt-3 p-3 bg-slate-900/50 border border-slate-700 rounded-lg animate-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-xs text-slate-400">
+                                    Core fields (status, score, failure_mode, reason) are always extracted.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={addCustomField}
+                                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center"
+                                >
+                                    <Plus className="w-3 h-3 mr-1" /> Add Field
+                                </button>
+                            </div>
+                            {formData.customFields.length === 0 ? (
+                                <p className="text-center text-slate-500 text-xs py-4">
+                                    No custom fields defined. Click "Add Field" to define additional output fields.
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {formData.customFields.map((field, index) => (
+                                        <div key={index} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={field.name}
+                                                onChange={(e) => updateCustomField(index, "name", e.target.value)}
+                                                placeholder="field_name"
+                                                className="flex-1 px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-white text-xs placeholder-slate-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                                            />
+                                            <select
+                                                value={field.type}
+                                                onChange={(e) => updateCustomField(index, "type", e.target.value)}
+                                                className="px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-white text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                                            >
+                                                <option value="string">Text</option>
+                                                <option value="number">Number</option>
+                                                <option value="boolean">Boolean</option>
+                                                <option value="array">Array</option>
+                                            </select>
+                                            <label className="flex items-center text-xs text-slate-400 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={field.required}
+                                                    onChange={(e) => updateCustomField(index, "required", e.target.checked)}
+                                                    className="w-3 h-3 mr-1 rounded border-slate-600 bg-slate-800 text-blue-500"
+                                                />
+                                                Req
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeCustomField(index)}
+                                                className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Prompt Templates Section */}

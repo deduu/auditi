@@ -34,28 +34,29 @@ const EmptyChart = ({ message = "No data" }) => (
 const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAllTraces = false }) => (
     <Card className="bg-slate-900/50 border-slate-800 p-6 flex flex-col h-full">
         <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-bold text-white">Traces</h3>
-                <div className="inline-flex rounded-lg overflow-hidden border border-slate-600">
-                    {['all', 'agent', 'standalone'].map((type, index) => (
-                        <button
-                            key={type}
-                            onClick={() => onTypeChange(type === 'all' ? null : type)}
-                            className={`px-3 py-1.5 text-[11px] font-medium transition-all duration-150
-                                ${index !== 0 ? 'border-l border-slate-600' : ''}
-                                ${(type === 'all' && !traceType) || traceType === type
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                                }`}
-                        >
-                            {type.charAt(0).toUpperCase() + type.slice(1)}
-                        </button>
-                    ))}
-                </div>
-            </div>
-            <div className="flex items-baseline space-x-2">
+            <h3 className="text-lg font-bold text-white mb-1">Traces</h3>
+            <div className="flex items-baseline space-x-2 mb-4">
                 <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
                 <span className="text-sm text-slate-400">Total traces tracked</span>
+            </div>
+            {/* Underline tabs */}
+            <div className="flex items-center gap-5 border-b border-slate-700">
+                {['all', 'agent', 'standalone'].map((type) => (
+                    <button
+                        key={type}
+                        onClick={() => onTypeChange(type === 'all' ? null : type)}
+                        className={`relative pb-2.5 text-sm font-medium transition-colors duration-200
+                            ${(type === 'all' && !traceType) || traceType === type
+                                ? "text-blue-400"
+                                : "text-slate-400 hover:text-slate-200"
+                            }`}
+                    >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                        {((type === 'all' && !traceType) || traceType === type) && (
+                            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+                        )}
+                    </button>
+                ))}
             </div>
         </div>
 

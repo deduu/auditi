@@ -1,17 +1,22 @@
 """
 Enhanced LLM-based evaluator using OpenAI API for agentic workflows.
 
-NEW: Granular span-level evaluation + overall trace evaluation
+Features:
+- Granular span-level evaluation + overall trace evaluation
+- Flexible custom schema support with smart validation
+- Resilient field extraction with normalization
 """
 
 import os
 import json
 import logging
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 
 from openai import AsyncOpenAI
 
 from .base import BaseBackendEvaluator, EvalResult, SpanEvaluation
+from .schema_validator import validate_and_extract
 
 logger = logging.getLogger("auditi.evaluator")
 
@@ -160,6 +165,9 @@ class LLMEvaluator(BaseBackendEvaluator):
         custom_prompts: Optional[Dict[str, str]] = None,
         extra_headers: Optional[Dict[str, str]] = None,
         temperature: float = 0.1,
+        custom_schema: Optional[Dict[str, Any]] = None,
+        schema_mode: str = "flexible",
+        evaluator_id: Optional[str] = None,
     ):
         """
         Initialize LLMEvaluator.
@@ -172,6 +180,9 @@ class LLMEvaluator(BaseBackendEvaluator):
             custom_prompts: Optional dict with keys 'span_eval', 'trace_eval', 'simple_eval'
             extra_headers: Optional HTTP headers for LLM requests
             temperature: LLM temperature setting
+            custom_schema: Optional JSON Schema for custom output fields
+            schema_mode: Schema validation mode - "strict", "flexible", or "none"
+            evaluator_id: Optional ID of the evaluator configuration
         """
         # Use provider config if provided, otherwise use direct params
         if llm_provider is not None:
@@ -202,8 +213,14 @@ class LLMEvaluator(BaseBackendEvaluator):
             "simple_eval"
         ) or SIMPLE_EVALUATION_PROMPT
 
+        # Schema validation configuration
+        self.custom_schema = custom_schema
+        self.schema_mode = schema_mode
+        self.evaluator_id = evaluator_id
+
         logger.info(
-            f"LLMEvaluator initialized: model={self.model}, base_url={self.base_url}"
+            f"LLMEvaluator initialized: model={self.model}, base_url={self.base_url}, "
+            f"schema_mode={schema_mode}"
         )
 
     def _safe_format(self, template: str, **kwargs) -> str:
@@ -547,33 +564,26 @@ class LLMEvaluator(BaseBackendEvaluator):
 
             result = json.loads(content)
 
-            # Validate and normalize
-            status = result.get("status", "review")
-            if status not in ("pass", "fail", "review"):
-                status = "review"
+            # Use schema validator for resilient extraction
+            core_fields, custom_fields, schema_warnings = validate_and_extract(
+                response=result,
+                custom_schema=self.custom_schema,
+                mode=self.schema_mode,
+            )
 
-            score = float(result.get("score", 0.5))
-            score = max(0.0, min(1.0, score))
+            # Log schema warnings
+            if schema_warnings:
+                print(f"[AUDITI EVALUATION] Schema validation warnings:")
+                for w in schema_warnings:
+                    print(f"  - {w}")
 
-            failure_mode = result.get("failure_mode")
-            valid_modes = {
-                "hallucination",
-                "off_topic",
-                "harmful",
-                "incomplete",
-                "incoherent",
-                "incorrect_tool_use",
-                "inefficient_execution",
-                "poor_step_quality",
-                "other",
-            }
-            if failure_mode and failure_mode not in valid_modes:
-                failure_mode = "other"
+            # Extract validated core fields
+            status = core_fields["status"]
+            score = core_fields["score"]
+            failure_mode = core_fields["failure_mode"]
+            reason = core_fields["reason"]
+            recommended_action = core_fields["recommended_action"]
 
-            reason = result.get("reason", "")
-
-            # NEW: Extract recommended_action
-            recommended_action = result.get("recommended_action")
             # Only include recommended_action for fail/review statuses
             if status == "pass":
                 recommended_action = None
@@ -586,10 +596,13 @@ class LLMEvaluator(BaseBackendEvaluator):
                 poor_spans = [s for s in span_evaluations if s.quality_score < 0.6]
 
                 enhanced_reason = reason
-                if result.get("step_quality_summary"):
-                    enhanced_reason += f" Steps: {result['step_quality_summary']}"
-                if result.get("efficiency_summary"):
-                    enhanced_reason += f" Efficiency: {result['efficiency_summary']}"
+                step_quality_summary = core_fields.get("step_quality_summary")
+                efficiency_summary = core_fields.get("efficiency_summary")
+
+                if step_quality_summary:
+                    enhanced_reason += f" Steps: {step_quality_summary}"
+                if efficiency_summary:
+                    enhanced_reason += f" Efficiency: {efficiency_summary}"
 
                 reason = enhanced_reason
 
@@ -605,19 +618,34 @@ class LLMEvaluator(BaseBackendEvaluator):
             print(f"  Reason: {reason}")
             if recommended_action:
                 print(f"  Recommended Action: {recommended_action}")
+            if custom_fields:
+                print(f"  Custom Fields: {list(custom_fields.keys())}")
+            if schema_warnings:
+                print(f"  Schema Warnings: {len(schema_warnings)}")
             print("=" * 80 + "\n")
 
             logger.info(
-                f"Evaluation complete: status={status}, score={score:.2f}, spans={len(span_evaluations)}"
+                f"Evaluation complete: status={status}, score={score:.2f}, "
+                f"spans={len(span_evaluations)}, custom_fields={len(custom_fields)}"
             )
+
+            # Build metadata with custom fields and warnings
+            metadata = {
+                "custom_fields": custom_fields,
+                "schema_warnings": schema_warnings,
+                "evaluated_at": datetime.utcnow().isoformat(),
+            }
+            if self.evaluator_id:
+                metadata["evaluator_id"] = self.evaluator_id
 
             return EvalResult(
                 status=status,
                 score=score,
                 failure_mode=failure_mode if status == "fail" else None,
                 reason=reason,
-                recommended_action=recommended_action,  # NEW: Include in result
+                recommended_action=recommended_action,
                 span_evaluations=span_evaluations,
+                metadata=metadata,
             )
 
         except json.JSONDecodeError as e:
