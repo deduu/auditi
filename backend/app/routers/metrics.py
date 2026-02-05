@@ -122,29 +122,32 @@ def get_metrics(
     score_pct = calculate_percentiles(curr["scores"])
     latency_pct = calculate_percentiles(curr["latencies"])
 
+    # Conversations Count (current and previous periods)
+    conv_base_filter = [Conversation.created_at >= current_start]
+    conv_prev_filter = [
+        Conversation.created_at >= previous_start,
+        Conversation.created_at < previous_end,
+    ]
+
+    query = db.query(Conversation).filter(and_(*conv_base_filter))
+    prev_query = db.query(Conversation).filter(and_(*conv_prev_filter))
+
+    if status:  # Conversation status filtering based on traces
+        query = query.filter(Conversation.traces.any(Trace.status == status))
+        prev_query = prev_query.filter(Conversation.traces.any(Trace.status == status))
+
+    total_convs = query.count()
+    prev_total_convs = prev_query.count()
+
     # Calculate Trends
     trends = {
-        "conversations": calculate_trend(
-            curr["total"], prev["total"]
-        ),  # Approximation using trace count or fetch convs separately
+        "conversations": calculate_trend(total_convs, prev_total_convs),
         "passRate": calculate_trend(curr["pass_rate"], prev["pass_rate"]),
         "score": calculate_trend(curr["avg_score"], prev["avg_score"]),
         "latency": calculate_trend(
             curr["avg_latency"], prev["avg_latency"], invert_direction=True
         ),
     }
-
-    # Conversations Count (Separate query if needed, or proxy via traces)
-    # Conversations Count (Separate query if needed, or proxy via traces)
-    # Let's do a proper conversation count query for accuracy
-    conv_base_filter = [Conversation.created_at >= current_start]
-
-    query = db.query(Conversation).filter(and_(*conv_base_filter))
-
-    if status:  # Conversation status filtering based on traces
-        query = query.filter(Conversation.traces.any(Trace.status == status))
-
-    total_convs = query.count()
 
     # Construct Response
     return MetricsResponse(
@@ -158,9 +161,7 @@ def get_metrics(
             value=round(curr["avg_latency"], 2), **latency_pct, trend=trends["latency"]
         ),
         trends={
-            "conversations": trends[
-                "conversations"
-            ],  # Using trace count trend as proxy or 0 for now if eager
+            "conversations": trends["conversations"],
             "passRate": trends["passRate"],
             "score": trends["score"],
             "latency": trends["latency"],

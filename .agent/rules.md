@@ -22,7 +22,7 @@ These rules define the standard practices for the Auditi project. All agents and
 - **Framework**: React 18+ with Vite.
 - **Styling**: `TailwindCSS` exclusively. Avoid raw CSS/SCSS unless for complex animations.
 - **State Management**: Use React Hooks (`useState`, `useEffect`, or custom hooks).
-- **API Calls**: Use the pre-configured `axios` instance (or similar) pointing to `VITE_API_BASE_URL`.
+- **API Calls**: ALWAYS use the shared `client` instance from `frontend/src/api/client.js`. DO NOT use `fetch` directly.
 - **Components**: Functional components only.
 
 ### SDK (`sdk/`)

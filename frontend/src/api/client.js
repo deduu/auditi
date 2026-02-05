@@ -40,6 +40,12 @@ async function request(endpoint, options = {}) {
       error.status = response.status;
       throw error;
     }
+    if (options.responseType === 'blob') {
+      return await response.blob();
+    }
+    if (options.responseType === 'raw') {
+      return response;
+    }
     return await response.json();
   } catch (error) {
     // Don't log aborted requests as errors
@@ -96,6 +102,12 @@ export const client = {
     
     const url = queryString.toString() ? `${endpoint}?${queryString.toString()}` : endpoint;
     return request(url, { ...options, method: "DELETE" });
+  },
+
+  getBlob: (endpoint, params = {}, options = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+    return request(url, { ...options, responseType: 'blob', method: 'GET' });
   },
 };
 

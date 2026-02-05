@@ -201,7 +201,7 @@ export function createBulkAnnotations(annotations, userId = null) {
 // Export API
 // =============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+
 
 /**
  * Export annotations from a queue for model training
@@ -218,21 +218,11 @@ export async function exportQueueAnnotations(queueId, options = {}) {
     includeLLMEvaluation = false,
   } = options;
 
-  const params = new URLSearchParams({
+  const response = await client.get(`/annotations/queues/${queueId}/export`, {
     format,
-    include_execution_path: includeExecutionPath.toString(),
-    include_llm_evaluation: includeLLMEvaluation.toString(),
-  });
-
-  const response = await fetch(
-    `${API_BASE_URL}/annotations/queues/${queueId}/export?${params}`,
-    { method: "GET" }
-  );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Export failed" }));
-    throw new Error(error.detail || "Export failed");
-  }
+    include_execution_path: includeExecutionPath,
+    include_llm_evaluation: includeLLMEvaluation,
+  }, { responseType: 'raw' });
 
   // Get filename from Content-Disposition header
   const contentDisposition = response.headers.get("Content-Disposition");

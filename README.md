@@ -56,20 +56,38 @@ docker-compose up -d
 **Backend:**
 ```bash
 cd backend
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Run the backend
 uvicorn app.main:app --reload --port 8000
 ```
 
 **Frontend:**
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Run the frontend
 npm run dev
 ```
 
 **SDK:**
 ```bash
 cd sdk
+
+# Create and activate virtual environment (if not using backend's venv)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install SDK in development mode
 pip install -e .
 ```
 

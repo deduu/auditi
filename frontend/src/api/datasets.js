@@ -4,7 +4,7 @@
  */
 import client from "./client";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+
 
 // =============================================================================
 // Dataset CRUD API
@@ -217,20 +217,10 @@ export function publishFromQueue(queueId, options) {
 export async function exportDataset(datasetId, options = {}) {
   const { format = "jsonl", includeArchived = false } = options;
 
-  const params = new URLSearchParams({
+  const response = await client.get(`/datasets/${datasetId}/export`, {
     format,
-    include_archived: includeArchived.toString(),
-  });
-
-  const response = await fetch(
-    `${API_BASE_URL}/datasets/${datasetId}/export?${params}`,
-    { method: "GET" }
-  );
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Export failed" }));
-    throw new Error(error.detail || "Export failed");
-  }
+    include_archived: includeArchived,
+  }, { responseType: 'raw' });
 
   // Get filename from Content-Disposition header
   const contentDisposition = response.headers.get("Content-Disposition");

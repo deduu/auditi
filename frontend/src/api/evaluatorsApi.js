@@ -1,101 +1,65 @@
-/**
- * API module for evaluators and setup state.
- */
-
-const API_BASE = "/api/v1/evaluators";
+import client from "./client";
 
 /**
  * Get all managed (built-in) evaluators.
  */
-export const getManagedEvaluators = async () => {
-  const response = await fetch(`${API_BASE}/managed`);
-  if (!response.ok) throw new Error("Failed to fetch managed evaluators");
-  return response.json();
+export const getManagedEvaluators = () => {
+  return client.get("/evaluators/managed");
 };
 
 /**
  * Get all custom evaluators.
  */
-export const getCustomEvaluators = async () => {
-  const response = await fetch(API_BASE);
-  if (!response.ok) throw new Error("Failed to fetch custom evaluators");
-  return response.json();
+export const getCustomEvaluators = () => {
+  return client.get("/evaluators");
 };
 
 /**
  * Create a new custom evaluator.
  */
-export const createEvaluator = async (evaluatorData) => {
-  const response = await fetch(API_BASE, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(evaluatorData),
-  });
-  if (!response.ok) throw new Error("Failed to create evaluator");
-  return response.json();
+export const createEvaluator = (evaluatorData) => {
+  return client.post("/evaluators", evaluatorData);
 };
 
 /**
  * Get a specific evaluator by ID.
  */
-export const getEvaluator = async (evaluatorId) => {
-  const response = await fetch(`${API_BASE}/${evaluatorId}`);
-  if (!response.ok) throw new Error("Failed to fetch evaluator");
-  return response.json();
+export const getEvaluator = (evaluatorId) => {
+  return client.get(`/evaluators/${evaluatorId}`);
 };
 
 /**
  * Update an evaluator.
  */
-export const updateEvaluator = async (evaluatorId, updates) => {
-  const response = await fetch(`${API_BASE}/${evaluatorId}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(updates),
-  });
-  if (!response.ok) throw new Error("Failed to update evaluator");
-  return response.json();
+export const updateEvaluator = (evaluatorId, updates) => {
+  return client.put(`/evaluators/${evaluatorId}`, updates);
 };
 
 /**
  * Delete an evaluator.
  */
-export const deleteEvaluator = async (evaluatorId) => {
-  const response = await fetch(`${API_BASE}/${evaluatorId}`, {
-    method: "DELETE",
-  });
-  if (!response.ok) throw new Error("Failed to delete evaluator");
-  return response.json();
+export const deleteEvaluator = (evaluatorId) => {
+  return client.delete(`/evaluators/${evaluatorId}`);
 };
 
 /**
  * Get the current setup wizard state.
  */
-export const getSetupState = async () => {
-  const response = await fetch(`${API_BASE}/setup/state`);
-  if (!response.ok) throw new Error("Failed to fetch setup state");
-  return response.json();
+export const getSetupState = () => {
+  return client.get("/evaluators/setup/state");
 };
 
 /**
  * Update the setup wizard state.
  */
-export const updateSetupState = async (updates) => {
-  const response = await fetch(`${API_BASE}/setup/state`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(updates),
-  });
-  if (!response.ok) throw new Error("Failed to update setup state");
-  return response.json();
+export const updateSetupState = (updates) => {
+  return client.put("/evaluators/setup/state", updates);
 };
 
 /**
  * Get auto-evaluation configuration status.
  * Returns whether auto-eval is ready to run.
  */
-export const getAutoEvalConfig = async () => {
-  const response = await fetch(`${API_BASE}/setup/auto-eval-config`);
-  if (!response.ok) throw new Error("Failed to fetch auto-eval config");
-  return response.json();
+export const getAutoEvalConfig = () => {
+  return client.get("/evaluators/setup/auto-eval-config");
 };
