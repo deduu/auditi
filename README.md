@@ -9,29 +9,38 @@ Auditi is a comprehensive platform for evaluating, monitoring, and improving AI 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
 
-## 🌟 Features
+## Features
 
 ### Core Capabilities
 
-- **🔍 Automatic Trace Capture**: Instrument your AI agents with simple decorators to capture every interaction
-- **🤖 LLM-as-a-Judge Evaluation**: Automated evaluation of agent performance using configurable LLM evaluators
-- **👥 Human Annotation Workflows**: Annotation queues with customizable score configs for human-in-the-loop evaluation
-- **📊 Advanced Analytics**: Comprehensive dashboards with metrics, trends, correlations, and anomaly detection
-- **💾 Dataset Management**: Create reusable datasets from annotations for fine-tuning and evaluation
-- **🔌 Multi-Provider Support**: Works with OpenAI, Anthropic, Google Gemini, and OpenAI-compatible APIs
-- **📈 Cost Tracking**: Automatic cost calculation with provider-specific pricing
-- **🎯 Failure Mode Analysis**: Identify patterns and generate actionable recommendations
+- **Automatic Trace Capture**: Instrument your AI agents with simple decorators or auto-instrumentation to capture every interaction
+- **LLM-as-a-Judge Evaluation**: Automated evaluation of agent performance using configurable LLM evaluators
+- **Human Annotation Workflows**: Annotation queues with customizable score configs for human-in-the-loop evaluation
+- **Advanced Analytics**: Comprehensive dashboards with metrics, trends, correlations, and anomaly detection
+- **Dataset Management**: Create reusable datasets from annotations for fine-tuning and evaluation
+- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google Gemini, and OpenAI-compatible APIs
+- **Cost Tracking**: Automatic cost calculation with provider-specific pricing
+- **Failure Mode Analysis**: Identify patterns and generate actionable recommendations
 
 ### SDK Features
 
-- **Simple Integration**: Minimal code changes with Python decorators
+- **Simple Integration**: Minimal code changes with Python decorators or auto-instrumentation
 - **Flexible Tracing**: Support for agents, tools, LLM calls, embeddings, and retrieval operations
 - **Standalone & Nested**: Trace individual calls or complex multi-step workflows
 - **Async Support**: Full support for async/await patterns
 - **Provider Abstraction**: Automatic detection and handling of different LLM providers
 - **Custom Evaluators**: Build your own evaluation logic
 
-## 🚀 Quick Start
+## Documentation
+
+For detailed documentation, see the [docs/](docs/) folder:
+
+- [Introduction](docs/intro.md)
+- [Installation Guide](docs/getting-started/installation.md)
+- [Quickstart](docs/getting-started/quickstart.md)
+- [SDK Integration Patterns](docs/guides/sdk-integration.md)
+
+## Quick Start
 
 ### Installation
 
@@ -93,7 +102,32 @@ pip install -e .
 
 ### SDK Usage
 
-#### 1. Basic Integration
+#### Method 1: Auto-Instrumentation (Recommended)
+
+The easiest way to start tracing is with auto-instrumentation, which automatically captures calls from popular libraries:
+
+```python
+import auditi
+from openai import OpenAI
+
+# Initialize the SDK - pointing to your Auditi backend
+auditi.init(base_url="http://localhost:8000")
+
+# Auto-instrument supported libraries (OpenAI, Anthropic, Google)
+auditi.instrument()
+
+# Now all LLM calls are automatically traced!
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "What is the capital of France?"}]
+)
+print(response.choices[0].message.content)
+```
+
+#### Method 2: Decorators (Manual Control)
+
+Use decorators for more granular control over tracing:
 
 ```python
 import auditi
@@ -115,7 +149,7 @@ def simple_chat(prompt: str) -> str:
 result = simple_chat("What is the capital of France?")
 ```
 
-#### 2. Agent with Tools
+#### Method 3: Agent with Tools
 
 ```python
 @trace_tool()
@@ -141,10 +175,10 @@ def support_agent(user_message: str, user_id: str = None, session_id: str = None
     """Main agent - creates a trace with all spans"""
     # Search knowledge base (span 1)
     context = search_knowledge_base(user_message)
-    
+
     # Generate response (span 2)
     response = call_llm(user_message, context)
-    
+
     return response
 
 # Use the agent
@@ -155,7 +189,7 @@ result = support_agent(
 )
 ```
 
-#### 3. RAG Pipeline
+#### Method 4: RAG Pipeline
 
 ```python
 @trace_embedding()
@@ -177,18 +211,44 @@ def rag_query(question: str):
     """Full RAG pipeline with individual span tracking"""
     # Embed query (span 1)
     query_embedding = embed_text(question)
-    
+
     # Retrieve documents (span 2)
     docs = search_docs(query_embedding)
-    
+
     # Generate answer (span 3)
     context = "\n".join([d.text for d in docs])
     answer = call_llm(question, context)
-    
+
     return answer
 ```
 
-## 📋 Platform Features
+#### Method 5: Mixed Mode
+
+Combine auto-instrumentation with decorators for maximum flexibility:
+
+```python
+import auditi
+from auditi import trace_agent
+from openai import OpenAI
+
+auditi.init(base_url="http://localhost:8000")
+auditi.instrument()  # Auto-capture all LLM calls
+
+client = OpenAI()
+
+@trace_agent(name="SmartAssistant")
+def main_loop(user_query):
+    # This LLM call is auto-captured and nested under "SmartAssistant" trace
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": user_query}]
+    )
+    return response
+
+main_loop("What time is it?")
+```
+
+## Platform Features
 
 ### Setup Wizard
 
@@ -255,7 +315,7 @@ First-time setup guides you through:
 - Status tracking (open, in_progress, completed, dismissed)
 - Manual resolution workflows
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 auditi/
@@ -278,14 +338,16 @@ auditi/
 │   ├── auditi/
 │   │   ├── client.py
 │   │   ├── decorators.py
+│   │   ├── instrumentation.py  # Auto-instrumentation
 │   │   ├── providers/  # LLM provider abstraction
 │   │   └── types/
 │   ├── examples/
 │   └── tests/
+├── docs/             # Documentation
 └── docker-compose.yml
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -311,7 +373,7 @@ CORS_ORIGINS=http://localhost:3000
 }
 ```
 
-## 📊 Database Models
+## Database Models
 
 ### Core Models
 
@@ -333,7 +395,7 @@ CORS_ORIGINS=http://localhost:3000
 - **Dataset**: Named dataset collections
 - **DatasetItem**: Individual dataset entries
 
-## 🔌 API Endpoints
+## API Endpoints
 
 ### Traces
 - `POST /api/traces/ingest` - Ingest traces
@@ -372,7 +434,7 @@ CORS_ORIGINS=http://localhost:3000
 
 [Full API documentation](http://localhost:8000/docs)
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Backend tests
@@ -387,7 +449,7 @@ pytest tests/ -v
 pytest tests/test_provider.py -v
 ```
 
-## 📦 Deployment
+## Deployment
 
 ### Production with Docker
 
@@ -417,7 +479,7 @@ npm run build
 # Serve dist/ with nginx or other web server
 ```
 
-## 🛠️ Development
+## Development
 
 ### Adding a New Provider
 
@@ -428,11 +490,11 @@ from .base import BaseProvider
 class YourProvider(BaseProvider):
     def name(self) -> str:
         return "your_provider"
-    
+
     def extract_usage(self, usage):
         # Extract token counts
         pass
-    
+
     def calculate_cost(self, model, input_tokens, output_tokens):
         # Calculate cost
         pass
@@ -452,7 +514,7 @@ class CustomEvaluator(BaseBackendEvaluator):
     async def evaluate(self, user_input, assistant_output, context=None):
         # Your evaluation logic
         score = calculate_score(assistant_output)
-        
+
         return EvalResult(
             status="pass" if score > 0.7 else "fail",
             score=score,
@@ -461,7 +523,7 @@ class CustomEvaluator(BaseBackendEvaluator):
         )
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -471,23 +533,23 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - FastAPI for the excellent web framework
 - React and Vite for the frontend stack
 - OpenAI, Anthropic, and Google for LLM APIs
 - The open-source community
 
-## 📧 Contact
+## Contact
 
 - **Repository**: [https://github.com/deduu/auditi](https://github.com/deduu/auditi)
 - **Issues**: [https://github.com/deduu/auditi/issues](https://github.com/deduu/auditi/issues)
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [ ] Real-time streaming support
 - [ ] More LLM provider integrations
@@ -499,4 +561,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] A/B testing framework
 
 ---
-

@@ -1,18 +1,64 @@
-# Auditi Python SDK
+<p align="center">
+  <img src="https://auditi.dev/logo.svg" alt="Auditi" width="200">
+</p>
 
-Official Python SDK for [Auditi](https://auditi.dev) - AI/LLM Evaluation and Monitoring Platform.
+<h1 align="center">Auditi Python SDK</h1>
 
-**Trace, monitor, and evaluate your AI agents with minimal code changes.**
+<p align="center">
+  <strong>Open Source LLM Observability & Evaluation Platform</strong>
+</p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="https://pypi.org/project/auditi/"><img src="https://img.shields.io/pypi/v/auditi" alt="PyPI"></a>
+  <a href="https://pypi.org/project/auditi/"><img src="https://img.shields.io/pypi/pyversions/auditi" alt="Python"></a>
+  <a href="https://github.com/auditi/auditi"><img src="https://img.shields.io/github/stars/auditi/auditi?style=social" alt="Stars"></a>
+</p>
+
+<p align="center">
+  <a href="https://docs.auditi.dev">Documentation</a> |
+  <a href="https://auditi.dev">Website</a> |
+  <a href="https://discord.gg/auditi">Discord</a>
+</p>
+
+---
+
+**Trace, evaluate, and improve your AI agents with just 2 lines of code.**
+
+```python
+import auditi
+auditi.init()
+auditi.instrument()  # Auto-captures all LLM calls!
+```
+
+That's it. Every OpenAI, Anthropic, and Google Gemini call is now traced with costs, latency, and token usage.
+
+---
+
+## Why Auditi?
+
+| Feature | Auditi | Langfuse | LangSmith |
+|---------|--------|----------|-----------|
+| Open Source | MIT | MIT | Closed |
+| Self-Hostable | Yes | Yes | No |
+| Auto-Instrumentation | Yes | No | Yes |
+| Built-in Evaluators | 7+ | No | Yes |
+| Human Annotation | Yes | Yes | Yes |
+| Cost Tracking | Yes | Yes | No |
+
+---
 
 ## Features
 
-- 🎯 **Simple Decorators** - Add tracing with just `@trace_agent`, `@trace_tool`, and `@trace_llm`
-- 🔄 **Async & Sync Support** - Works with both synchronous and asynchronous functions
-- 🤖 **Multi-Provider** - Auto-detects OpenAI, Anthropic, and Google Gemini models
-- 💰 **Cost Tracking** - Automatic token usage and cost calculation
-- 🔍 **Standalone Traces** - Simple LLM calls don't need agent wrappers
-- 🛠️ **Custom Evaluators** - Implement your own evaluation logic
-- 🚀 **Production Ready** - FastAPI, LangChain, and framework integrations
+- **Zero-Config Auto-Instrumentation** - 2 lines to trace all LLM calls
+- **Simple Decorators** - `@trace_agent`, `@trace_tool`, `@trace_llm` for custom control
+- **Multi-Provider** - Auto-detects OpenAI, Anthropic, and Google Gemini
+- **Cost Tracking** - Automatic token usage and cost calculation
+- **Async & Sync** - Works with both synchronous and asynchronous functions
+- **Custom Evaluators** - Implement your own evaluation logic
+- **Production Ready** - FastAPI, LangChain, and framework integrations
+
+---
 
 ## Installation
 
@@ -20,29 +66,106 @@ Official Python SDK for [Auditi](https://auditi.dev) - AI/LLM Evaluation and Mon
 pip install auditi
 ```
 
-Or install from source:
-
-```bash
-git clone https://github.com/deduu/auditi
-cd auditi
-pip install -e .
-```
-
 ## Quick Start
 
-### 1. Initialize the SDK
+### Option 1: Auto-Instrumentation (Recommended)
+
+The fastest way to get started - just 2 lines of code:
+
+```python
+import auditi
+from openai import OpenAI
+
+# Initialize and auto-instrument all LLM libraries
+auditi.init(api_key="your-api-key")
+auditi.instrument()
+
+# Your existing code works unchanged!
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+# Trace automatically captured with cost, latency, tokens
+```
+
+Auto-instrumentation supports:
+- **OpenAI** - `client.chat.completions.create()`
+- **Anthropic** - `client.messages.create()`
+- **Google Gemini** - `model.generate_content()`
+
+> **Note:** Auto-instrumentation captures **LLM calls only** as standalone traces. Tool calls, retrieval, and embeddings are not auto-instrumented. For full agent tracing with multiple steps (tools, retrieval, etc.), use decorators as shown below. You can also combine both: use `auditi.instrument()` alongside `@trace_agent` — auto-instrumented LLM calls will automatically become nested spans within the agent trace.
+
+### Option 2: Decorator-Based (Fine-Grained Control)
+
+For complex agents with multiple steps:
+
+```python
+import auditi
+from auditi import trace_agent, trace_tool, trace_llm
+
+auditi.init(api_key="your-api-key")
+
+@trace_agent(name="customer_support")
+def support_agent(message: str):
+    context = get_context(message)
+    response = generate_response(message, context)
+    return response
+
+@trace_tool(name="get_context")
+def get_context(query: str):
+    return db.search(query)
+
+@trace_llm(model="gpt-4o")
+def generate_response(message: str, context: dict):
+    return openai.chat.completions.create(...)
+```
+
+### Option 3: Self-Hosted (Development)
+
+Run your own Auditi backend for development:
+
+```bash
+# Clone and run with Docker
+git clone https://github.com/auditi/auditi
+cd auditi
+docker-compose up
+```
 
 ```python
 import auditi
 
-# For production
-auditi.init(api_key="your-api-key", base_url="https://api.auditi.dev")
-
-# For local development (prints to console)
-auditi.init()  # Uses localhost:8000 by default
+# Point to your local instance
+auditi.init(base_url="http://localhost:8000")
+auditi.instrument()
 ```
 
-### 2. Trace Your Agent
+---
+
+## Usage Patterns
+
+### Pattern 1: Simple LLM Calls (Auto-Instrumented)
+
+With auto-instrumentation enabled, all LLM calls are traced automatically:
+
+```python
+import auditi
+from openai import OpenAI
+
+auditi.init()
+auditi.instrument()
+
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "What is Python?"}]
+)
+# Trace created automatically!
+```
+
+### Pattern 2: Complex Agents with Decorators
+
+For multi-step agentic workflows, use decorators:
 
 ```python
 from auditi import trace_agent, trace_tool, trace_llm
