@@ -14,6 +14,7 @@ from .evaluator import BaseEvaluator
 from .transport import BaseTransport, SyncHttpTransport, DebugTransport
 from .types import TraceInput, SpanInput, EvaluationResult
 from .events import EventType, StreamEvent
+from .pricing import configure_pricing
 
 from .instrumentation import instrument
 
@@ -26,6 +27,8 @@ __all__ = [
     "AuditiClient",
     # Instrumentation
     "instrument",
+    # Pricing
+    "configure_pricing",
     # Context
     "set_context",
     "get_context",

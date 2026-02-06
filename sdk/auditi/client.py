@@ -5,6 +5,7 @@ Manages SDK initialization and provides access to the transport layer.
 """
 from typing import Optional
 from .transport import BaseTransport, SyncHttpTransport
+from .pricing import get_pricing_manager
 
 
 class AuditiClient:
@@ -38,27 +39,31 @@ _client_instance: Optional[AuditiClient] = None
 
 
 def init(
-    api_key: Optional[str] = None, 
+    api_key: Optional[str] = None,
     base_url: str = "http://localhost:8000",
     transport: Optional[BaseTransport] = None
 ) -> AuditiClient:
     """
     Initialize the Auditi SDK with the given configuration.
-    
+
     Args:
         api_key: API key for authentication
         base_url: Base URL of the Auditi API (default: localhost:8000)
         transport: Custom transport implementation
-        
+
     Returns:
         The initialized AuditiClient instance
-        
+
     Example:
         >>> import auditi
         >>> auditi.init(api_key="your-key", base_url="https://api.auditi.dev")
     """
     global _client_instance
     _client_instance = AuditiClient(api_key, base_url, transport)
+
+    # Configure pricing manager with the same base URL for remote pricing
+    get_pricing_manager().set_base_url(base_url)
+
     return _client_instance
 
 

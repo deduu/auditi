@@ -176,13 +176,33 @@ def _execute_as_standalone_trace(
     func_name = name or func.__name__
 
     # Extract user input from args/kwargs
+    # Priority: check kwargs FIRST (more reliable), then positional args
     user_input = ""
-    if args:
-        user_input = _ensure_str_input(args[0])
 
-    if not user_input:
-        raw = kwargs.get("prompt") or kwargs.get("message") or kwargs.get("messages") or kwargs.get("query") or ""
+    # First, try common kwarg names for user input
+    raw = (
+        kwargs.get("messages")  # OpenAI chat
+        or kwargs.get("prompt")  # Generic
+        or kwargs.get("message")  # Anthropic
+        or kwargs.get("contents")  # Google Gemini
+        or kwargs.get("query")  # Search-like
+        or kwargs.get("input")  # Embeddings
+        or kwargs.get("user_input")  # Custom
+        or ""
+    )
+    if raw:
         user_input = _ensure_str_input(raw)
+
+    # Fallback to positional args if no kwarg found, but skip self/cls
+    if not user_input and args:
+        start_idx = 0
+        first_arg = args[0]
+        # Check if first arg is likely 'self' or 'cls' (not a basic type)
+        if not isinstance(first_arg, (str, int, float, bool, list, dict, tuple, type(None))):
+            start_idx = 1
+
+        if len(args) > start_idx:
+            user_input = _ensure_str_input(args[start_idx])
 
     # Create trace
     trace = TraceInput(

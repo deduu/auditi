@@ -5,6 +5,8 @@ Base provider interface for LLM usage extraction and cost calculation.
 from abc import ABC, abstractmethod
 from typing import Optional, Any, Dict, Tuple
 
+from ..pricing import get_pricing_manager
+
 
 class BaseProvider(ABC):
     """
@@ -72,6 +74,11 @@ class BaseProvider(ABC):
         """
         Calculate cost based on model-specific pricing.
 
+        Pricing is resolved in priority order:
+        1. User overrides (configured via configure_pricing)
+        2. Remote pricing from Auditi API
+        3. Hardcoded defaults
+
         Args:
             model: Model name
             input_tokens: Number of input tokens
@@ -86,11 +93,8 @@ class BaseProvider(ABC):
         input_tokens = input_tokens or 0
         output_tokens = output_tokens or 0
 
-        # Look up pricing for this model
-        pricing = self.model_pricing.get(model)
-        if pricing is None:
-            # Use provider-specific default pricing
-            pricing = self.get_default_pricing()
+        # Look up pricing with remote + override support
+        pricing = self.get_pricing(model)
 
         input_price, output_price = pricing
 
@@ -99,6 +103,28 @@ class BaseProvider(ABC):
         output_cost = (output_tokens / 1_000_000) * output_price
 
         return input_cost + output_cost
+
+    def get_pricing(self, model: Optional[str]) -> Tuple[float, float]:
+        """
+        Get pricing for a model with remote fetching and override support.
+
+        Priority: user override > remote API > hardcoded default
+
+        Args:
+            model: Model name
+
+        Returns:
+            Tuple of (input_price, output_price) per 1M tokens in USD
+        """
+        if model is None:
+            return self.get_default_pricing()
+
+        # Check hardcoded pricing first (used as default fallback)
+        default = self.model_pricing.get(model, self.get_default_pricing())
+
+        # Use pricing manager for remote + override lookup
+        pricing_manager = get_pricing_manager()
+        return pricing_manager.get_pricing(self.name, model, default)
 
     @abstractmethod
     def get_default_pricing(self) -> Tuple[float, float]:
