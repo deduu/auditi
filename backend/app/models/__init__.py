@@ -10,6 +10,7 @@ from .score_config import ScoreConfig
 from .annotation_queue import AnnotationQueue, AnnotationQueueItem
 from .annotation import Annotation
 from .dataset import Dataset, DatasetItem
+from .model_pricing import ModelPricing
 
 __all__ = [
     "Conversation",
@@ -25,4 +26,5 @@ __all__ = [
     "Annotation",
     "Dataset",
     "DatasetItem",
+    "ModelPricing",
 ]

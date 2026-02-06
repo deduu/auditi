@@ -27,6 +27,7 @@ from app.routers import (
     annotations_router,
     analytics_router,
     datasets_router,
+    pricing_router,
 )
 from app.routers.evaluation_jobs import router as evaluation_jobs_router
 from app.services.eval_worker import run_eval_worker
@@ -54,6 +55,15 @@ async def lifespan(app: FastAPI):
         try:
             Base.metadata.create_all(bind=engine)
             print("✓ Database tables created successfully.")
+
+            # Seed default model pricing on first run
+            from app.routers.pricing import seed_default_pricing
+            db = SessionLocal()
+            try:
+                seed_default_pricing(db)
+            finally:
+                db.close()
+
             break
         except OperationalError as e:
             if i == retries - 1:
@@ -107,6 +117,7 @@ app.include_router(evaluation_jobs_router, prefix="/api/v1")
 app.include_router(annotations_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(datasets_router, prefix="/api/v1")
+app.include_router(pricing_router, prefix="/api/v1")
 
 
 @app.get("/")
