@@ -1,6 +1,6 @@
 """Actions and Failure Modes API routes."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
@@ -63,8 +63,7 @@ def update_action_status(action_id: str, payload: dict, db: Session = Depends(ge
     """Update status of an action."""
     action = db.query(Action).filter(Action.id == action_id).first()
     if not action:
-        # Should initiate a 404 but keeping simple
-        pass
+        raise HTTPException(status_code=404, detail="Action not found")
 
     status = payload.get("status")
     if status and action:

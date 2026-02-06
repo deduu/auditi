@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_db
+from ..utils.encryption import encrypt_api_key
 from ..models.llm_connection import LLMConnection
 from ..schemas.llm_connection import (
     LLMConnectionCreate,
@@ -53,7 +54,7 @@ def create_connection(data: LLMConnectionCreate, db: Session = Depends(get_db)):
         id=str(uuid.uuid4()),
         provider=data.provider,
         name=data.name,
-        api_key_encrypted=data.api_key,  # TODO: Encrypt in production
+        api_key_encrypted=encrypt_api_key(data.api_key),
         base_url=data.base_url,
         custom_model_name=data.custom_model_name,
     )
