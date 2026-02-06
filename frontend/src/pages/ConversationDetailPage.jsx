@@ -239,13 +239,13 @@ export const ConversationDetailPage = ({ conversationId, onBack, inPanel = false
   }
 
   const passCount =
-    detail.turns?.filter((t) => t.assistant.evaluation.status === "pass")
+    detail.turns?.filter((t) => t?.assistant?.evaluation?.status === "pass")
       .length || 0;
   const failCount =
-    detail.turns?.filter((t) => t.assistant.evaluation.status === "fail")
+    detail.turns?.filter((t) => t?.assistant?.evaluation?.status === "fail")
       .length || 0;
   const reviewCount =
-    detail.turns?.filter((t) => t.assistant.evaluation.status === "review")
+    detail.turns?.filter((t) => t?.assistant?.evaluation?.status === "review")
       .length || 0;
 
   return (

@@ -18,6 +18,7 @@ import { TracesPage } from "./pages/TracesPage";
 import { TraceDetailPage } from "./pages/TraceDetailPage";
 import { Sidebar } from "./components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "./context/SidebarContext";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function AppContent() {
     const [activeTab, setActiveTab] = useState("dashboard");
@@ -91,7 +92,9 @@ function AppContent() {
                 className="min-h-screen transition-all duration-300 ease-in-out"
             >
                 <div className="w-full px-8 py-8">
-                    {renderPage()}
+                    <ErrorBoundary>
+                        {renderPage()}
+                    </ErrorBoundary>
                 </div>
             </main>
         </div>

@@ -44,30 +44,22 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
                         detectedType: 'json'
                     };
                 } catch (e) {
-                    // 2. Strict parse failed. Content might be a Python repr() or JS object literals (single quotes).
-                    // We'll try to convert common Python values to JS and then safe-eval.
+                    // 2. Strict parse failed. Content might be a Python repr() with
+                    // single quotes or Python booleans. Try safe conversion to JSON.
                     try {
-                        // Safety check: Don't eval if it looks like code execution or too long
-                        if (trimmed.includes('function') || trimmed.includes('=>') || trimmed.includes('import ') || trimmed.length > 50000) {
-                            throw new Error("Unsafe content");
-                        }
-
-                        // Replace Python/None booleans with JS equivalents
-                        // We use a regex that matches whole words to avoid replacing inside strings roughly
-                        let jsFriendly = trimmed
+                        let jsonFriendly = trimmed
                             .replace(/\bNone\b/g, 'null')
                             .replace(/\bTrue\b/g, 'true')
-                            .replace(/\bFalse\b/g, 'false');
+                            .replace(/\bFalse\b/g, 'false')
+                            .replace(/'/g, '"');
 
-                        // Use Function constructor to parse valid JS object literals (which cover strict JSON + single quotes)
-                        // This is safer than eval but still allows executing expressions, hence the simple safety check above.
-                        const looseParsed = new Function('return ' + jsFriendly)();
+                        const looseParsed = JSON.parse(jsonFriendly);
                         return {
                             text: JSON.stringify(looseParsed, null, 2),
                             detectedType: 'json'
                         };
                     } catch (err) {
-                        // console.warn("Auto-detect failed:", err);
+                        // Not valid JSON even after conversion; fall through to markdown
                     }
                 }
             }
