@@ -35,19 +35,6 @@ That's it. Every OpenAI, Anthropic, and Google Gemini call is now traced with co
 
 ---
 
-## Why Auditi?
-
-| Feature | Auditi | Langfuse | LangSmith |
-|---------|--------|----------|-----------|
-| Open Source | MIT | MIT | Closed |
-| Self-Hostable | Yes | Yes | No |
-| Auto-Instrumentation | Yes | No | Yes |
-| Built-in Evaluators | 7+ | No | Yes |
-| Human Annotation | Yes | Yes | Yes |
-| Cost Tracking | Yes | Yes | No |
-
----
-
 ## Features
 
 - **Zero-Config Auto-Instrumentation** - 2 lines to trace all LLM calls
@@ -90,6 +77,7 @@ response = client.chat.completions.create(
 ```
 
 Auto-instrumentation supports:
+
 - **OpenAI** - `client.chat.completions.create()`
 - **Anthropic** - `client.messages.create()`
 - **Google Gemini** - `model.generate_content()`
@@ -174,16 +162,16 @@ import openai
 @trace_agent(name="customer_support")
 def customer_support_agent(user_message: str, user_id: str = None):
     """Your existing agent - just add the decorator!"""
-    
+
     # Fetch user context
     context = get_user_context(user_id)
-    
+
     # Search knowledge base
     docs = search_knowledge_base(user_message)
-    
+
     # Generate response
     response = call_openai(user_message, context, docs)
-    
+
     return response
 
 
@@ -210,6 +198,7 @@ def call_openai(message: str, context: dict, docs: list):
 ### 3. View Traces in Auditi Dashboard
 
 That's it! Every call to `customer_support_agent()` will:
+
 - ✅ Capture user input and assistant output
 - ✅ Track all tool calls and LLM calls as spans
 - ✅ Calculate token usage and costs
@@ -243,22 +232,22 @@ For multi-step agentic workflows:
 @trace_agent(name="research_assistant")
 def research_assistant(query: str, user_id: str):
     """Main agent creates ONE trace that captures all spans."""
-    
+
     # Step 1: Web search (creates a tool span)
     search_results = web_search(query)
-    
+
     # Step 2: Generate initial response (creates an LLM span)
     initial_response = generate_response(query, search_results)
-    
+
     # Step 3: Reflect on quality (creates another LLM span)
     quality_score = evaluate_response(initial_response)
-    
+
     # Step 4: Refine if needed (creates another LLM span)
     if quality_score < 0.7:
         final_response = refine_response(initial_response, search_results)
     else:
         final_response = initial_response
-    
+
     return final_response
 
 
@@ -311,16 +300,16 @@ Combining all patterns in a full RAG workflow:
 @trace_agent(name="rag_assistant")
 def rag_query(question: str):
     """Full RAG pipeline - all steps captured as spans."""
-    
+
     # Embedding step (creates span)
     query_embedding = embed_query(question)
-    
+
     # Retrieval step (creates span)
     docs = retrieve_docs(query_embedding)
-    
+
     # LLM step (creates span)
     answer = generate_answer(question, docs)
-    
+
     return answer
 
 
@@ -409,15 +398,15 @@ from auditi import BaseEvaluator, EvaluationResult, TraceInput
 class ResponseQualityEvaluator(BaseEvaluator):
     def evaluate(self, trace: TraceInput) -> EvaluationResult:
         """Evaluate response quality based on custom criteria."""
-        
+
         # Access trace data
         user_input = trace.user_input
         assistant_output = trace.assistant_output
         spans = trace.spans
-        
+
         # Your evaluation logic
         score = self._calculate_quality_score(assistant_output)
-        
+
         # Return evaluation result
         if score >= 0.8:
             status = "pass"
@@ -428,13 +417,13 @@ class ResponseQualityEvaluator(BaseEvaluator):
         else:
             status = "fail"
             reason = "Low quality response - needs improvement"
-        
+
         return EvaluationResult(
             status=status,
             score=score,
             reason=reason
         )
-    
+
     def _calculate_quality_score(self, text: str) -> float:
         # Your scoring logic here
         return 0.85
@@ -474,6 +463,7 @@ def call_google(prompt: str):
 ```
 
 **Supported Providers:**
+
 - ✅ OpenAI (GPT-4, GPT-4o, GPT-3.5, etc.)
 - ✅ Anthropic (Claude 3.5, Claude 3, Claude 2)
 - ✅ Google (Gemini Pro, Gemini Flash)
@@ -514,6 +504,83 @@ auditi.init(
 )
 ```
 
+## Model Pricing
+
+Auditi automatically calculates costs for every LLM call. Pricing is resolved in priority order:
+
+1. **User overrides** (highest priority)
+2. **Remote pricing** from your Auditi backend API
+3. **Hardcoded defaults** in the SDK (fallback/offline)
+
+### Auto-Updated Pricing
+
+When you call `auditi.init()`, the SDK connects to your backend to fetch the latest model pricing. This means you never need to update the SDK just because a provider changed their prices — update the backend, and all SDK users get the new pricing automatically.
+
+```python
+import auditi
+
+# SDK fetches latest pricing from your backend automatically
+auditi.init(api_key="your-key", base_url="https://your-auditi-instance.com")
+```
+
+Pricing is cached for 1 hour and falls back to hardcoded defaults if the backend is unreachable.
+
+### Custom Pricing Overrides
+
+Override pricing for specific models if you have negotiated rates or want to track custom costs:
+
+```python
+from auditi import configure_pricing
+
+# Override specific model pricing (per 1M tokens)
+configure_pricing(pricing={
+    "openai": {
+        "gpt-4o": (2.00, 8.00),           # Custom negotiated rate
+        "gpt-4o-mini": (0.10, 0.40),
+    },
+    "anthropic": {
+        "claude-3-5-sonnet-20241022": (2.50, 12.00),
+    }
+})
+```
+
+### Disabling Remote Pricing
+
+For offline or air-gapped environments, disable remote fetching entirely:
+
+```python
+from auditi import configure_pricing
+
+# Use only hardcoded defaults
+configure_pricing(enable_remote=False)
+```
+
+### Updating Pricing (Backend Admin)
+
+If you self-host Auditi, default pricing is seeded on first startup. You can update pricing at any time via the REST API:
+
+```bash
+# View all current pricing
+curl https://your-auditi-instance.com/api/v1/pricing
+
+# Update a single model's pricing
+curl -X POST https://your-auditi-instance.com/api/v1/pricing \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "openai", "model": "gpt-4o", "input_price": 2.50, "output_price": 10.00}'
+
+# Bulk update multiple models
+curl -X POST https://your-auditi-instance.com/api/v1/pricing/bulk \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"provider": "openai", "model": "gpt-4o", "input_price": 2.50, "output_price": 10.00},
+      {"provider": "openai", "model": "gpt-4o-mini", "input_price": 0.15, "output_price": 0.60}
+    ]
+  }'
+```
+
+---
+
 ## API Reference
 
 ### Decorators
@@ -523,6 +590,7 @@ auditi.init(
 Trace a top-level agent function. Creates a complete trace with user input, assistant output, and all spans.
 
 **Parameters:**
+
 - `name` (str, optional): Custom name for the agent
 - `user_id` (str, optional): User identifier
 - `evaluator` (BaseEvaluator, optional): Custom evaluator instance
@@ -534,6 +602,7 @@ Trace a top-level agent function. Creates a complete trace with user input, assi
 Trace a tool/function call within an agent.
 
 **Parameters:**
+
 - `name` (str, optional): Custom name for the tool
 - `standalone` (bool): If True, creates a standalone trace when not inside `@trace_agent`
 
@@ -542,6 +611,7 @@ Trace a tool/function call within an agent.
 Trace an LLM call within an agent.
 
 **Parameters:**
+
 - `name` (str, optional): Custom name for the LLM call
 - `model` (str, optional): Model name (auto-detected from response if not provided)
 - `standalone` (bool): If True, creates a standalone trace when not inside `@trace_agent`
@@ -551,6 +621,7 @@ Trace an LLM call within an agent.
 Trace an embedding operation. Always creates a standalone trace when not inside `@trace_agent`.
 
 **Parameters:**
+
 - `name` (str, optional): Custom name for the embedding operation
 - `model` (str, optional): Model name (auto-detected if not provided)
 
@@ -559,6 +630,7 @@ Trace an embedding operation. Always creates a standalone trace when not inside 
 Trace a retrieval/search operation. Always creates a standalone trace when not inside `@trace_agent`.
 
 **Parameters:**
+
 - `name` (str, optional): Custom name for the retrieval operation
 
 ### Types
@@ -568,6 +640,7 @@ Trace a retrieval/search operation. Always creates a standalone trace when not i
 Complete trace data model.
 
 **Fields:**
+
 - `trace_id` (str): Unique trace identifier
 - `name` (str): Agent name
 - `user_input` (str): User's message
@@ -588,6 +661,7 @@ Complete trace data model.
 Individual span within a trace.
 
 **Fields:**
+
 - `span_id` (str): Unique span identifier
 - `name` (str): Span name
 - `span_type` (str): Type: "tool", "llm", "embedding", "retrieval"
@@ -606,6 +680,7 @@ Individual span within a trace.
 Evaluation result data.
 
 **Fields:**
+
 - `status` (str): "pass" or "fail"
 - `score` (float, optional): Evaluation score
 - `reason` (str, optional): Explanation
@@ -618,6 +693,7 @@ Evaluation result data.
 Default synchronous HTTP transport.
 
 **Parameters:**
+
 - `api_key` (str): API key for authentication
 - `base_url` (str): Base URL of Auditi API
 
@@ -736,12 +812,14 @@ python examples/01_basic_integration.py
 ### Traces Not Appearing
 
 1. **Check initialization:**
+
    ```python
    import auditi
    auditi.init(api_key="your-key", base_url="https://api.auditi.dev")
    ```
 
 2. **Enable debug logging:**
+
    ```bash
    export AUDITI_DEBUG=true
    python your_script.py

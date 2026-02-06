@@ -19,7 +19,7 @@ Auditi is a comprehensive platform for evaluating, monitoring, and improving AI 
 - **Advanced Analytics**: Comprehensive dashboards with metrics, trends, correlations, and anomaly detection
 - **Dataset Management**: Create reusable datasets from annotations for fine-tuning and evaluation
 - **Multi-Provider Support**: Works with OpenAI, Anthropic, Google Gemini, and OpenAI-compatible APIs
-- **Cost Tracking**: Automatic cost calculation with provider-specific pricing
+- **Cost Tracking**: Automatic cost calculation with dynamic, remotely-updated pricing
 - **Failure Mode Analysis**: Identify patterns and generate actionable recommendations
 
 ### SDK Features
@@ -382,6 +382,7 @@ CORS_ORIGINS=http://localhost:3000
 - **Span**: Internal operations (LLM calls, tools, etc.)
 - **Evaluator**: Custom evaluator configurations
 - **LLMConnection**: API connection settings
+- **ModelPricing**: Per-model pricing for cost calculation (seeded with defaults on first run)
 
 ### Annotation Models
 
@@ -425,6 +426,13 @@ CORS_ORIGINS=http://localhost:3000
 - `POST /api/datasets` - Create dataset
 - `POST /api/datasets/publish-from-queue` - Publish queue to dataset
 - `GET /api/datasets/{id}/export` - Export dataset
+
+### Pricing
+- `GET /api/v1/pricing` - Get all model pricing (used by SDK for auto-updated costs)
+- `GET /api/v1/pricing/list` - List pricing entries with optional `?provider=` filter
+- `POST /api/v1/pricing` - Create or update a single model's pricing
+- `POST /api/v1/pricing/bulk` - Bulk create/update pricing entries
+- `DELETE /api/v1/pricing/{id}` - Delete a pricing entry
 
 ### Analytics
 - `GET /api/analytics/dashboard-kpis` - Dashboard metrics
