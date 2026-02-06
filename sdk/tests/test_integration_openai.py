@@ -11,6 +11,7 @@ auditi.instrument()
 # Your existing code works unchanged!
 client = OpenAI(base_url=os.getenv("OPENAI_API_BASE_URL"), api_key=os.getenv("OPENAI_API_KEY"))
 response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello!"}]
+    model="Kimi-K2-Thinking",
+    messages=[{"role": "user", "content": "How to create skills in claude code and then register as slash command? For example, skills for finetuning can be called /finetune"}],
 )
+print(response)
