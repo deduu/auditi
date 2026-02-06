@@ -327,6 +327,153 @@ def _execute_as_standalone_trace(
     return result
 
 
+async def _execute_as_standalone_trace_async(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    span_type: str,
+    name: Optional[str],
+    model: Optional[str],
+) -> Any:
+    """
+    Async version of _execute_as_standalone_trace.
+
+    Properly awaits async functions instead of returning unawaited coroutines.
+    """
+    client = get_client()
+    trace_id = uuid4()
+    span_id = uuid4()
+    start_time = datetime.utcnow()
+    func_name = name or func.__name__
+
+    user_input = ""
+    raw = (
+        kwargs.get("messages")
+        or kwargs.get("prompt")
+        or kwargs.get("message")
+        or kwargs.get("contents")
+        or kwargs.get("query")
+        or kwargs.get("input")
+        or kwargs.get("user_input")
+        or ""
+    )
+    if raw:
+        user_input = _ensure_str_input(raw)
+
+    if not user_input and args:
+        start_idx = 0
+        first_arg = args[0]
+        if not isinstance(first_arg, (str, int, float, bool, list, dict, tuple, type(None))):
+            start_idx = 1
+        if len(args) > start_idx:
+            user_input = _ensure_str_input(args[start_idx])
+
+    trace = TraceInput(
+        id=trace_id,
+        start_time=start_time,
+        user_input=user_input,
+        name=func_name,
+        tags=["standalone", span_type],
+    )
+    set_current_trace(trace)
+
+    span = SpanInput(
+        id=span_id,
+        trace_id=trace_id,
+        name=func_name,
+        span_type=span_type,
+        start_time=start_time,
+        inputs={"prompt": user_input} if user_input else {},
+        model=model,
+    )
+    push_span(span)
+
+    result = None
+    error_msg = None
+
+    try:
+        result = await func(*args, **kwargs)
+        print(f"[Auditi] Standalone {span_type} trace captured.")
+
+        if not span.model:
+            provider = detect_provider(response=result)
+            extracted_model = provider.extract_model(result)
+            if extracted_model:
+                span.model = extracted_model
+
+        if hasattr(result, "choices") and result.choices:
+            try:
+                choice = result.choices[0]
+                if hasattr(choice, "message") and hasattr(choice.message, "content"):
+                    output = str(choice.message.content)
+                elif hasattr(choice, "text"):
+                    output = str(choice.text)
+                else:
+                    output = str(result)
+            except (IndexError, AttributeError):
+                output = str(result)
+            trace.assistant_output = output
+            span.outputs = output
+            if hasattr(result, "usage") and result.usage:
+                _apply_usage_to_span(span, result.usage, response=result)
+        elif hasattr(result, "data"):
+            if hasattr(result, "usage"):
+                _apply_usage_to_span(span, result.usage, response=result)
+            span.outputs = f"Generated {len(result.data)} embeddings"
+            trace.assistant_output = span.outputs
+        elif isinstance(result, str):
+            trace.assistant_output = result
+            span.outputs = result
+        elif isinstance(result, dict):
+            content = (
+                result.get("content") or result.get("text") or result.get("response") or str(result)
+            )
+            trace.assistant_output = str(content)
+            span.outputs = str(content)
+            if "usage" in result:
+                _apply_usage_to_span(span, result["usage"], response=result)
+        elif hasattr(result, "content"):
+            trace.assistant_output = str(result.content)
+            span.outputs = str(result.content)
+            if hasattr(result, "usage"):
+                _apply_usage_to_span(span, result.usage, response=result)
+        else:
+            trace.assistant_output = str(result) if result else ""
+            span.outputs = str(result) if result else ""
+
+        span.status = "ok"
+
+    except Exception as e:
+        error_msg = str(e)
+        trace.assistant_output = f"Error: {e}"
+        trace.error = error_msg
+        span.error = error_msg
+        span.status = "error"
+        raise
+
+    finally:
+        end_time = datetime.utcnow()
+        span.end_time = end_time
+        trace.end_time = end_time
+
+        pop_span()
+        trace.spans.append(span)
+
+        if span.tokens:
+            trace.total_tokens = span.tokens
+        if span.cost:
+            trace.cost = span.cost
+
+        trace_payload = trace.model_dump(mode="json")
+        _debug_log(f"Sending standalone trace payload for '{func_name}':", trace_payload)
+        client.transport.send_trace(trace_payload)
+
+        from .context import clear_current_trace
+        clear_current_trace()
+
+    return result
+
+
 def trace_agent(
     name: Optional[str] = None,
     user_id: Optional[str] = None,
@@ -526,6 +673,10 @@ def trace_agent(
 
                     # Send Trace
                     client.transport.send_trace(trace_payload)
+
+                    # Clear context to prevent leaking into subsequent calls
+                    from .context import clear_current_trace
+                    clear_current_trace()
 
                 return result
 
@@ -909,6 +1060,10 @@ def trace_agent(
                     # Send Trace
                     client.transport.send_trace(trace_payload)
 
+                    # Clear context to prevent leaking into subsequent calls
+                    from .context import clear_current_trace
+                    clear_current_trace()
+
                 return result
 
             return wrapper
@@ -1125,8 +1280,8 @@ def _trace_span(
                 trace = get_current_trace()
                 if not trace:
                     if standalone:
-                        # Standalone async trace
-                        return _execute_as_standalone_trace(
+                        # Standalone async trace — use async version to properly await
+                        return await _execute_as_standalone_trace_async(
                             func, args, kwargs, span_type, name, model
                         )
                     else:
