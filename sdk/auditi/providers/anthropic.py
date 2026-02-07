@@ -27,13 +27,23 @@ class AnthropicProvider(BaseProvider):
     def model_pricing(self) -> Dict[str, Tuple[float, float]]:
         """
         Anthropic model pricing per 1M tokens (input, output) in USD.
-        Updated as of January 2025.
+        Updated as of February 2026.
         """
         return {
-            # Claude 4.5 family (newest)
-            "claude-opus-4-5-20251101": (15.00, 75.00),
+            # Claude 4.6 / 4.5 / 4.1 / 4 (alias format)
+            "claude-opus-4-6": (5.00, 25.00),
+            "claude-opus-4-5": (5.00, 25.00),
+            "claude-opus-4-1": (15.00, 75.00),
+            "claude-opus-4": (15.00, 75.00),
+            "claude-sonnet-4-5": (3.00, 15.00),
+            "claude-sonnet-4": (3.00, 15.00),
+            "claude-haiku-4-5": (1.00, 5.00),
+            "claude-haiku-3-5": (0.80, 4.00),
+            "claude-haiku-3": (0.25, 1.25),
+            # Claude 4.5 family (dated versions)
+            "claude-opus-4-5-20251101": (5.00, 25.00),
             "claude-sonnet-4-5-20250929": (3.00, 15.00),
-            "claude-haiku-4-5-20251001": (0.80, 4.00),
+            "claude-haiku-4-5-20251001": (1.00, 5.00),
             # Claude 3.5 family
             "claude-3-5-sonnet-20241022": (3.00, 15.00),
             "claude-3-5-sonnet-20240620": (3.00, 15.00),

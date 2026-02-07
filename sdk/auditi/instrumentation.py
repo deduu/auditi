@@ -26,12 +26,14 @@ def instrument(
     """
     if openai:
         _instrument_openai()
+        _instrument_openai_responses()
 
     if anthropic:
         _instrument_anthropic()
 
     if google:
         _instrument_google()
+        _instrument_google_genai()
 
 
 def _instrument_openai():
@@ -74,6 +76,39 @@ def _instrument_openai():
     AsyncCompletions.create = patched_async_create
 
     logger.info("OpenAI instrumentation applied successfully")
+
+
+def _instrument_openai_responses():
+    """Patch OpenAI Responses API methods (client.responses.create)."""
+    try:
+        from openai.resources.responses import Responses, AsyncResponses
+    except ImportError:
+        logger.debug("OpenAI Responses API not available (older openai library), skipping")
+        return
+
+    logger.info("Instrumenting OpenAI Responses API...")
+
+    if getattr(Responses.create, "_is_auditi_patched", False):
+        return
+
+    original_create = Responses.create
+    original_async_create = AsyncResponses.create
+
+    @trace_llm(name="OpenAI Response", standalone=True)
+    def patched_create(self, *args, **kwargs):
+        return original_create(self, *args, **kwargs)
+
+    @trace_llm(name="OpenAI Response", standalone=True)
+    async def patched_async_create(self, *args, **kwargs):
+        return await original_async_create(self, *args, **kwargs)
+
+    patched_create._is_auditi_patched = True
+    patched_async_create._is_auditi_patched = True
+
+    Responses.create = patched_create
+    AsyncResponses.create = patched_async_create
+
+    logger.info("OpenAI Responses API instrumentation applied successfully")
 
 
 def _instrument_anthropic():
@@ -145,3 +180,36 @@ def _instrument_google():
     GenerativeModel.generate_content_async = patched_generate_content_async
 
     logger.info("Google Generative AI instrumentation applied successfully")
+
+
+def _instrument_google_genai():
+    """Patch new google-genai SDK methods (client.models.generate_content)."""
+    try:
+        from google.genai.models import Models, AsyncModels
+    except ImportError:
+        logger.debug("google-genai SDK not found, skipping instrumentation")
+        return
+
+    logger.info("Instrumenting Google GenAI (new SDK)...")
+
+    if getattr(Models.generate_content, "_is_auditi_patched", False):
+        return
+
+    original_generate = Models.generate_content
+    original_generate_async = AsyncModels.generate_content
+
+    @trace_llm(name="Google Gemini", standalone=True)
+    def patched_generate(self, *args, **kwargs):
+        return original_generate(self, *args, **kwargs)
+
+    @trace_llm(name="Google Gemini", standalone=True)
+    async def patched_generate_async(self, *args, **kwargs):
+        return await original_generate_async(self, *args, **kwargs)
+
+    patched_generate._is_auditi_patched = True
+    patched_generate_async._is_auditi_patched = True
+
+    Models.generate_content = patched_generate
+    AsyncModels.generate_content = patched_generate_async
+
+    logger.info("Google GenAI (new SDK) instrumentation applied successfully")

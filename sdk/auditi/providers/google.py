@@ -27,14 +27,22 @@ class GoogleProvider(BaseProvider):
     def model_pricing(self) -> Dict[str, Tuple[float, float]]:
         """
         Google Gemini model pricing per 1M tokens (input, output) in USD.
-        Updated as of January 2025.
+        Updated as of February 2026.
 
         Note: Pricing may vary by context window size and features.
         """
         return {
+            # Gemini 3.x family
+            "gemini-3-pro": (2.00, 12.00),
+            "gemini-3-flash": (0.50, 3.00),
+            # Gemini 2.5 family
+            "gemini-2.5-pro": (1.25, 10.00),
+            "gemini-2.5-flash": (0.30, 2.50),
+            "gemini-2.5-flash-lite": (0.10, 0.40),
             # Gemini 2.0 family
-            "gemini-2.0-flash-exp": (0.00, 0.00),  # Free during preview
             "gemini-2.0-flash": (0.10, 0.40),
+            "gemini-2.0-flash-lite": (0.075, 0.30),
+            "gemini-2.0-flash-exp": (0.00, 0.00),  # Free during preview
             "gemini-2.0-flash-thinking-exp": (0.00, 0.00),  # Free during preview
             # Gemini 1.5 family
             "gemini-1.5-pro": (1.25, 5.00),
@@ -93,18 +101,26 @@ class GoogleProvider(BaseProvider):
         total_tokens = None
 
         if isinstance(usage, dict):
-            # Try camelCase (newer API)
+            # Try camelCase (older google.generativeai API)
             input_tokens = _coerce_int(usage.get("promptTokenCount"))
             output_tokens = _coerce_int(usage.get("candidatesTokenCount"))
             total_tokens = _coerce_int(usage.get("totalTokenCount"))
 
-            # Fallback to snake_case (older API)
+            # Fallback to snake_case (older API variant)
             if input_tokens is None:
                 input_tokens = _coerce_int(usage.get("prompt_token_count"))
             if output_tokens is None:
                 output_tokens = _coerce_int(usage.get("candidates_token_count"))
             if total_tokens is None:
                 total_tokens = _coerce_int(usage.get("total_token_count"))
+
+            # Fallback to generic format (new google-genai SDK)
+            if input_tokens is None:
+                input_tokens = _coerce_int(usage.get("input_tokens"))
+            if output_tokens is None:
+                output_tokens = _coerce_int(usage.get("output_tokens"))
+            if total_tokens is None:
+                total_tokens = _coerce_int(usage.get("total_tokens"))
         else:
             # Handle object attributes (camelCase)
             input_tokens = _coerce_int(getattr(usage, "promptTokenCount", None))
@@ -118,6 +134,14 @@ class GoogleProvider(BaseProvider):
                 output_tokens = _coerce_int(getattr(usage, "candidates_token_count", None))
             if total_tokens is None:
                 total_tokens = _coerce_int(getattr(usage, "total_token_count", None))
+
+            # Fallback to generic format (new google-genai SDK)
+            if input_tokens is None:
+                input_tokens = _coerce_int(getattr(usage, "input_tokens", None))
+            if output_tokens is None:
+                output_tokens = _coerce_int(getattr(usage, "output_tokens", None))
+            if total_tokens is None:
+                total_tokens = _coerce_int(getattr(usage, "total_tokens", None))
 
         # Calculate total if not provided
         if total_tokens is None and (input_tokens is not None or output_tokens is not None):

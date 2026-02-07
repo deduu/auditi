@@ -27,9 +27,18 @@ class OpenAIProvider(BaseProvider):
     def model_pricing(self) -> Dict[str, Tuple[float, float]]:
         """
         OpenAI model pricing per 1M tokens (input, output) in USD.
-        Updated as of January 2025.
+        Updated as of February 2026.
         """
         return {
+            # GPT-5 family
+            "gpt-5": (1.25, 10.00),
+            "gpt-5.1": (1.25, 10.00),
+            "gpt-5.2": (1.75, 14.00),
+            "gpt-5-pro": (15.00, 120.00),
+            # GPT-4.1 family
+            "gpt-4.1": (2.00, 8.00),
+            "gpt-4.1-mini": (0.40, 1.60),
+            "gpt-4.1-nano": (0.10, 0.40),
             # GPT-4o family
             "gpt-4o": (2.50, 10.00),
             "gpt-4o-2024-11-20": (2.50, 10.00),
@@ -53,7 +62,14 @@ class OpenAIProvider(BaseProvider):
             "gpt-3.5-turbo-0125": (0.50, 1.50),
             "gpt-3.5-turbo-1106": (1.00, 2.00),
             "gpt-3.5-turbo-16k": (3.00, 4.00),
+            # o4 models
+            "o4-mini": (1.10, 4.40),
+            # o3 models
+            "o3": (2.00, 8.00),
+            "o3-pro": (20.00, 80.00),
+            "o3-mini": (1.10, 4.40),
             # o1 models
+            "o1-pro": (150.00, 600.00),
             "o1-preview": (15.00, 60.00),
             "o1-preview-2024-09-12": (15.00, 60.00),
             "o1-mini": (3.00, 12.00),
@@ -66,17 +82,26 @@ class OpenAIProvider(BaseProvider):
         return (10.00, 30.00)  # Similar to GPT-4 Turbo
 
     def get_model_prefixes(self) -> list[str]:
-        return ["gpt-", "o1-", "o1"]
+        return ["gpt-", "o1-", "o1", "o3-", "o3", "o4-", "o4"]
 
     def extract_usage(self, usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Extract usage from OpenAI response.
 
-        OpenAI structure:
+        Chat Completions API structure:
         {
             "usage": {
                 "prompt_tokens": 100,
                 "completion_tokens": 50,
+                "total_tokens": 150
+            }
+        }
+
+        Responses API structure:
+        {
+            "usage": {
+                "input_tokens": 100,
+                "output_tokens": 50,
                 "total_tokens": 150
             }
         }
@@ -89,14 +114,25 @@ class OpenAIProvider(BaseProvider):
         total_tokens = None
 
         if isinstance(usage, dict):
+            # Chat Completions API format
             input_tokens = _coerce_int(usage.get("prompt_tokens"))
             output_tokens = _coerce_int(usage.get("completion_tokens"))
             total_tokens = _coerce_int(usage.get("total_tokens"))
+            # Responses API format (fallback)
+            if input_tokens is None:
+                input_tokens = _coerce_int(usage.get("input_tokens"))
+            if output_tokens is None:
+                output_tokens = _coerce_int(usage.get("output_tokens"))
         else:
-            # Handle object attributes
+            # Handle object attributes — Chat Completions format
             input_tokens = _coerce_int(getattr(usage, "prompt_tokens", None))
             output_tokens = _coerce_int(getattr(usage, "completion_tokens", None))
             total_tokens = _coerce_int(getattr(usage, "total_tokens", None))
+            # Responses API format (fallback)
+            if input_tokens is None:
+                input_tokens = _coerce_int(getattr(usage, "input_tokens", None))
+            if output_tokens is None:
+                output_tokens = _coerce_int(getattr(usage, "output_tokens", None))
 
         # Calculate total if not provided
         if total_tokens is None and (input_tokens is not None or output_tokens is not None):
@@ -123,15 +159,21 @@ class OpenAIProvider(BaseProvider):
         """
         Detect OpenAI responses by structure.
 
-        OpenAI responses typically have:
+        Chat Completions responses have:
         - 'choices' array with 'message' or 'text'
         - 'usage' with 'prompt_tokens' and 'completion_tokens'
+
+        Responses API responses have:
+        - 'output_text' convenience field
+        - 'output' array with message objects
+        - 'object' == 'response'
         """
         if response is None:
             return False
 
         # Check for OpenAI-specific structure
         if isinstance(response, dict):
+            # Chat Completions API
             has_choices = "choices" in response
             has_openai_usage = (
                 "usage" in response
@@ -140,8 +182,18 @@ class OpenAIProvider(BaseProvider):
             )
             if has_choices or has_openai_usage:
                 return True
-        elif hasattr(response, "choices") and hasattr(response, "usage"):
-            return True
+            # Responses API
+            if "output_text" in response or response.get("object") == "response":
+                return True
+        else:
+            # Chat Completions API
+            if hasattr(response, "choices") and hasattr(response, "usage"):
+                return True
+            # Responses API
+            if hasattr(response, "output_text"):
+                return True
+            if getattr(response, "object", None) == "response":
+                return True
 
         # Fallback to model prefix matching
         return super().matches_response(response)

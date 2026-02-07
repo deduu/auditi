@@ -7,7 +7,7 @@ This version uses the provider abstraction layer for robust multi-provider suppo
 import functools
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 import asyncio
 import inspect
@@ -172,7 +172,7 @@ def _execute_as_standalone_trace(
     client = get_client()
     trace_id = uuid4()
     span_id = uuid4()
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     func_name = name or func.__name__
 
     # Extract user input from args/kwargs
@@ -205,11 +205,16 @@ def _execute_as_standalone_trace(
             user_input = _ensure_str_input(args[start_idx])
 
     # Create trace
+    # Read user_id and session_id from global context
+    ctx = get_context()
+
     trace = TraceInput(
         id=trace_id,
         start_time=start_time,
         user_input=user_input,
         name=func_name,
+        user_id=ctx.get("user_id"),
+        conversation_id=ctx.get("session_id"),
         tags=["standalone", span_type],
     )
     set_current_trace(trace)
@@ -241,8 +246,31 @@ def _execute_as_standalone_trace(
                 span.model = extracted_model
 
         # Extract output and usage based on response type
-        if hasattr(result, "choices") and result.choices:
-            # OpenAI-style response
+
+        # OpenAI Responses API (has output_text, no choices)
+        if hasattr(result, "output_text") and not hasattr(result, "choices"):
+            output = str(result.output_text) if result.output_text else ""
+            if not output and hasattr(result, "output") and result.output:
+                try:
+                    for item in result.output:
+                        if hasattr(item, "content"):
+                            for content_block in item.content:
+                                if hasattr(content_block, "text"):
+                                    output = str(content_block.text)
+                                    break
+                            if output:
+                                break
+                except (AttributeError, TypeError, IndexError):
+                    output = str(result)
+
+            trace.assistant_output = output
+            span.outputs = output
+
+            if hasattr(result, "usage") and result.usage:
+                _apply_usage_to_span(span, result.usage, response=result)
+
+        elif hasattr(result, "choices") and result.choices:
+            # OpenAI Chat Completions response
             try:
                 choice = result.choices[0]
                 if hasattr(choice, "message") and hasattr(choice.message, "content"):
@@ -301,8 +329,9 @@ def _execute_as_standalone_trace(
         raise
 
     finally:
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         span.end_time = end_time
+        span.processing_time = (end_time - start_time).total_seconds()
         trace.end_time = end_time
 
         pop_span()
@@ -343,7 +372,7 @@ async def _execute_as_standalone_trace_async(
     client = get_client()
     trace_id = uuid4()
     span_id = uuid4()
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     func_name = name or func.__name__
 
     user_input = ""
@@ -368,11 +397,16 @@ async def _execute_as_standalone_trace_async(
         if len(args) > start_idx:
             user_input = _ensure_str_input(args[start_idx])
 
+    # Read user_id and session_id from global context
+    ctx = get_context()
+
     trace = TraceInput(
         id=trace_id,
         start_time=start_time,
         user_input=user_input,
         name=func_name,
+        user_id=ctx.get("user_id"),
+        conversation_id=ctx.get("session_id"),
         tags=["standalone", span_type],
     )
     set_current_trace(trace)
@@ -401,7 +435,30 @@ async def _execute_as_standalone_trace_async(
             if extracted_model:
                 span.model = extracted_model
 
-        if hasattr(result, "choices") and result.choices:
+        # OpenAI Responses API (has output_text, no choices)
+        if hasattr(result, "output_text") and not hasattr(result, "choices"):
+            output = str(result.output_text) if result.output_text else ""
+            if not output and hasattr(result, "output") and result.output:
+                try:
+                    for item in result.output:
+                        if hasattr(item, "content"):
+                            for content_block in item.content:
+                                if hasattr(content_block, "text"):
+                                    output = str(content_block.text)
+                                    break
+                            if output:
+                                break
+                except (AttributeError, TypeError, IndexError):
+                    output = str(result)
+
+            trace.assistant_output = output
+            span.outputs = output
+
+            if hasattr(result, "usage") and result.usage:
+                _apply_usage_to_span(span, result.usage, response=result)
+
+        elif hasattr(result, "choices") and result.choices:
+            # OpenAI Chat Completions response
             try:
                 choice = result.choices[0]
                 if hasattr(choice, "message") and hasattr(choice.message, "content"):
@@ -452,8 +509,9 @@ async def _execute_as_standalone_trace_async(
         raise
 
     finally:
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         span.end_time = end_time
+        span.processing_time = (end_time - start_time).total_seconds()
         trace.end_time = end_time
 
         pop_span()
@@ -495,7 +553,7 @@ def trace_agent(
             async def async_wrapper(*args, **kwargs) -> Any:
                 client = get_client()
                 trace_id = uuid4()
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
 
                 trace_name = name or func.__name__
 
@@ -634,7 +692,7 @@ def trace_agent(
                     _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
                     raise
                 finally:
-                    trace.end_time = datetime.utcnow()
+                    trace.end_time = datetime.now(timezone.utc)
 
                     # Aggregate metrics from spans if not set on trace
                     if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
@@ -688,7 +746,7 @@ def trace_agent(
             async def async_gen_wrapper(*args, **kwargs) -> Any:
                 client = get_client()
                 trace_id = uuid4()
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
 
                 trace_name = name or func.__name__
 
@@ -834,7 +892,7 @@ def trace_agent(
                     _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
                     raise
                 finally:
-                    trace.end_time = datetime.utcnow()
+                    trace.end_time = datetime.now(timezone.utc)
 
                     # Aggregate metrics from spans if not set on trace
                     if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
@@ -882,7 +940,7 @@ def trace_agent(
             def wrapper(*args, **kwargs) -> Any:
                 client = get_client()
                 trace_id = uuid4()
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
 
                 trace_name = name or func.__name__
 
@@ -1020,7 +1078,7 @@ def trace_agent(
                     _debug_log(f"Error in trace '{trace_name}':", {"error": error_msg})
                     raise
                 finally:
-                    trace.end_time = datetime.utcnow()
+                    trace.end_time = datetime.now(timezone.utc)
 
                     # Aggregate metrics from spans if not set on trace
                     if (trace.total_tokens is None or trace.total_tokens == 0) and trace.spans:
@@ -1187,7 +1245,7 @@ def _trace_span(
 
                 parent = get_current_span()
                 span_id = uuid4()
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
                 span_name = name or func.__name__
 
                 # Use robust input capture
@@ -1263,7 +1321,8 @@ def _trace_span(
                     # Don't raise here if we are yielding? Actually we should raise to propagate error
                     raise
                 finally:
-                    span.end_time = datetime.utcnow()
+                    span.end_time = datetime.now(timezone.utc)
+                    span.processing_time = (span.end_time - span.start_time).total_seconds()
                     pop_span()
 
                     span_payload = span.model_dump(mode="json")
@@ -1289,7 +1348,7 @@ def _trace_span(
 
                 parent = get_current_span()
                 span_id = uuid4()
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
                 span_name = name or func.__name__
 
                 # Use robust input capture
@@ -1327,7 +1386,8 @@ def _trace_span(
                     span.status = "error"
                     raise
                 finally:
-                    span.end_time = datetime.utcnow()
+                    span.end_time = datetime.now(timezone.utc)
+                    span.processing_time = (span.end_time - span.start_time).total_seconds()
                     pop_span()
 
                     span_payload = span.model_dump(mode="json")
@@ -1349,7 +1409,7 @@ def _trace_span(
 
             parent = get_current_span()
             span_id = uuid4()
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             span_name = name or func.__name__
 
             # Auto-detect model and capture inputs using signature binding if available
@@ -1450,8 +1510,14 @@ def _trace_span(
 
                 # Smart output capture for various LLM response types
 
+                # OpenAI Responses API (has output_text, no choices)
+                if hasattr(result, "output_text") and not hasattr(result, "choices"):
+                    span.outputs = str(result.output_text) if result.output_text else str(result)
+                    if hasattr(result, "usage") and result.usage:
+                        _apply_usage_to_span(span, result.usage, response=result)
+
                 # OpenAI ChatCompletion object (has choices array)
-                if hasattr(result, "choices") and result.choices:
+                elif hasattr(result, "choices") and result.choices:
                     try:
                         choice = result.choices[0]
                         if hasattr(choice, "message") and hasattr(choice.message, "content"):
@@ -1525,7 +1591,8 @@ def _trace_span(
                 _debug_log(f"Span '{span_name}' failed:", {"error": str(e)})
                 raise
             finally:
-                span.end_time = datetime.utcnow()
+                span.end_time = datetime.now(timezone.utc)
+                span.processing_time = (span.end_time - span.start_time).total_seconds()
                 pop_span()
 
                 # Log span payload before adding to trace

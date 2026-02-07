@@ -41,7 +41,9 @@ _client_instance: Optional[AuditiClient] = None
 def init(
     api_key: Optional[str] = None,
     base_url: str = "http://localhost:8000",
-    transport: Optional[BaseTransport] = None
+    transport: Optional[BaseTransport] = None,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> AuditiClient:
     """
     Initialize the Auditi SDK with the given configuration.
@@ -50,6 +52,8 @@ def init(
         api_key: API key for authentication
         base_url: Base URL of the Auditi API (default: localhost:8000)
         transport: Custom transport implementation
+        user_id: Optional user identifier to set in global context
+        session_id: Optional session/conversation identifier to set in global context
 
     Returns:
         The initialized AuditiClient instance
@@ -57,12 +61,19 @@ def init(
     Example:
         >>> import auditi
         >>> auditi.init(api_key="your-key", base_url="https://api.auditi.dev")
+        >>> # With user context (applied to all traces including auto-instrumented)
+        >>> auditi.init(api_key="your-key", user_id="user123", session_id="conv456")
     """
     global _client_instance
     _client_instance = AuditiClient(api_key, base_url, transport)
 
     # Configure pricing manager with the same base URL for remote pricing
     get_pricing_manager().set_base_url(base_url)
+
+    # Set global context if user_id or session_id provided
+    if user_id or session_id:
+        from .context import set_context
+        set_context(user_id=user_id, session_id=session_id)
 
     return _client_instance
 
