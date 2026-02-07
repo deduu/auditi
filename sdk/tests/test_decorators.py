@@ -154,11 +154,11 @@ def test_trace_agent_with_messages_list(mock_client):
 def test_trace_input_validator_with_list():
     """Test that TraceInput.normalize_user_input handles list input."""
     from uuid import uuid4
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     trace = TraceInput(
         id=uuid4(),
-        start_time=datetime.utcnow(),
+        start_time=datetime.now(timezone.utc),
         name="test",
         user_input=[{"role": "user", "content": "Hello from list"}],
     )

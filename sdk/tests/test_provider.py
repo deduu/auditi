@@ -305,6 +305,110 @@ class TestProviderRegistry:
         assert registry.get_provider("google") is not None
 
 
+class TestNewModelPricing:
+    """Tests for newly added model pricing across all providers."""
+
+    def test_openai_gpt5_cost(self):
+        provider = OpenAIProvider()
+        cost = provider.calculate_cost("gpt-5", 1_000_000, 1_000_000)
+        assert cost == 11.25  # 1.25 + 10.00
+
+    def test_openai_o3_cost(self):
+        provider = OpenAIProvider()
+        cost = provider.calculate_cost("o3", 1_000_000, 1_000_000)
+        assert cost == 10.00  # 2.00 + 8.00
+
+    def test_openai_o3_model_match(self):
+        provider = OpenAIProvider()
+        assert provider.matches_model("o3")
+        assert provider.matches_model("o3-mini")
+        assert provider.matches_model("o4-mini")
+
+    def test_anthropic_claude_opus_4_6_cost(self):
+        provider = AnthropicProvider()
+        cost = provider.calculate_cost("claude-opus-4-6", 1_000_000, 1_000_000)
+        assert cost == 30.00  # 5.00 + 25.00
+
+    def test_anthropic_claude_opus_4_5_updated_cost(self):
+        """claude-opus-4-5 pricing was updated from $15/$75 to $5/$25."""
+        provider = AnthropicProvider()
+        cost = provider.calculate_cost("claude-opus-4-5", 1_000_000, 1_000_000)
+        assert cost == 30.00  # 5.00 + 25.00
+
+    def test_anthropic_claude_haiku_4_5_cost(self):
+        provider = AnthropicProvider()
+        cost = provider.calculate_cost("claude-haiku-4-5", 1_000_000, 1_000_000)
+        assert cost == 6.00  # 1.00 + 5.00
+
+    def test_google_gemini_2_5_flash_cost(self):
+        provider = GoogleProvider()
+        cost = provider.calculate_cost("gemini-2.5-flash", 1_000_000, 1_000_000)
+        assert cost == 2.80  # 0.30 + 2.50
+
+    def test_google_gemini_2_5_pro_cost(self):
+        provider = GoogleProvider()
+        cost = provider.calculate_cost("gemini-2.5-pro", 1_000_000, 1_000_000)
+        assert cost == 11.25  # 1.25 + 10.00
+
+    def test_google_gemini_3_pro_cost(self):
+        provider = GoogleProvider()
+        cost = provider.calculate_cost("gemini-3-pro", 1_000_000, 1_000_000)
+        assert cost == 14.00  # 2.00 + 12.00
+
+
+class TestOpenAIResponsesAPIUsage:
+    """Test OpenAI provider handles Responses API usage format."""
+
+    def test_extract_usage_input_tokens_format(self):
+        provider = OpenAIProvider()
+        usage = {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}
+        i, o, t = provider.extract_usage(usage)
+        assert i == 100
+        assert o == 50
+        assert t == 150
+
+    def test_matches_responses_api_dict(self):
+        provider = OpenAIProvider()
+        response = {"object": "response", "output_text": "Hello", "model": "gpt-4.1"}
+        assert provider.matches_response(response)
+
+    def test_detect_responses_api_response(self):
+        """Test provider registry detects Responses API response objects."""
+
+        class MockResponsesObj:
+            output_text = "Hello"
+            model = "gpt-5"
+            object = "response"
+
+        provider = detect_provider(response=MockResponsesObj())
+        assert isinstance(provider, OpenAIProvider)
+
+
+class TestGoogleGenAIUsage:
+    """Test Google provider handles new google-genai SDK usage format."""
+
+    def test_extract_usage_generic_format_dict(self):
+        provider = GoogleProvider()
+        usage = {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}
+        i, o, t = provider.extract_usage(usage)
+        assert i == 100
+        assert o == 50
+        assert t == 150
+
+    def test_extract_usage_generic_format_object(self):
+        provider = GoogleProvider()
+
+        class MockGenAIUsage:
+            input_tokens = 200
+            output_tokens = 100
+            total_tokens = 300
+
+        i, o, t = provider.extract_usage(MockGenAIUsage())
+        assert i == 200
+        assert o == 100
+        assert t == 300
+
+
 class TestRealWorldScenarios:
     """Tests simulating real-world API responses."""
 

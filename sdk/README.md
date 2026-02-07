@@ -64,7 +64,7 @@ import auditi
 from openai import OpenAI
 
 # Initialize and auto-instrument all LLM libraries
-auditi.init(api_key="your-api-key")
+auditi.init(api_key="your-api-key", user_id="user123")
 auditi.instrument()
 
 # Your existing code works unchanged!
@@ -496,6 +496,18 @@ auditi.init(
     base_url="https://api.auditi.dev"
 )
 
+# With user tracking (applied to all traces including auto-instrumented)
+auditi.init(
+    api_key="your-api-key",
+    base_url="https://api.auditi.dev",
+    user_id="user123",
+    session_id="conv456"
+)
+
+# Or set user context dynamically (useful when user_id changes per request)
+auditi.init(api_key="your-api-key")
+auditi.set_context(user_id="user123", session_id="conv456")
+
 # Development setup (prints traces to console)
 from auditi.transport import DebugTransport
 
@@ -582,6 +594,22 @@ curl -X POST https://your-auditi-instance.com/api/v1/pricing/bulk \
 ---
 
 ## API Reference
+
+### `auditi.init(api_key=None, base_url="http://localhost:8000", transport=None, user_id=None, session_id=None)`
+
+Initialize the Auditi SDK.
+
+**Parameters:**
+
+- `api_key` (str, optional): API key for authentication
+- `base_url` (str): Base URL of the Auditi API (default: `http://localhost:8000`)
+- `transport` (BaseTransport, optional): Custom transport implementation
+- `user_id` (str, optional): User identifier to set in global context (applies to all traces)
+- `session_id` (str, optional): Session/conversation identifier to set in global context
+
+### `auditi.set_context(user_id=None, session_id=None)`
+
+Set global context for the current execution context. Useful for dynamically changing `user_id` per request.
 
 ### Decorators
 
