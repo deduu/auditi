@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.database import get_db
 from app.models import Conversation, Trace, Span
@@ -148,7 +148,7 @@ def get_conversations(
 
     # Filter by range
     if range:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = None
         if range == "24h":
             cutoff = now - timedelta(hours=24)

@@ -103,6 +103,10 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
             model=span.model,
             start_time=span.start_time,
             end_time=span.end_time,
+            processing_time=span.processing_time or (
+                (span.end_time - span.start_time).total_seconds()
+                if span.end_time and span.start_time else None
+            ),
             inputs=span.inputs,
             outputs=span.outputs,
             input_tokens=span.input_tokens,

@@ -33,6 +33,12 @@ from app.schemas.analytics import (
     AnomaliesResponse,
     AnomalyMetric,
     AnomalyDataPoint,
+    LatencyPercentileDataPoint,
+    LatencyPercentilesTimeSeriesResponse,
+    UserConsumptionDataPoint,
+    UserConsumptionResponse,
+    ScoreTrendDataPoint,
+    ScoreTrendByEvaluatorResponse,
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -1106,4 +1112,294 @@ def get_anomalies(
         metrics=results,
         total_anomalies=total_anomalies,
         summary=summary,
+    )
+
+
+# ============== Latency Percentiles Time Series ==============
+
+
+@router.get(
+    "/latency-percentiles-time-series",
+    response_model=LatencyPercentilesTimeSeriesResponse,
+)
+def get_latency_percentiles_time_series(
+    time_range: str = Query("7d", alias="timeRange"),
+    db: Session = Depends(get_db),
+):
+    """Get time-series latency percentiles for traces, generations, and spans."""
+    start_date, _, _ = get_date_range(time_range)
+
+    # Build date truncation and formatting columns
+    if time_range == "24h":
+        trace_trunc = func.date_trunc("hour", Trace.start_time)
+        trace_fmt = func.to_char(trace_trunc, "YYYY-MM-DD HH24:00")
+        span_trunc = func.date_trunc("hour", Span.start_time)
+        span_fmt = func.to_char(span_trunc, "YYYY-MM-DD HH24:00")
+    elif time_range in ["7d", "30d"]:
+        trace_trunc = func.date_trunc("day", Trace.start_time)
+        trace_fmt = func.to_char(trace_trunc, "YYYY-MM-DD")
+        span_trunc = func.date_trunc("day", Span.start_time)
+        span_fmt = func.to_char(span_trunc, "YYYY-MM-DD")
+    else:
+        trace_trunc = func.date_trunc("week", Trace.start_time)
+        trace_fmt = func.to_char(trace_trunc, 'YYYY-"W"IW')
+        span_trunc = func.date_trunc("week", Span.start_time)
+        span_fmt = func.to_char(span_trunc, 'YYYY-"W"IW')
+
+    # 1) Trace latency percentiles
+    trace_rows = (
+        db.query(
+            trace_fmt.label("period"),
+            func.percentile_cont(0.5)
+            .within_group(Trace.latency.asc())
+            .label("p50"),
+            func.percentile_cont(0.9)
+            .within_group(Trace.latency.asc())
+            .label("p90"),
+            func.percentile_cont(0.95)
+            .within_group(Trace.latency.asc())
+            .label("p95"),
+            func.percentile_cont(0.99)
+            .within_group(Trace.latency.asc())
+            .label("p99"),
+        )
+        .filter(Trace.start_time >= start_date, Trace.latency.isnot(None))
+        .group_by(trace_trunc)
+        .order_by(trace_trunc)
+        .all()
+    )
+
+    # 2) Generation (LLM span) latency percentiles
+    gen_rows = (
+        db.query(
+            span_fmt.label("period"),
+            func.percentile_cont(0.5)
+            .within_group(Span.processing_time.asc())
+            .label("p50"),
+            func.percentile_cont(0.9)
+            .within_group(Span.processing_time.asc())
+            .label("p90"),
+            func.percentile_cont(0.95)
+            .within_group(Span.processing_time.asc())
+            .label("p95"),
+            func.percentile_cont(0.99)
+            .within_group(Span.processing_time.asc())
+            .label("p99"),
+        )
+        .filter(
+            Span.start_time >= start_date,
+            Span.processing_time.isnot(None),
+            Span.span_type == "llm",
+        )
+        .group_by(span_trunc)
+        .order_by(span_trunc)
+        .all()
+    )
+
+    # 3) All-span latency percentiles
+    span_rows = (
+        db.query(
+            span_fmt.label("period"),
+            func.percentile_cont(0.5)
+            .within_group(Span.processing_time.asc())
+            .label("p50"),
+            func.percentile_cont(0.9)
+            .within_group(Span.processing_time.asc())
+            .label("p90"),
+            func.percentile_cont(0.95)
+            .within_group(Span.processing_time.asc())
+            .label("p95"),
+            func.percentile_cont(0.99)
+            .within_group(Span.processing_time.asc())
+            .label("p99"),
+        )
+        .filter(Span.start_time >= start_date, Span.processing_time.isnot(None))
+        .group_by(span_trunc)
+        .order_by(span_trunc)
+        .all()
+    )
+
+    def to_points(rows):
+        return [
+            LatencyPercentileDataPoint(
+                date=r.period,
+                p50=round(r.p50 or 0, 4),
+                p90=round(r.p90 or 0, 4),
+                p95=round(r.p95 or 0, 4),
+                p99=round(r.p99 or 0, 4),
+            )
+            for r in rows
+        ]
+
+    return LatencyPercentilesTimeSeriesResponse(
+        trace_latency=to_points(trace_rows),
+        generation_latency=to_points(gen_rows),
+        span_latency=to_points(span_rows),
+    )
+
+
+# ============== User Consumption ==============
+
+
+@router.get("/user-consumption", response_model=UserConsumptionResponse)
+def get_user_consumption(
+    time_range: str = Query("7d", alias="timeRange"),
+    metric: str = Query("cost"),
+    limit: int = Query(10),
+    db: Session = Depends(get_db),
+):
+    """Get per-user consumption time series (cost or trace count)."""
+    start_date, _, _ = get_date_range(time_range)
+
+    user_col = func.coalesce(Trace.user_id, "Anonymous")
+
+    # Determine aggregation
+    if metric == "cost":
+        agg_func = func.sum(Trace.cost)
+    else:
+        agg_func = func.count(Trace.id)
+
+    # Step 1: Find top N users by total metric
+    top_users_q = (
+        db.query(user_col.label("uid"), agg_func.label("total"))
+        .filter(Trace.start_time >= start_date)
+        .group_by(user_col)
+        .order_by(desc("total"))
+        .limit(limit)
+        .all()
+    )
+
+    top_user_ids = [r.uid for r in top_users_q]
+    overall_total = sum(r.total or 0 for r in top_users_q)
+
+    if not top_user_ids:
+        return UserConsumptionResponse(data=[], users=[], metric=metric, total=0)
+
+    # Step 2: Time-series for those users
+    if time_range == "24h":
+        date_trunc_col = func.date_trunc("hour", Trace.start_time)
+        date_format = func.to_char(date_trunc_col, "YYYY-MM-DD HH24:00")
+    elif time_range in ["7d", "30d"]:
+        date_trunc_col = func.date_trunc("day", Trace.start_time)
+        date_format = func.to_char(date_trunc_col, "YYYY-MM-DD")
+    else:
+        date_trunc_col = func.date_trunc("week", Trace.start_time)
+        date_format = func.to_char(date_trunc_col, 'YYYY-"W"IW')
+
+    ts_rows = (
+        db.query(
+            date_format.label("period"),
+            user_col.label("uid"),
+            agg_func.label("value"),
+        )
+        .filter(Trace.start_time >= start_date, user_col.in_(top_user_ids))
+        .group_by(date_trunc_col, user_col)
+        .order_by(date_trunc_col)
+        .all()
+    )
+
+    data_points = [
+        UserConsumptionDataPoint(
+            date=r.period,
+            user_id=r.uid,
+            value=round(float(r.value or 0), 6),
+        )
+        for r in ts_rows
+    ]
+
+    return UserConsumptionResponse(
+        data=data_points,
+        users=top_user_ids,
+        metric=metric,
+        total=round(float(overall_total), 6),
+    )
+
+
+# ============== Score Trends by Evaluator ==============
+
+
+@router.get(
+    "/score-trends-by-evaluator",
+    response_model=ScoreTrendByEvaluatorResponse,
+)
+def get_score_trends_by_evaluator(
+    time_range: str = Query("7d", alias="timeRange"),
+    limit: int = Query(5),
+    db: Session = Depends(get_db),
+):
+    """Get time-series score trends broken down by evaluator (score config)."""
+    start_date, _, _ = get_date_range(time_range)
+
+    # Build date truncation
+    if time_range == "24h":
+        date_trunc_col = func.date_trunc("hour", Annotation.created_at)
+        date_format = func.to_char(date_trunc_col, "YYYY-MM-DD HH24:00")
+    elif time_range in ["7d", "30d"]:
+        date_trunc_col = func.date_trunc("day", Annotation.created_at)
+        date_format = func.to_char(date_trunc_col, "YYYY-MM-DD")
+    else:
+        date_trunc_col = func.date_trunc("week", Annotation.created_at)
+        date_format = func.to_char(date_trunc_col, 'YYYY-"W"IW')
+
+    # 1) Find top evaluators by annotation count
+    top_evaluators = (
+        db.query(
+            ScoreConfig.id,
+            ScoreConfig.name,
+            func.count(Annotation.id).label("cnt"),
+        )
+        .join(Annotation, Annotation.score_config_id == ScoreConfig.id)
+        .filter(Annotation.created_at >= start_date)
+        .group_by(ScoreConfig.id, ScoreConfig.name)
+        .order_by(desc("cnt"))
+        .limit(limit)
+        .all()
+    )
+
+    if not top_evaluators:
+        return ScoreTrendByEvaluatorResponse(data=[], evaluators=[], total_avg=0.0)
+
+    evaluator_ids = [e.id for e in top_evaluators]
+    evaluator_names = [e.name for e in top_evaluators]
+    id_to_name = {e.id: e.name for e in top_evaluators}
+
+    # 2) Get time-series data for those evaluators
+    ts_rows = (
+        db.query(
+            date_format.label("period"),
+            Annotation.score_config_id,
+            func.avg(Annotation.value).label("avg_value"),
+        )
+        .filter(
+            Annotation.created_at >= start_date,
+            Annotation.score_config_id.in_(evaluator_ids),
+        )
+        .group_by(date_trunc_col, Annotation.score_config_id)
+        .order_by(date_trunc_col)
+        .all()
+    )
+
+    # 3) Calculate overall average
+    overall_avg = (
+        db.query(func.avg(Annotation.value))
+        .filter(
+            Annotation.created_at >= start_date,
+            Annotation.score_config_id.in_(evaluator_ids),
+        )
+        .scalar()
+    ) or 0.0
+
+    data_points = [
+        ScoreTrendDataPoint(
+            date=r.period,
+            evaluator_name=id_to_name.get(r.score_config_id, "Unknown"),
+            value=round(float(r.avg_value or 0) * 100, 2),  # Scale to 0-100
+        )
+        for r in ts_rows
+    ]
+
+    return ScoreTrendByEvaluatorResponse(
+        data=data_points,
+        evaluators=evaluator_names,
+        total_avg=round(float(overall_avg) * 100, 2),
     )

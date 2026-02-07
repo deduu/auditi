@@ -12,7 +12,7 @@ from pydantic import BaseModel
 router = APIRouter(tags=["evaluations"])
 
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class EvaluationStat(BaseModel):
@@ -83,7 +83,7 @@ def get_evaluations(
     """
     try:
         # 1. Parse Time Range
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if time_range == "24h":
             delta = timedelta(hours=24)
         elif time_range == "7d":
@@ -208,7 +208,7 @@ def get_failure_modes(
 
 def get_time_range_dates(time_range: str):
     """Parse time range and return start date."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if time_range == "24h":
         return now - timedelta(hours=24), now
     elif time_range == "7d":

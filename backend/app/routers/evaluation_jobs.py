@@ -2,7 +2,7 @@
 Evaluation jobs router - handles batch evaluation requests and job status.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
@@ -291,7 +291,7 @@ async def create_evaluation_job(
         "delay_seconds": data.delay_seconds,
         "total_traces": len(trace_ids_to_evaluate),
         "evaluated_count": 0,
-        "created_at": datetime.utcnow(),
+        "created_at": datetime.now(timezone.utc),
         "completed_at": None,
         "trace_ids": trace_ids_to_evaluate,
     }
@@ -343,14 +343,14 @@ def run_batch_evaluation(job_id: str):
             job["evaluated_count"] += 1
 
         job["status"] = "completed"
-        job["completed_at"] = datetime.utcnow()
+        job["completed_at"] = datetime.now(timezone.utc)
         print(
             f"[BATCH EVAL] ✓ Job {job_id} completed - enqueued {job['evaluated_count']} traces"
         )
 
     except Exception as e:
         job["status"] = "failed"
-        job["completed_at"] = datetime.utcnow()
+        job["completed_at"] = datetime.now(timezone.utc)
         print(f"[BATCH EVAL] ✗ Error in job {job_id}: {e}")
         import traceback
 

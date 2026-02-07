@@ -10,7 +10,7 @@ Features:
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 from openai import AsyncOpenAI
@@ -633,7 +633,7 @@ class LLMEvaluator(BaseBackendEvaluator):
             metadata = {
                 "custom_fields": custom_fields,
                 "schema_warnings": schema_warnings,
-                "evaluated_at": datetime.utcnow().isoformat(),
+                "evaluated_at": datetime.now(timezone.utc).isoformat(),
             }
             if self.evaluator_id:
                 metadata["evaluator_id"] = self.evaluator_id

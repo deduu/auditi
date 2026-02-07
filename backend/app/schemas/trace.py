@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 from pydantic import Field, model_validator
-from .base import APIModel
+from .base import APIModel, UTCDatetime
 from .span import SpanDetail
 
 # ============================================================================
@@ -100,8 +100,8 @@ class TraceSummary(APIModel):
     status: str = "pending"
     score: Optional[float] = None
 
-    start_time: datetime = Field(..., alias="startTime")
-    end_time: Optional[datetime] = Field(None, alias="endTime")
+    start_time: UTCDatetime = Field(..., alias="startTime")
+    end_time: Optional[UTCDatetime] = Field(None, alias="endTime")
     latency_ms: float = Field(0.0, alias="latencyMs")
 
     model_name: Optional[str] = Field(None, alias="modelName")

@@ -167,3 +167,42 @@ class AnomaliesResponse(BaseModel):
     metrics: List[AnomalyMetric]
     total_anomalies: int
     summary: str
+
+
+class LatencyPercentileDataPoint(BaseModel):
+    date: str
+    p50: float
+    p90: float
+    p95: float
+    p99: float
+
+
+class LatencyPercentilesTimeSeriesResponse(BaseModel):
+    trace_latency: List[LatencyPercentileDataPoint]
+    generation_latency: List[LatencyPercentileDataPoint]
+    span_latency: List[LatencyPercentileDataPoint]
+
+
+class UserConsumptionDataPoint(BaseModel):
+    date: str
+    value: float
+    user_id: str
+
+
+class UserConsumptionResponse(BaseModel):
+    data: List[UserConsumptionDataPoint]
+    users: List[str]
+    metric: str
+    total: float
+
+
+class ScoreTrendDataPoint(BaseModel):
+    date: str
+    evaluator_name: str
+    value: float
+
+
+class ScoreTrendByEvaluatorResponse(BaseModel):
+    data: List[ScoreTrendDataPoint]
+    evaluators: List[str]
+    total_avg: float

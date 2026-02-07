@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import Field
-from .base import APIModel
+from .base import APIModel, UTCDatetime
 
 
 class SpanEvaluation(APIModel):
@@ -19,8 +19,8 @@ class SpanDetail(APIModel):
     span_type: str = Field(..., alias="spanType")
     model: Optional[str] = None
 
-    start_time: datetime = Field(..., alias="startTime")
-    end_time: Optional[datetime] = Field(None, alias="endTime")
+    start_time: UTCDatetime = Field(..., alias="startTime")
+    end_time: Optional[UTCDatetime] = Field(None, alias="endTime")
 
     duration_ms: float = Field(..., alias="durationMs")  # Changed from duration to durationMs
 
