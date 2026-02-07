@@ -128,6 +128,19 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+**User Tracking:** To attribute traces to specific users (visible in the Dashboard's User Consumption chart), set `user_id` at init or via context:
+
+```python
+# Option 1: Set at init (convenient for auto-instrumentation)
+auditi.init(base_url="http://localhost:8000", user_id="user123")
+auditi.instrument()
+
+# Option 2: Set context separately (useful for dynamic user_id)
+auditi.init(base_url="http://localhost:8000")
+auditi.set_context(user_id="user123", session_id="conv456")
+auditi.instrument()
+```
+
 #### Method 2: Decorators (Manual Control)
 
 Use decorators for more granular control over tracing:
