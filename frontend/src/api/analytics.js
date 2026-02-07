@@ -119,6 +119,38 @@ export function getObservationsByLevel(timeRange = "7d") {
   return client.get("/analytics/observations-by-level", { timeRange });
 }
 
+/**
+ * Get latency percentiles time-series data for traces, generations, and spans
+ * @param {string} timeRange - Time range filter
+ * @returns {Promise<{trace_latency: Array, generation_latency: Array, span_latency: Array}>}
+ */
+export function getLatencyPercentilesTimeSeries(timeRange = "7d") {
+  return client.get("/analytics/latency-percentiles-time-series", { timeRange });
+}
+
+/**
+ * Get per-user consumption time-series data
+ * @param {Object} params - Query parameters
+ * @param {string} params.timeRange - Time range filter
+ * @param {string} params.metric - "cost" or "count"
+ * @param {number} params.limit - Max number of users
+ * @returns {Promise<{data: Array, users: Array, metric: string, total: number}>}
+ */
+export function getUserConsumption({ timeRange = "7d", metric = "cost", limit = 10 } = {}) {
+  return client.get("/analytics/user-consumption", { timeRange, metric, limit });
+}
+
+/**
+ * Get score trends broken down by evaluator over time
+ * @param {Object} params - Query parameters
+ * @param {string} params.timeRange - Time range filter
+ * @param {number} params.limit - Max number of evaluators
+ * @returns {Promise<{data: Array, evaluators: Array, total_avg: number}>}
+ */
+export function getScoreTrendsByEvaluator({ timeRange = "7d", limit = 5 } = {}) {
+  return client.get("/analytics/score-trends-by-evaluator", { timeRange, limit });
+}
+
 export default {
   getScoreDistribution,
   getLowScoringTraces,
@@ -131,4 +163,7 @@ export default {
   getAnomalies,
   getDashboardKpis,
   getObservationsByLevel,
+  getLatencyPercentilesTimeSeries,
+  getUserConsumption,
+  getScoreTrendsByEvaluator,
 };

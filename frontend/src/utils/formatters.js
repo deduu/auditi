@@ -1,3 +1,55 @@
+import { format } from "date-fns";
+
+/**
+ * Parse a datetime string from the API, treating naive timestamps as UTC.
+ * If the string has no timezone indicator (no Z, no +/-offset), appends 'Z'.
+ */
+export function parseUTCDate(dateString) {
+  if (!dateString) return null;
+  const s = String(dateString);
+  if (s.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(s)) {
+    return new Date(s);
+  }
+  return new Date(s + "Z");
+}
+
+/**
+ * Format a datetime string from the API using date-fns.
+ * Treats naive timestamps as UTC, then displays in local timezone.
+ */
+export function formatDateTime(dateString, fmt = "PPpp") {
+  const date = parseUTCDate(dateString);
+  if (!date || isNaN(date.getTime())) return "N/A";
+  return format(date, fmt);
+}
+
+/**
+ * Format a datetime string as locale date only.
+ */
+export function formatDate(dateString) {
+  const date = parseUTCDate(dateString);
+  if (!date || isNaN(date.getTime())) return "N/A";
+  return date.toLocaleDateString();
+}
+
+/**
+ * Format a timestamp for detailed display (with timezone name).
+ */
+export function formatTimestamp(dateString) {
+  const date = parseUTCDate(dateString);
+  if (!date || isNaN(date.getTime())) return "N/A";
+  return date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    fractionalSecondDigits: 3,
+    timeZoneName: "short",
+  });
+}
 
 export const formatLatency = (seconds) => {
   if (typeof seconds !== 'number') return '0s';

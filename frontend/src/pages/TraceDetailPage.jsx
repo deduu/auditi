@@ -5,7 +5,7 @@ import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import ContentRenderer from "../components/ui/ContentRenderer";
-import { format } from "date-fns";
+import { formatDateTime } from "@utils/formatters";
 import { EvaluationBadge } from "../components/ui/EvaluationBadge";
 import { SpanItem } from "../components/ui/SpanItem";
 
@@ -50,7 +50,7 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                         <div className="flex items-center text-sm text-slate-400 mt-1 space-x-4">
                             <span className="flex items-center">
                                 <Clock className="w-3.5 h-3.5 mr-1.5" />
-                                {format(new Date(trace.startTime), "PPpp")}
+                                {formatDateTime(trace.startTime, "PPpp")}
                             </span>
                             <span className="flex items-center">
                                 <Database className="w-3.5 h-3.5 mr-1.5" />

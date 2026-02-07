@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Badge } from "./Badge";
 import ContentRenderer from "./ContentRenderer";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { formatTimestamp } from "@utils/formatters";
 
 export const SpanItem = ({ span, isFinalGenerator = false, showEvaluation = true }) => {
     const [showDetails, setShowDetails] = useState(isFinalGenerator); // Auto-expand if final generator
@@ -49,24 +50,6 @@ export const SpanItem = ({ span, isFinalGenerator = false, showEvaluation = true
         tokenParts.push(`out ${outputTokens}`);
     if (typeof resolvedTotalTokens === "number" && resolvedTotalTokens > 0)
         tokenParts.push(`total ${resolvedTotalTokens}`);
-
-    const formatTimestamp = (timestamp) => {
-        if (!timestamp) return "N/A";
-
-        const d = new Date(timestamp);
-
-        return d.toLocaleString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "2-digit",
-            hour12: false,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            fractionalSecondDigits: 3,
-            timeZoneName: "short", // ✅ adds timezone, e.g. GMT+7
-        });
-    };
 
     return (
         <div

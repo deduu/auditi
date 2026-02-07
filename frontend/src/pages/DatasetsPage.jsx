@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { formatDate } from "@utils/formatters";
 import {
   Plus,
   Database,
@@ -456,7 +457,7 @@ const DatasetCard = ({ dataset, onView, onExport, onDelete, onEdit }) => {
             )}
             <div className="flex items-center space-x-4 mt-1 text-xs text-slate-500">
               <span>{dataset.item_count} items</span>
-              <span>Created {new Date(dataset.created_at).toLocaleDateString()}</span>
+              <span>Created {formatDate(dataset.created_at)}</span>
             </div>
           </div>
         </div>

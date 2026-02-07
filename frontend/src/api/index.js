@@ -71,6 +71,9 @@ const api = {
   getAnomalies: analyticsApi.getAnomalies,
   getDashboardKpis: analyticsApi.getDashboardKpis,
   getObservationsByLevel: analyticsApi.getObservationsByLevel,
+  getLatencyPercentilesTimeSeries: analyticsApi.getLatencyPercentilesTimeSeries,
+  getUserConsumption: analyticsApi.getUserConsumption,
+  getScoreTrendsByEvaluator: analyticsApi.getScoreTrendsByEvaluator,
 };
 
 export default api;

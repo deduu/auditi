@@ -12,7 +12,8 @@ import {
     Tooltip,
     ResponsiveContainer,
     Legend,
-    Cell
+    Cell,
+    ReferenceLine
 } from "recharts";
 import {
     ChevronDown,
@@ -111,6 +112,7 @@ const ModelCostTableCard = ({ total, data }) => (
                         <th className="pb-3 text-left">Model</th>
                         <th className="pb-3 text-right">Tokens</th>
                         <th className="pb-3 text-right">USD</th>
+                        <th className="pb-3 text-right">Share</th>
                     </tr>
                 </thead>
                 <tbody className="text-slate-300 divide-y divide-slate-800/50">
@@ -128,11 +130,19 @@ const ModelCostTableCard = ({ total, data }) => (
                                 <td className="py-3 pl-2 text-right font-medium text-slate-300">
                                     ${item.cost.toFixed(6)}
                                 </td>
+                                <td className="py-3 pl-2 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <div className="w-12 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${total ? (item.cost / total * 100) : 0}%` }} />
+                                        </div>
+                                        <span className="text-slate-400 text-xs w-10 text-right">{total ? (item.cost / total * 100).toFixed(1) : 0}%</span>
+                                    </div>
+                                </td>
                             </tr>
                         ))
                     ) : (
                         <tr>
-                            <td colSpan="3" className="py-4 text-center text-slate-500">No model cost data</td>
+                            <td colSpan="4" className="py-4 text-center text-slate-500">No model cost data</td>
                         </tr>
                     )}
                 </tbody>
@@ -170,7 +180,7 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false }) => (
                                 <td className="py-3 px-1 text-right text-slate-400">
                                     {item.count >= 1000 ? `${(item.count / 1000).toFixed(2)}K` : item.count}
                                 </td>
-                                <td className="py-3 px-1 text-right font-medium text-slate-200">{item.avg}</td>
+                                <td className="py-3 px-1 text-right font-medium text-slate-200">{(item.avg * 100).toFixed(0)}%</td>
                                 <td className="py-3 px-1 text-right text-rose-400">
                                     {item.fail_count >= 1000 ? `${(item.fail_count / 1000).toFixed(1)}K` : item.fail_count}
                                 </td>
@@ -303,6 +313,9 @@ export const DashboardPage = () => {
     const [dashboardKPIs, setDashboardKPIs] = useState(null);
     const [scoreDistribution, setScoreDistribution] = useState(null);
     const [observationsData, setObservationsData] = useState(null);
+    const [latencyData, setLatencyData] = useState(null);
+    const [userConsumptionData, setUserConsumptionData] = useState(null);
+    const [scoreTrendsData, setScoreTrendsData] = useState(null);
 
     // UI States
     const [traceType, setTraceType] = useState(null); // null (all), 'agent', 'standalone'
@@ -355,6 +368,49 @@ export const DashboardPage = () => {
         setObservationsData(null);
     }, [timeRange]);
 
+    // Fetch latency percentiles data
+    useEffect(() => {
+        const fetchLatencyData = async () => {
+            try {
+                const data = await api.getLatencyPercentilesTimeSeries(timeRange);
+                setLatencyData(data);
+            } catch (err) {
+                console.error("Failed to fetch latency data:", err);
+                setLatencyData({ trace_latency: [], generation_latency: [], span_latency: [] });
+            }
+        };
+        fetchLatencyData();
+    }, [timeRange]);
+
+    // Fetch user consumption data
+    useEffect(() => {
+        const fetchUserConsumption = async () => {
+            try {
+                const metric = section3LeftTab === "token-cost" ? "cost" : "count";
+                const data = await api.getUserConsumption({ timeRange, metric, limit: 10 });
+                setUserConsumptionData(data);
+            } catch (err) {
+                console.error("Failed to fetch user consumption:", err);
+                setUserConsumptionData(null);
+            }
+        };
+        fetchUserConsumption();
+    }, [timeRange, section3LeftTab]);
+
+    // Fetch per-evaluator score trends
+    useEffect(() => {
+        const fetchScoreTrends = async () => {
+            try {
+                const data = await api.getScoreTrendsByEvaluator({ timeRange, limit: 5 });
+                setScoreTrendsData(data);
+            } catch (err) {
+                console.error("Failed to fetch score trends:", err);
+                setScoreTrendsData(null);
+            }
+        };
+        fetchScoreTrends();
+    }, [timeRange]);
+
     // Fetch Observations when tab is active
     useEffect(() => {
         if (section2LeftTab === "observations") {
@@ -378,6 +434,28 @@ export const DashboardPage = () => {
         const parts = dateStr.split('-');
         if (parts.length >= 3) return `${parts[1]}/${parts[2]}`;
         return dateStr;
+    };
+
+    // Transform user consumption flat data into Recharts pivot format
+    const transformUserConsumptionData = (rawData) => {
+        if (!rawData?.data?.length) return [];
+        const byDate = {};
+        rawData.data.forEach(({ date, user_id, value }) => {
+            if (!byDate[date]) byDate[date] = { date };
+            byDate[date][user_id] = value;
+        });
+        return Object.values(byDate);
+    };
+
+    // Transform score trends flat data into Recharts pivot format
+    const transformScoreTrendsData = (rawData) => {
+        if (!rawData?.data?.length) return [];
+        const byDate = {};
+        rawData.data.forEach(({ date, evaluator_name, value }) => {
+            if (!byDate[date]) byDate[date] = { date };
+            byDate[date][evaluator_name] = value;
+        });
+        return Object.values(byDate);
     };
 
     // Derived Data Calculations
@@ -440,7 +518,6 @@ export const DashboardPage = () => {
     // Latency percentile data
     const percentileKey = {
         "50th Percentile": "latency_p50",
-        "75th Percentile": "latency_p50", // fallback
         "90th Percentile": "latency_p90",
         "95th Percentile": "latency_p95",
         "99th Percentile": "latency_p99"
@@ -469,7 +546,7 @@ export const DashboardPage = () => {
                     <p className="mt-1 text-slate-400">Overview of your AI system performance</p>
                 </div>
                 <div className="inline-flex rounded-lg overflow-hidden border border-slate-600">
-                    {["24h", "7d", "30d"].map((range, index) => (
+                    {["24h", "7d", "30d", "90d"].map((range, index) => (
                         <button
                             key={range}
                             onClick={() => setTimeRange(range)}
@@ -542,9 +619,12 @@ export const DashboardPage = () => {
                                                     </linearGradient>
                                                 </defs>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
+                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
                                                 <YAxis stroke="#64748b" fontSize={12} />
                                                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                                {trends.volume.previous > 0 && (
+                                                    <ReferenceLine y={trends.volume.previous} stroke="#64748b" strokeDasharray="5 5" label={{ value: "Prev avg", position: "insideTopRight", fill: "#64748b", fontSize: 11 }} />
+                                                )}
                                                 <Area type="monotone" dataKey="value" name="Traces" stroke="#3b82f6" fill="url(#traceGradient)" strokeWidth={2} />
                                             </AreaChart>
                                         </ResponsiveContainer>
@@ -558,7 +638,7 @@ export const DashboardPage = () => {
                                         <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                             <AreaChart data={observationsData.data}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
+                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
                                                 <YAxis stroke="#64748b" fontSize={12} />
                                                 <Tooltip content={<CustomTooltip />} />
                                                 <Legend />
@@ -637,22 +717,72 @@ export const DashboardPage = () => {
                             activeTab={section3LeftTab}
                             onTabChange={setSection3LeftTab}
                         >
-                            <div className="h-72">
-                                <EmptyChart message="User consumption data not available" />
+                            <div className="mb-4">
+                                <span className="text-2xl font-bold text-blue-400">
+                                    {userConsumptionData
+                                        ? section3LeftTab === "token-cost"
+                                            ? `$${(userConsumptionData.total || 0).toFixed(4)}`
+                                            : (userConsumptionData.total || 0).toLocaleString()
+                                        : "—"}
+                                </span>
+                                <span className="text-slate-400 ml-2">
+                                    {section3LeftTab === "token-cost" ? "Total cost" : "Total traces"}
+                                </span>
+                            </div>
+                            <div className="h-64">
+                                {!userConsumptionData ? (
+                                    <div className="h-full flex items-center justify-center">
+                                        <span className="text-slate-500 text-sm">Loading user consumption...</span>
+                                    </div>
+                                ) : userConsumptionData.data?.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                        <LineChart data={transformUserConsumptionData(userConsumptionData)}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                            <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
+                                            <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => section3LeftTab === "token-cost" ? `$${v.toFixed(2)}` : v} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
+                                            <Legend />
+                                            {userConsumptionData.users.map((userId, idx) => (
+                                                <Line key={userId} type="monotone" dataKey={userId} name={userId} stroke={COLORS[idx % COLORS.length]} strokeWidth={2} dot={false} />
+                                            ))}
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <EmptyChart message="No user consumption data available" />
+                                )}
                             </div>
                         </ChartCard>
 
-                        {/* RIGHT: Scores (Moving average) */}
+                        {/* RIGHT: Scores by evaluator */}
                         <ChartCard
                             title="Scores"
-                            subtitle="Moving average per score"
+                            subtitle="Average score per evaluator over time"
                         >
-                            <div className="h-72">
-                                {trends?.score?.data?.length > 0 ? (
+                            <div className="mb-4">
+                                <span className="text-2xl font-bold text-emerald-400">
+                                    {scoreTrendsData ? `${scoreTrendsData.total_avg.toFixed(1)}%` : trends?.score?.current ? `${(trends.score.current).toFixed(1)}%` : "—"}
+                                </span>
+                                <span className="text-slate-400 ml-2">Average score</span>
+                            </div>
+                            <div className="h-60">
+                                {scoreTrendsData?.data?.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                        <LineChart data={transformScoreTrendsData(scoreTrendsData)}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                            <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
+                                            <YAxis domain={[0, 100]} stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
+                                            <Legend />
+                                            {scoreTrendsData.evaluators.map((name, idx) => (
+                                                <Line key={name} type="monotone" dataKey={name} name={name} stroke={COLORS[idx % COLORS.length]} strokeWidth={2} dot={false} />
+                                            ))}
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                ) : trends?.score?.data?.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                                         <LineChart data={trends.score.data}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                            <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
+                                            <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
                                             <YAxis domain={[0, 100]} stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
                                             <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
                                             <Line type="monotone" dataKey="value" name="Score" stroke="#10b981" strokeWidth={2} dot={false} />
@@ -667,21 +797,37 @@ export const DashboardPage = () => {
 
                     {/* ============== SECTION 4: Latency Percentiles ============== */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <ChartCard title="Trace latency percentiles">
-                            <div className="h-48">
-                                <EmptyChart message="Trace latency data not available" />
-                            </div>
-                        </ChartCard>
-                        <ChartCard title="Generation latency percentiles">
-                            <div className="h-48">
-                                <EmptyChart message="Generation latency data not available" />
-                            </div>
-                        </ChartCard>
-                        <ChartCard title="Span latency percentiles">
-                            <div className="h-48">
-                                <EmptyChart message="Span latency data not available" />
-                            </div>
-                        </ChartCard>
+                        {[
+                            { title: "Trace latency percentiles", key: "trace_latency" },
+                            { title: "Generation latency percentiles", key: "generation_latency" },
+                            { title: "Span latency percentiles", key: "span_latency" },
+                        ].map(({ title, key }) => (
+                            <ChartCard key={key} title={title}>
+                                <div className="h-48">
+                                    {!latencyData ? (
+                                        <div className="h-full flex items-center justify-center">
+                                            <span className="text-slate-500 text-sm">Loading...</span>
+                                        </div>
+                                    ) : latencyData[key]?.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                            <LineChart data={latencyData[key]}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={11} minTickGap={40} />
+                                                <YAxis stroke="#64748b" fontSize={11} tickFormatter={(v) => `${v}s`} />
+                                                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
+                                                <Legend iconSize={8} wrapperStyle={{ fontSize: '11px' }} />
+                                                <Line type="monotone" dataKey="p50" name="P50" stroke="#10b981" strokeWidth={2} dot={false} />
+                                                <Line type="monotone" dataKey="p90" name="P90" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                                                <Line type="monotone" dataKey="p95" name="P95" stroke="#ef4444" strokeWidth={2} dot={false} />
+                                                <Line type="monotone" dataKey="p99" name="P99" stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <EmptyChart message={`No ${title.toLowerCase().replace(' percentiles', '')} data`} />
+                                    )}
+                                </div>
+                            </ChartCard>
+                        ))}
                     </div>
 
                     {/* ============== SECTION 5: Model Latencies ============== */}
@@ -690,7 +836,6 @@ export const DashboardPage = () => {
                         subtitle="Latencies (seconds) per LLM generation"
                         tabs={[
                             { id: "50th Percentile", label: "50th Percentile" },
-                            { id: "75th Percentile", label: "75th Percentile" },
                             { id: "90th Percentile", label: "90th Percentile" },
                             { id: "95th Percentile", label: "95th Percentile" },
                             { id: "99th Percentile", label: "99th Percentile" }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { formatTimestamp } from "@utils/formatters";
 import {
     Play, Filter, Calendar, Layers, Tag, CheckCircle,
     AlertCircle, Loader2, ChevronDown, X, Database,
@@ -524,7 +525,7 @@ export const RunEvaluatorPage = ({
                                                     />
                                                 </td>
                                                 <td className="px-3 py-2 text-slate-400 text-xs">
-                                                    {new Date(trace.start_time).toLocaleString()}
+                                                    {formatTimestamp(trace.start_time)}
                                                 </td>
                                                 <td className="px-3 py-2 text-white">{trace.name || "—"}</td>
                                                 <td className="px-3 py-2 text-slate-300 max-w-32 truncate">

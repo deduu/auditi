@@ -1,4 +1,5 @@
 import React from "react";
+import { formatDate, parseUTCDate } from "@utils/formatters";
 import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Badge } from "../ui/Badge";
 
@@ -136,10 +137,10 @@ export const ConversationTable = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-white">
-                    {new Date(session.startTime).toLocaleDateString()}
+                    {formatDate(session.startTime)}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {new Date(session.startTime).toLocaleTimeString()}
+                    {parseUTCDate(session.startTime)?.toLocaleTimeString() ?? "N/A"}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

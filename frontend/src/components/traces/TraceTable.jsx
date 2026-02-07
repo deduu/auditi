@@ -12,7 +12,7 @@ import {
     HelpCircle,
     MoreHorizontal
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateTime } from '@utils/formatters';
 
 const StatusBadge = ({ status }) => {
     const styles = {
@@ -177,7 +177,7 @@ export const TraceTable = ({
                                 {(trace.latencyMs / 1000).toFixed(2)}s
                             </td>
                             <td className="px-6 py-4 text-right text-sm text-slate-400 whitespace-nowrap">
-                                {format(new Date(trace.startTime), 'MMM d, HH:mm')}
+                                {formatDateTime(trace.startTime, 'MMM d, HH:mm')}
                             </td>
                             <td className="px-6 py-4 text-right">
                                 <MoreHorizontal className="w-5 h-5 text-slate-600 group-hover:text-slate-400 transition-colors" />

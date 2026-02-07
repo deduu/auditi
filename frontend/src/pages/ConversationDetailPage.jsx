@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { formatTimestamp } from "@utils/formatters";
 import {
   ArrowLeft,
   User,
@@ -302,7 +303,7 @@ export const ConversationDetailPage = ({ conversationId, onBack, inPanel = false
                 </span>
                 <span className="flex items-center">
                   <Clock className="w-4 h-4 mr-1" />
-                  {new Date(detail.startTime).toLocaleString()}
+                  {formatTimestamp(detail.startTime)}
                 </span>
                 <span className="flex items-center">
                   <Zap className="w-4 h-4 mr-1" />

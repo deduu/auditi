@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { formatDate } from "@utils/formatters";
 import {
   Plus,
   ListTodo,
@@ -858,7 +859,7 @@ const AddTracesModal = ({ isOpen, onClose, queue, onSave }) => {
                   <div className="flex items-center space-x-3 mt-1 text-xs text-slate-500">
                     {trace.model_name && <span>{trace.model_name}</span>}
                     {trace.start_time && (
-                      <span>{new Date(trace.start_time).toLocaleDateString()}</span>
+                      <span>{formatDate(trace.start_time)}</span>
                     )}
                   </div>
                 </div>
@@ -982,7 +983,7 @@ const ViewCompletedModal = ({ isOpen, onClose, queue, scoreConfigs }) => {
                     <div className="flex items-center space-x-2">
                       {item.completed_at && (
                         <span className="text-xs text-slate-500">
-                          {new Date(item.completed_at).toLocaleDateString()}
+                          {formatDate(item.completed_at)}
                         </span>
                       )}
                       {expandedItems.has(item.id) ? (
