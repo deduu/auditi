@@ -516,6 +516,45 @@ auditi.init(
 )
 ```
 
+### FastAPI Middleware
+
+For production backends serving many users, use `AuditiMiddleware` to automatically extract `user_id` from each request — no need to call `set_context()` in every endpoint:
+
+```python
+from fastapi import FastAPI
+import auditi
+from auditi import AuditiMiddleware
+
+app = FastAPI()
+auditi.init(api_key="your-api-key")
+auditi.instrument()
+
+# Default: reads X-User-ID and X-Session-ID headers
+app.add_middleware(AuditiMiddleware)
+```
+
+Custom header names:
+
+```python
+app.add_middleware(
+    AuditiMiddleware,
+    user_id_header="X-Tenant-ID",
+    session_id_header="X-Conversation-ID",
+)
+```
+
+Custom resolver (e.g. JWT decoding):
+
+```python
+def resolve_user(scope):
+    headers = dict(scope.get("headers", []))
+    token = headers.get(b"authorization", b"").decode().removeprefix("Bearer ")
+    claims = decode_jwt(token)
+    return claims.get("sub"), claims.get("session_id")
+
+app.add_middleware(AuditiMiddleware, user_id_resolver=resolve_user)
+```
+
 ## Model Pricing
 
 Auditi automatically calculates costs for every LLM call. Pricing is resolved in priority order:
@@ -610,6 +649,16 @@ Initialize the Auditi SDK.
 ### `auditi.set_context(user_id=None, session_id=None)`
 
 Set global context for the current execution context. Useful for dynamically changing `user_id` per request.
+
+### `AuditiMiddleware(app, user_id_header="X-User-ID", session_id_header="X-Session-ID", user_id_resolver=None)`
+
+ASGI middleware for FastAPI/Starlette. Extracts `user_id` and `session_id` from each request and sets them via `set_context()`.
+
+**Parameters:**
+
+- `user_id_header` (str): Header name to read user_id from (default: `X-User-ID`)
+- `session_id_header` (str): Header name to read session_id from (default: `X-Session-ID`)
+- `user_id_resolver` (callable, optional): Custom function `(scope) -> (user_id, session_id)`. When provided, headers are ignored.
 
 ### Decorators
 

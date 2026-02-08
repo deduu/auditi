@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "auditi"
-version = "0.1.2"
+version = "0.1.3"
 description = "Trace, monitor, and evaluate AI agents and LLM applications with simple decorators"
 readme = "README.md"
 license = {text = "MIT"}

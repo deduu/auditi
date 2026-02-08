@@ -17,6 +17,7 @@ from .events import EventType, StreamEvent
 from .pricing import configure_pricing
 
 from .instrumentation import instrument
+from .middleware import AuditiMiddleware
 
 __version__ = "0.1.0"
 
@@ -27,6 +28,8 @@ __all__ = [
     "AuditiClient",
     # Instrumentation
     "instrument",
+    # Middleware
+    "AuditiMiddleware",
     # Pricing
     "configure_pricing",
     # Context
