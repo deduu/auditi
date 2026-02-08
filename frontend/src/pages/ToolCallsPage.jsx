@@ -21,10 +21,12 @@ import {
     Clock,
     DollarSign,
     Zap,
-    AlertTriangle
+    AlertTriangle,
+    Layers
 } from "lucide-react";
 import api from "../api";
 import { Card } from "../components/ui/Card";
+import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
@@ -142,41 +144,29 @@ export const ToolCallsPage = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                     {/* Span Type Filter */}
-                    <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
+                    <div className="flex gap-1 bg-slate-900/80 border border-slate-800 rounded-lg p-1">
                         {[
-                            { value: null, label: 'All' },
-                            { value: 'tool', label: 'Tools' },
-                            { value: 'llm', label: 'LLM' },
-                            { value: 'agent', label: 'Agent' }
+                            { value: null, label: 'All', icon: Layers },
+                            { value: 'tool', label: 'Tools', icon: Wrench },
+                            { value: 'llm', label: 'LLM', icon: Cpu },
+                            { value: 'agent', label: 'Agent', icon: Bot }
                         ].map((filter) => (
                             <button
                                 key={filter.label}
                                 onClick={() => setSpanTypeFilter(filter.value)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${spanTypeFilter === filter.value
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center space-x-1.5 ${spanTypeFilter === filter.value
                                     ? "bg-purple-600 text-white shadow-lg"
                                     : "text-slate-400 hover:text-white"
                                     }`}
                             >
-                                {filter.label}
+                                <filter.icon className="w-3.5 h-3.5" />
+                                <span>{filter.label}</span>
                             </button>
                         ))}
                     </div>
 
                     {/* Time Range Filter */}
-                    <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
-                        {["24h", "7d", "30d"].map((range) => (
-                            <button
-                                key={range}
-                                onClick={() => setTimeRange(range)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
-                                    ? "bg-blue-600 text-white shadow-lg"
-                                    : "text-slate-400 hover:text-white"
-                                    }`}
-                            >
-                                {range.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
+                    <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
                 </div>
             </div>
 

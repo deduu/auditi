@@ -4,6 +4,7 @@ import api from "../api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { exportToCSV } from "../utils/exportUtils";
+import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
 
 const getScoreColor = (score) => {
     if (score >= 75) return "text-emerald-400";
@@ -199,20 +200,7 @@ export const ScoresPage = () => {
                     <p className="mt-1 text-slate-400">Evaluation performance and quality metrics</p>
                 </div>
                 <div className="flex items-center space-x-3">
-                    <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
-                        {["24h", "7d", "30d"].map((range) => (
-                            <button
-                                key={range}
-                                onClick={() => setTimeRange(range)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
-                                    ? "bg-blue-600 text-white shadow-lg"
-                                    : "text-slate-400 hover:text-white"
-                                    }`}
-                            >
-                                {range.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
+                    <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
                     <Button variant="outline" size="sm" onClick={() => exportToCSV(evaluations, "scores_report")}>
                         <BarChart3 className="w-4 h-4 mr-2" />
                         Export

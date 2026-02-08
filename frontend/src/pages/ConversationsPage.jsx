@@ -181,6 +181,8 @@ export const ConversationsPage = ({ onSelectConversation }) => {
                     <option value="24h">Last 24 Hours</option>
                     <option value="7d">Last 7 Days</option>
                     <option value="30d">Last 30 Days</option>
+                    <option value="60d">Last 60 Days</option>
+                    <option value="90d">Last 90 Days</option>
                   </select>
                 </div>
               </div>

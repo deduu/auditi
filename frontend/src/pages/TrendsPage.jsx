@@ -30,10 +30,12 @@ import {
     Lightbulb,
     ArrowRight,
     Zap,
-    AlertCircle
+    AlertCircle,
+    BarChart3
 } from "lucide-react";
 import api from "../api";
 import { Card } from "../components/ui/Card";
+import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
 
 const CORRELATION_COLORS = {
     strong_positive: '#10b981',
@@ -238,21 +240,22 @@ export const TrendsPage = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                     {/* Tab Selector */}
-                    <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
+                    <div className="flex gap-1 bg-slate-900/80 border border-slate-800 rounded-lg p-1">
                         {[
-                            { id: 'trends', label: 'Trends' },
-                            { id: 'anomalies', label: 'Anomalies', badge: anomalies?.total_anomalies || 0 },
-                            { id: 'correlations', label: 'Correlations' },
-                            { id: 'forecast', label: 'Forecast' }
+                            { id: 'trends', label: 'Trends', icon: TrendingUp },
+                            { id: 'anomalies', label: 'Anomalies', icon: Zap, badge: anomalies?.total_anomalies || 0 },
+                            { id: 'correlations', label: 'Correlations', icon: GitBranch },
+                            { id: 'forecast', label: 'Forecast', icon: BarChart3 }
                         ].map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center space-x-1 ${activeTab === tab.id
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center space-x-1.5 ${activeTab === tab.id
                                     ? "bg-purple-600 text-white shadow-lg"
                                     : "text-slate-400 hover:text-white"
                                     }`}
                             >
+                                <tab.icon className="w-3.5 h-3.5" />
                                 <span>{tab.label}</span>
                                 {tab.badge > 0 && (
                                     <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${activeTab === tab.id
@@ -267,20 +270,7 @@ export const TrendsPage = () => {
                     </div>
 
                     {/* Time Range */}
-                    <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
-                        {["24h", "7d", "30d", "90d"].map((range) => (
-                            <button
-                                key={range}
-                                onClick={() => setTimeRange(range)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
-                                    ? "bg-blue-600 text-white shadow-lg"
-                                    : "text-slate-400 hover:text-white"
-                                    }`}
-                            >
-                                {range.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
+                    <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
                 </div>
             </div>
 

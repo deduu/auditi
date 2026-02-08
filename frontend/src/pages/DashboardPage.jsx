@@ -17,10 +17,15 @@ import {
 } from "recharts";
 import {
     ChevronDown,
-    Info
+    Info,
+    Maximize2,
+    Download
 } from "lucide-react";
 import api from "../api";
 import { Card } from "../components/ui/Card";
+import { Modal } from "../components/ui/Modal";
+import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
+import { exportToCSV } from "../utils/exportUtils";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -32,65 +37,99 @@ const EmptyChart = ({ message = "No data" }) => (
     </div>
 );
 
-const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAllTraces = false }) => (
-    <Card className="bg-slate-900/50 border-slate-800 p-6 flex flex-col h-full">
-        <div className="mb-4">
-            <h3 className="text-lg font-bold text-white mb-1">Traces</h3>
-            <div className="flex items-baseline space-x-2 mb-4">
-                <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
-                <span className="text-sm text-slate-400">Total traces tracked</span>
-            </div>
-            {/* Underline tabs */}
-            <div className="flex items-center gap-5 border-b border-slate-700">
-                {['all', 'agent', 'standalone'].map((type) => (
-                    <button
-                        key={type}
-                        onClick={() => onTypeChange(type === 'all' ? null : type)}
-                        className={`relative pb-2.5 text-sm font-medium transition-colors duration-200
-                            ${(type === 'all' && !traceType) || traceType === type
-                                ? "text-blue-400"
-                                : "text-slate-400 hover:text-slate-200"
-                            }`}
-                    >
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                        {((type === 'all' && !traceType) || traceType === type) && (
-                            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-                        )}
-                    </button>
-                ))}
-            </div>
-        </div>
+const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAllTraces = false, countsByType, onExpand, isExpanded = false }) => {
+    const displayData = data && !isExpanded && !showAllTraces ? data.slice(0, 5) : data;
 
-        <div className={`flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar ${showAllTraces ? 'max-h-[400px]' : 'max-h-[200px]'}`}>
-            {data && data.length > 0 ? (
-                data.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between text-sm group hover:bg-slate-800/50 p-2 rounded-md transition-colors cursor-pointer">
-                        <div className="flex items-center space-x-3 w-3/4">
-                            <div className={`w-1 h-8 rounded-full shrink-0 ${item.type === 'agent' ? 'bg-purple-400/80' : item.type === 'standalone' ? 'bg-emerald-400/80' : 'bg-indigo-400/80'}`} />
-                            <span className="text-slate-300 truncate font-medium" title={item.name}>{item.name}</span>
+    return (
+        <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
+            <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                    <h3 className="text-lg font-bold text-white">Traces</h3>
+                    {!isExpanded && onExpand && (
+                        <button
+                            onClick={onExpand}
+                            className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                            title="Expand"
+                        >
+                            <Maximize2 className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
+                <div className="flex items-baseline space-x-2 mb-4">
+                    <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
+                    <span className="text-sm text-slate-400">Total traces tracked</span>
+                </div>
+                {/* Underline tabs */}
+                <div className="flex items-center gap-5 border-b border-slate-700">
+                    {['all', 'agent', 'standalone'].map((type) => {
+                        const count = countsByType?.[type];
+                        return (
+                            <button
+                                key={type}
+                                onClick={() => onTypeChange(type === 'all' ? null : type)}
+                                className={`relative pb-2.5 text-sm font-medium transition-colors duration-200
+                                    ${(type === 'all' && !traceType) || traceType === type
+                                        ? "text-blue-400"
+                                        : "text-slate-400 hover:text-slate-200"
+                                    }`}
+                            >
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                                {count !== undefined && (
+                                    <span className="ml-1.5 text-xs text-slate-500">({count.toLocaleString()})</span>
+                                )}
+                                {((type === 'all' && !traceType) || traceType === type) && (
+                                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                {displayData && displayData.length > 0 ? (
+                    displayData.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-sm group hover:bg-slate-800/50 p-2 rounded-md transition-colors cursor-pointer">
+                            <div className="flex items-center space-x-3 w-3/4">
+                                <div className="w-1 h-8 rounded-full shrink-0 bg-indigo-400/80" />
+                                <span className="text-slate-300 truncate font-medium" title={item.name}>{item.name}</span>
+                            </div>
+                            <span className="text-slate-400 font-medium">{item.count.toLocaleString()}</span>
                         </div>
-                        <span className="text-slate-400 font-medium">{item.count.toLocaleString()}</span>
-                    </div>
-                ))
-            ) : (
-                <div className="text-slate-500 text-sm text-center py-4">No trace data available</div>
+                    ))
+                ) : (
+                    <div className="text-slate-500 text-sm text-center py-4">No trace data available</div>
+                )}
+            </div>
+
+            {!isExpanded && data && data.length > 5 && (
+                <button
+                    className="flex items-center justify-center w-full mt-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-md transition-all duration-200 cursor-pointer"
+                    onClick={onShowAll}
+                >
+                    <ChevronDown className={`w-4 h-4 mr-1 transition-transform duration-200 ${showAllTraces ? 'rotate-180' : ''}`} />
+                    {showAllTraces ? 'Show less' : 'Show all'}
+                </button>
             )}
-        </div>
+        </Card>
+    );
+};
 
-        <button
-            className="flex items-center justify-center w-full mt-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-md transition-all duration-200 cursor-pointer"
-            onClick={onShowAll}
-        >
-            <ChevronDown className={`w-4 h-4 mr-1 transition-transform duration-200 ${showAllTraces ? 'rotate-180' : ''}`} />
-            {showAllTraces ? 'Show less' : 'Show all'}
-        </button>
-    </Card>
-);
-
-const ModelCostTableCard = ({ total, data }) => (
-    <Card className="bg-slate-900/50 border-slate-800 p-6 flex flex-col h-full">
+const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false }) => (
+    <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
         <div className="mb-6">
-            <h3 className="text-lg font-bold text-white mb-2">Model costs</h3>
+            <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold text-white">Model costs</h3>
+                {!isExpanded && onExpand && (
+                    <button
+                        onClick={onExpand}
+                        className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                        title="Expand"
+                    >
+                        <Maximize2 className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
             <div className="flex items-center space-x-2">
                 <span className="text-3xl font-bold text-white">${(total || 0).toFixed(6)}</span>
                 <span className="text-sm text-slate-400">Total cost</span>
@@ -151,17 +190,28 @@ const ModelCostTableCard = ({ total, data }) => (
     </Card>
 );
 
-const ScoreTableCard = ({ total, data, onShowMore, showMore = false }) => (
-    <Card className="bg-slate-900/50 border-slate-800 p-6 flex flex-col h-full">
+const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, isExpanded = false }) => (
+    <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
         <div className="mb-6">
-            <h3 className="text-lg font-bold text-white mb-2">Scores</h3>
+            <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-bold text-white">Scores</h3>
+                {!isExpanded && onExpand && (
+                    <button
+                        onClick={onExpand}
+                        className="p-1 text-slate-500 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                        title="Expand"
+                    >
+                        <Maximize2 className="w-4 h-4" />
+                    </button>
+                )}
+            </div>
             <div className="flex items-baseline space-x-2">
                 <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
                 <span className="text-sm text-slate-400">Total scores tracked</span>
             </div>
         </div>
 
-        <div className={`flex-1 overflow-y-auto custom-scrollbar ${showMore ? 'max-h-[400px]' : 'max-h-[200px]'}`}>
+        <div className={`flex-1 overflow-y-auto custom-scrollbar ${isExpanded ? '' : showMore ? 'max-h-[400px]' : 'max-h-[200px]'}`}>
             <table className="w-full text-sm text-left">
                 <thead className="text-xs text-slate-500 font-semibold uppercase sticky top-0 bg-slate-900/95 backdrop-blur-sm z-10">
                     <tr>
@@ -198,13 +248,15 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false }) => (
             </table>
         </div>
 
-        <button
-            className="flex items-center justify-center w-full mt-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-md transition-all duration-200 cursor-pointer"
-            onClick={onShowMore}
-        >
-            <ChevronDown className={`w-4 h-4 mr-1 transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`} />
-            {showMore ? 'Show less' : 'Show top 20'}
-        </button>
+        {!isExpanded && (
+            <button
+                className="flex items-center justify-center w-full mt-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-md transition-all duration-200 cursor-pointer"
+                onClick={onShowMore}
+            >
+                <ChevronDown className={`w-4 h-4 mr-1 transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`} />
+                {showMore ? 'Show less' : 'Show top 20'}
+            </button>
+        )}
     </Card>
 );
 
@@ -326,6 +378,7 @@ export const DashboardPage = () => {
     const [selectedModel, setSelectedModel] = useState("All models");
     const [showAllTraces, setShowAllTraces] = useState(false);
     const [showMoreScores, setShowMoreScores] = useState(false);
+    const [expandedCard, setExpandedCard] = useState(null); // 'traces' | 'models' | 'scores' | null
 
     // Initial Fetch
     useEffect(() => {
@@ -439,13 +492,23 @@ export const DashboardPage = () => {
     // Transform user consumption flat data into Recharts pivot format
     const transformUserConsumptionData = (rawData) => {
         if (!rawData?.data?.length) return [];
+        const users = rawData.users || [];
         const byDate = {};
         rawData.data.forEach(({ date, user_id, value }) => {
-            if (!byDate[date]) byDate[date] = { date };
+            if (!byDate[date]) {
+                const entry = { date };
+                users.forEach(u => { entry[u] = 0; });
+                byDate[date] = entry;
+            }
             byDate[date][user_id] = value;
         });
         return Object.values(byDate);
     };
+
+    const userConsumptionChartData = useMemo(
+        () => transformUserConsumptionData(userConsumptionData),
+        [userConsumptionData]
+    );
 
     // Transform score trends flat data into Recharts pivot format
     const transformScoreTrendsData = (rawData) => {
@@ -456,6 +519,19 @@ export const DashboardPage = () => {
             byDate[date][evaluator_name] = value;
         });
         return Object.values(byDate);
+    };
+
+    // Export user consumption data as CSV
+    const handleExportUserConsumption = async () => {
+        try {
+            const metric = section3LeftTab === "token-cost" ? "cost" : "count";
+            const allData = await api.getUserConsumption({ timeRange, metric, limit: 1000 });
+            if (allData?.data?.length) {
+                exportToCSV(allData.data, `user_consumption_${metric}`);
+            }
+        } catch (err) {
+            console.error("Failed to export user consumption:", err);
+        }
     };
 
     // Derived Data Calculations
@@ -545,22 +621,7 @@ export const DashboardPage = () => {
                     <h1 className="text-3xl font-bold text-white">Dashboard</h1>
                     <p className="mt-1 text-slate-400">Overview of your AI system performance</p>
                 </div>
-                <div className="inline-flex rounded-lg overflow-hidden border border-slate-600">
-                    {["24h", "7d", "30d", "90d"].map((range, index) => (
-                        <button
-                            key={range}
-                            onClick={() => setTimeRange(range)}
-                            className={`px-4 py-2 text-xs font-medium transition-all duration-150
-                                ${index !== 0 ? 'border-l border-slate-600' : ''}
-                                ${timeRange === range
-                                    ? "bg-blue-600 text-white"
-                                    : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                                }`}
-                        >
-                            {range.toUpperCase()}
-                        </button>
-                    ))}
-                </div>
+                <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
             </div>
 
             {loading ? (
@@ -570,7 +631,7 @@ export const DashboardPage = () => {
             ) : (
                 <>
                     {/* ============== SECTION 1: High-Level KPI Cards ============== */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-96">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <TraceListCard
                             total={dashboardKPIs?.traces?.total}
                             data={dashboardKPIs?.traces?.by_name}
@@ -578,16 +639,20 @@ export const DashboardPage = () => {
                             onTypeChange={setTraceType}
                             showAllTraces={showAllTraces}
                             onShowAll={() => setShowAllTraces(!showAllTraces)}
+                            countsByType={dashboardKPIs?.traces?.counts_by_type}
+                            onExpand={() => setExpandedCard('traces')}
                         />
                         <ModelCostTableCard
                             total={dashboardKPIs?.model_costs?.total}
                             data={dashboardKPIs?.model_costs?.by_model}
+                            onExpand={() => setExpandedCard('models')}
                         />
                         <ScoreTableCard
                             total={dashboardKPIs?.scores?.total}
                             data={dashboardKPIs?.scores?.by_evaluator}
                             showMore={showMoreScores}
                             onShowMore={() => setShowMoreScores(!showMoreScores)}
+                            onExpand={() => setExpandedCard('scores')}
                         />
                     </div>
 
@@ -710,12 +775,23 @@ export const DashboardPage = () => {
                         {/* LEFT: User consumption */}
                         <ChartCard
                             title="User consumption"
+                            subtitle={`Showing top 10 users by ${section3LeftTab === "token-cost" ? "token cost" : "trace count"}. Export for full data.`}
                             tabs={[
                                 { id: "token-cost", label: "Token cost" },
                                 { id: "trace-count", label: "Count of Traces" }
                             ]}
                             activeTab={section3LeftTab}
                             onTabChange={setSection3LeftTab}
+                            rightContent={
+                                <button
+                                    onClick={handleExportUserConsumption}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-600 rounded-lg text-xs text-slate-300 hover:border-slate-500 hover:text-white transition-all"
+                                    title="Export all user data as CSV"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Export
+                                </button>
+                            }
                         >
                             <div className="mb-4">
                                 <span className="text-2xl font-bold text-blue-400">
@@ -736,14 +812,14 @@ export const DashboardPage = () => {
                                     </div>
                                 ) : userConsumptionData.data?.length > 0 ? (
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                        <LineChart data={transformUserConsumptionData(userConsumptionData)}>
+                                        <LineChart data={userConsumptionChartData}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                             <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
                                             <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => section3LeftTab === "token-cost" ? `$${v.toFixed(2)}` : v} />
                                             <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
                                             <Legend />
                                             {userConsumptionData.users.map((userId, idx) => (
-                                                <Line key={userId} type="monotone" dataKey={userId} name={userId} stroke={COLORS[idx % COLORS.length]} strokeWidth={2} dot={false} />
+                                                <Line key={userId} type="monotone" dataKey={userId} name={userId} stroke={COLORS[idx % COLORS.length]} strokeWidth={2} dot={userConsumptionChartData.length <= 2} />
                                             ))}
                                         </LineChart>
                                     </ResponsiveContainer>
@@ -890,6 +966,43 @@ export const DashboardPage = () => {
                     </ChartCard>
                 </>
             )}
+
+            {/* Expanded KPI Card Modal */}
+            <Modal
+                isOpen={!!expandedCard}
+                onClose={() => setExpandedCard(null)}
+                title={expandedCard === 'traces' ? 'Traces' : expandedCard === 'models' ? 'Model Costs' : 'Scores'}
+                size="xl"
+            >
+                {expandedCard === 'traces' && (
+                    <TraceListCard
+                        total={dashboardKPIs?.traces?.total}
+                        data={dashboardKPIs?.traces?.by_name}
+                        traceType={traceType}
+                        onTypeChange={setTraceType}
+                        showAllTraces={true}
+                        onShowAll={() => {}}
+                        countsByType={dashboardKPIs?.traces?.counts_by_type}
+                        isExpanded
+                    />
+                )}
+                {expandedCard === 'models' && (
+                    <ModelCostTableCard
+                        total={dashboardKPIs?.model_costs?.total}
+                        data={dashboardKPIs?.model_costs?.by_model}
+                        isExpanded
+                    />
+                )}
+                {expandedCard === 'scores' && (
+                    <ScoreTableCard
+                        total={dashboardKPIs?.scores?.total}
+                        data={dashboardKPIs?.scores?.by_evaluator}
+                        showMore={true}
+                        onShowMore={() => {}}
+                        isExpanded
+                    />
+                )}
+            </Modal>
         </div>
     );
 };

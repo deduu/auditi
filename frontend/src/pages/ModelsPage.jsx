@@ -16,6 +16,7 @@ import {
 import { Cpu, Zap, Clock, CheckCircle, ArrowUpRight, TrendingDown, DollarSign, AlertTriangle } from "lucide-react";
 import api from "../api";
 import { Card } from "../components/ui/Card";
+import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -128,20 +129,7 @@ export const ModelsPage = () => {
                     <h1 className="text-3xl font-bold text-white">Models</h1>
                     <p className="mt-1 text-slate-400">Compare AI model performance and cost efficiency</p>
                 </div>
-                <div className="flex bg-slate-900/80 border border-slate-800 rounded-lg p-1">
-                    {["24h", "7d", "30d"].map((range) => (
-                        <button
-                            key={range}
-                            onClick={() => setTimeRange(range)}
-                            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
-                                ? "bg-blue-600 text-white shadow-lg"
-                                : "text-slate-400 hover:text-white"
-                                }`}
-                        >
-                            {range.toUpperCase()}
-                        </button>
-                    ))}
-                </div>
+                <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
             </div>
 
             {loading ? (
