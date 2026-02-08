@@ -131,17 +131,33 @@ def get_dashboard_kpis(
         Trace.start_time >= start_date
     )
     if trace_type == "agent":
-        # Agent traces don't have "standalone" tag
         total_traces_query = total_traces_query.filter(
             ~func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
         )
     elif trace_type == "standalone":
-        # Standalone traces have "standalone" tag
         total_traces_query = total_traces_query.filter(
             func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
         )
 
     total_traces = total_traces_query.scalar() or 0
+
+    # Compute counts by trace type for tab badges
+    all_count = db.query(func.count(Trace.id)).filter(
+        Trace.start_time >= start_date
+    ).scalar() or 0
+
+    standalone_count = db.query(func.count(Trace.id)).filter(
+        Trace.start_time >= start_date,
+        func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
+    ).scalar() or 0
+
+    agent_count = all_count - standalone_count
+
+    counts_by_type = {
+        "all": all_count,
+        "agent": agent_count,
+        "standalone": standalone_count,
+    }
 
     # 2. Model costs with tokens
     model_costs_data = (
@@ -209,7 +225,7 @@ def get_dashboard_kpis(
     )
 
     return {
-        "traces": {"total": total_traces, "by_name": traces_by_name},
+        "traces": {"total": total_traces, "by_name": traces_by_name, "counts_by_type": counts_by_type},
         "model_costs": {"total": total_cost, "by_model": model_costs},
         "scores": {"total": total_scores, "by_evaluator": score_evaluations},
     }

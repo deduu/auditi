@@ -1,6 +1,7 @@
 """Trace ingestion API routes."""
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, cast, String
 from typing import List
@@ -23,7 +24,7 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
     If no evaluation is provided, the trace is saved with status='pending'
     and queued for async LLM-based evaluation.
     """
-    # 1. Handle Conversation
+    # 1. Handle Conversation (concurrent-safe)
     if trace_data.conversation_id:
         conversation = (
             db.query(Conversation)
@@ -31,10 +32,19 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
             .first()
         )
         if not conversation:
-            conversation = Conversation(
-                id=str(trace_data.conversation_id), user_id=trace_data.user_id
-            )
-            db.add(conversation)
+            try:
+                conversation = Conversation(
+                    id=str(trace_data.conversation_id), user_id=trace_data.user_id
+                )
+                db.add(conversation)
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                conversation = (
+                    db.query(Conversation)
+                    .filter(Conversation.id == str(trace_data.conversation_id))
+                    .first()
+                )
 
     # 2. Determine initial status
     # If SDK provides evaluation, use it. Otherwise, mark as 'pending' for async eval.

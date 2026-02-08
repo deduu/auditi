@@ -9,8 +9,8 @@ from .config import settings
 engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,  # Enable connection health checks
-    pool_size=5,
-    max_overflow=10
+    pool_size=10,
+    max_overflow=20,
 )
 
 # Session factory

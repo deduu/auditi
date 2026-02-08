@@ -156,6 +156,10 @@ def get_conversations(
             cutoff = now - timedelta(days=7)
         elif range == "30d":
             cutoff = now - timedelta(days=30)
+        elif range == "60d":
+            cutoff = now - timedelta(days=60)
+        elif range == "90d":
+            cutoff = now - timedelta(days=90)
 
         if cutoff:
             query = query.filter(Conversation.updated_at >= cutoff)
