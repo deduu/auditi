@@ -74,6 +74,9 @@ generated/
 
 frontend/node_modules/
 
+# UAT / paid feature tests (keep private)
+tests/uat/
+
 # Agents
 .agentt
 .claude

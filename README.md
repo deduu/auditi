@@ -1,13 +1,19 @@
-# Auditi
+<table><tr>
+  <td><img src="assets/logo.png" alt="Auditi" width="140"></td>
+  <td>
+    <h1>auditi</h1>
+    <p><b>AI Agent Evaluation & Observability Platform</b></p>
+    <p>Automatic trace capture · LLM-as-a-judge evaluation · Human annotation · Analytics dashboards</p>
+  </td>
+</tr></table>
 
-**AI Agent Evaluation and Observability Platform**
-
-Auditi is a comprehensive platform for evaluating, monitoring, and improving AI agents and LLM applications. It provides automatic trace capture, LLM-as-a-judge evaluation, human annotation workflows, and detailed analytics to help you build better AI systems.
-
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python"></a>
+  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.104+-green.svg" alt="FastAPI"></a>
+  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-blue.svg" alt="React"></a>
+  <a href="https://github.com/deduu/auditi/discussions"><img src="https://img.shields.io/badge/discussions-join%20us-blue?logo=github" alt="Discussions"></a>
+</p>
 
 ## Features
 
@@ -139,6 +145,23 @@ auditi.instrument()
 auditi.init(base_url="http://localhost:8000")
 auditi.set_context(user_id="user123", session_id="conv456")
 auditi.instrument()
+```
+
+**FastAPI Middleware:** For production backends serving many users, use `AuditiMiddleware` to auto-extract `user_id` from request headers:
+
+```python
+from fastapi import FastAPI
+from auditi import AuditiMiddleware
+
+app = FastAPI()
+auditi.init(base_url="http://localhost:8000")
+auditi.instrument()
+
+# Reads X-User-ID and X-Session-ID headers from each request
+app.add_middleware(AuditiMiddleware)
+
+# Or use a custom resolver for JWT / auth tokens
+app.add_middleware(AuditiMiddleware, user_id_resolver=lambda scope: (decode_jwt(scope), None))
 ```
 
 #### Method 2: Decorators (Manual Control)
@@ -342,35 +365,9 @@ First-time setup guides you through:
 
 ## Architecture
 
-```
-auditi/
-├── backend/           # FastAPI backend
-│   ├── app/
-│   │   ├── models/    # SQLAlchemy models
-│   │   ├── routers/   # API endpoints
-│   │   ├── schemas/   # Pydantic schemas
-│   │   ├── services/  # Business logic
-│   │   └── evaluators/# Evaluation logic
-│   └── requirements.txt
-├── frontend/          # React frontend
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── hooks/
-│   │   └── api/
-│   └── package.json
-├── sdk/              # Python SDK
-│   ├── auditi/
-│   │   ├── client.py
-│   │   ├── decorators.py
-│   │   ├── instrumentation.py  # Auto-instrumentation
-│   │   ├── providers/  # LLM provider abstraction
-│   │   └── types/
-│   ├── examples/
-│   └── tests/
-├── docs/             # Documentation
-└── docker-compose.yml
-```
+> **SDK** (Python) → HTTP POST → **Backend** (FastAPI/PostgreSQL) → REST API → **Frontend** (React/Vite)
+>
+> See the full project structure in the [repository tree](https://github.com/deduu/auditi) or read the [architecture docs](docs/).
 
 ## Configuration
 
@@ -536,58 +533,9 @@ If no overrides or remote pricing are configured, the SDK uses built-in defaults
 - **Dataset**: Named dataset collections
 - **DatasetItem**: Individual dataset entries
 
-## API Endpoints
+## API Reference
 
-### Traces
-
-- `POST /api/traces/ingest` - Ingest traces
-- `GET /api/traces` - List traces
-- `GET /api/traces/{id}` - Get trace details
-- `DELETE /api/traces` - Bulk delete
-
-### Conversations
-
-- `GET /api/conversations` - List conversations
-- `GET /api/conversations/{id}` - Get conversation details
-
-### Evaluations
-
-- `POST /api/evaluation-jobs` - Run batch evaluation
-- `GET /api/evaluations` - Get evaluation stats
-- `GET /api/evaluations/failure-modes` - Failure analysis
-
-### Annotations
-
-- `GET /api/score-configs` - List score configs
-- `POST /api/score-configs` - Create score config
-- `GET /api/annotation-queues` - List queues
-- `POST /api/annotation-queues/{id}/items` - Add items to queue
-- `GET /api/annotation-queues/{id}/next` - Get next item
-- `POST /api/annotation-queues/items/{id}/complete` - Complete item
-
-### Datasets
-
-- `GET /api/datasets` - List datasets
-- `POST /api/datasets` - Create dataset
-- `POST /api/datasets/publish-from-queue` - Publish queue to dataset
-- `GET /api/datasets/{id}/export` - Export dataset
-
-### Pricing
-
-- `GET /api/v1/pricing` - Get all model pricing (used by SDK for auto-updated costs)
-- `GET /api/v1/pricing/list` - List pricing entries with optional `?provider=` filter
-- `POST /api/v1/pricing` - Create or update a single model's pricing
-- `POST /api/v1/pricing/bulk` - Bulk create/update pricing entries
-- `DELETE /api/v1/pricing/{id}` - Delete a pricing entry
-
-### Analytics
-
-- `GET /api/analytics/dashboard-kpis` - Dashboard metrics
-- `GET /api/analytics/trends` - Time-series trends
-- `GET /api/analytics/correlations` - Correlation analysis
-- `GET /api/analytics/insights` - AI-generated insights
-
-[Full API documentation](http://localhost:8000/docs)
+Full interactive API documentation is available at [localhost:8000/docs](http://localhost:8000/docs) (Swagger UI) when the backend is running.
 
 ## Testing
 
@@ -682,6 +630,11 @@ class CustomEvaluator(BaseBackendEvaluator):
         )
 ```
 
+## Community
+
+- **GitHub Discussions**: Ask questions, share ideas, and connect with other users in [Discussions](https://github.com/deduu/auditi/discussions)
+- **Issues**: Report bugs or request features via [GitHub Issues](https://github.com/deduu/auditi/issues)
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -702,11 +655,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - React and Vite for the frontend stack
 - OpenAI, Anthropic, and Google for LLM APIs
 - The open-source community
-
-## Contact
-
-- **Repository**: [https://github.com/deduu/auditi](https://github.com/deduu/auditi)
-- **Issues**: [https://github.com/deduu/auditi/issues](https://github.com/deduu/auditi/issues)
 
 ## Roadmap
 
