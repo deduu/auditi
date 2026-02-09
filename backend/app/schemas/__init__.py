@@ -45,6 +45,19 @@ from .trace import (
     TraceIngest,
 )
 
+# Auth
+from .auth import (
+    UserCreate,
+    UserResponse,
+    LoginRequest,
+    LoginResponse,
+    APIKeyCreate,
+    APIKeyCreateResponse,
+    APIKeyResponse,
+    SetupStatus,
+    SetupRequest,
+)
+
 __all__ = [
     # Base
     "APIModel",
@@ -70,4 +83,14 @@ __all__ = [
     "SpanIngest",
     "EvaluationIngest",
     "TraceIngest",
+    # Auth
+    "UserCreate",
+    "UserResponse",
+    "LoginRequest",
+    "LoginResponse",
+    "APIKeyCreate",
+    "APIKeyCreateResponse",
+    "APIKeyResponse",
+    "SetupStatus",
+    "SetupRequest",
 ]

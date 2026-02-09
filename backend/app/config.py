@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -43,6 +43,11 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    # Authentication
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440  # 24 hours
 
     # Evaluation
     truncation_limit: int = 5000  # -1 for unlimited

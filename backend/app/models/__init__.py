@@ -11,6 +11,8 @@ from .annotation_queue import AnnotationQueue, AnnotationQueueItem
 from .annotation import Annotation
 from .dataset import Dataset, DatasetItem
 from .model_pricing import ModelPricing
+from .user import User
+from .api_key import APIKey
 
 __all__ = [
     "Conversation",
@@ -27,4 +29,6 @@ __all__ = [
     "Dataset",
     "DatasetItem",
     "ModelPricing",
+    "User",
+    "APIKey",
 ]
