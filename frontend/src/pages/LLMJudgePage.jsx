@@ -383,7 +383,6 @@ export const LLMJudgePage = () => {
                         defaultModel={defaultModel}
                         onBack={() => setCurrentStep(1)}
                         onExecute={(job) => {
-                            console.log("Evaluation completed:", job);
                         }}
                     />
                 )}
