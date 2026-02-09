@@ -1,11 +1,12 @@
 <table><tr>
   <td><img src="assets/logo.png" alt="Auditi" width="140"></td>
   <td>
-    <h1>auditi</h1>
-    <p><b>AI Agent Evaluation & Observability Platform</b></p>
-    <p>Automatic trace capture · LLM-as-a-judge evaluation · Human annotation · Analytics dashboards</p>
+    <h1>Auditi</h1>
+    <p><b>AI Agent Evaluation and Observability Platform</b></p>
   </td>
 </tr></table>
+
+Auditi is a comprehensive platform for evaluating, monitoring, and improving AI agents and LLM applications. It provides automatic trace capture, LLM-as-a-judge evaluation, human annotation workflows, and detailed analytics to help you build better AI systems.
 
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
@@ -57,14 +58,22 @@ For detailed documentation, see the [docs/](docs/) folder:
 git clone https://github.com/deduu/auditi.git
 cd auditi
 
+# Generate an encryption key for securing LLM API keys
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Create a .env file with the generated key
+echo "ENCRYPTION_KEY=<paste-generated-key-here>" > .env
+
 # Start all services
 docker-compose up -d
 
 # Access the platform
-# Frontend: http://localhost:3000
+# Frontend: http://localhost:5173
 # Backend API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
 ```
+
+> **Important:** The `ENCRYPTION_KEY` encrypts LLM connection API keys stored in the database. Without it, a random key is generated on each container start, and previously saved API keys become unrecoverable after a restart. If you switch between Docker and manual setups, use the same `ENCRYPTION_KEY` in both environments (set it as an environment variable), or re-enter your LLM connection API keys after switching.
 
 #### Manual Installation
 
@@ -378,6 +387,8 @@ First-time setup guides you through:
 ```bash
 DATABASE_URL=postgresql://user:pass@localhost/auditi
 CORS_ORIGINS=http://localhost:3000
+# Encrypts LLM API keys in the database (generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+ENCRYPTION_KEY=your-generated-fernet-key
 ```
 
 **Evaluation Configuration (eval_config.json):**

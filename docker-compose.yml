@@ -7,7 +7,7 @@ services:
     container_name: auditi-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: postgres # WARNING: Default credentials for local development only. Change for production.
       POSTGRES_DB: audit_db
     ports:
       - "5434:5432"
@@ -29,6 +29,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/audit_db
       DEBUG: "false"
       CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY:-}"
     depends_on:
       postgres:
         condition: service_healthy
