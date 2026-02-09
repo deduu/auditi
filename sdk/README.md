@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://auditi.dev/logo.svg" alt="Auditi" width="200">
-</p>
-
 <h1 align="center">Auditi Python SDK</h1>
 
 <p align="center">
@@ -12,13 +8,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
   <a href="https://pypi.org/project/auditi/"><img src="https://img.shields.io/pypi/v/auditi" alt="PyPI"></a>
   <a href="https://pypi.org/project/auditi/"><img src="https://img.shields.io/pypi/pyversions/auditi" alt="Python"></a>
-  <a href="https://github.com/auditi/auditi"><img src="https://img.shields.io/github/stars/auditi/auditi?style=social" alt="Stars"></a>
+  <a href="https://github.com/deduu/auditi"><img src="https://img.shields.io/github/stars/deduu/auditi?style=social" alt="Stars"></a>
 </p>
 
 <p align="center">
-  <a href="https://docs.auditi.dev">Documentation</a> |
-  <a href="https://auditi.dev">Website</a> |
-  <a href="https://discord.gg/auditi">Discord</a>
+  <a href="https://github.com/deduu/auditi#readme">Documentation</a> |
+  <a href="https://github.com/deduu/auditi">GitHub</a>
 </p>
 
 ---
@@ -115,7 +110,7 @@ Run your own Auditi backend for development:
 
 ```bash
 # Clone and run with Docker
-git clone https://github.com/auditi/auditi
+git clone https://github.com/deduu/auditi
 cd auditi
 docker-compose up
 ```
@@ -482,7 +477,7 @@ export AUDITI_DEBUG=true
 export AUDITI_API_KEY=your-api-key
 
 # Set base URL
-export AUDITI_BASE_URL=https://api.auditi.dev
+export AUDITI_BASE_URL=http://localhost:8000
 ```
 
 ### Programmatic Configuration
@@ -493,13 +488,13 @@ import auditi
 # Production setup
 auditi.init(
     api_key="your-api-key",
-    base_url="https://api.auditi.dev"
+    base_url="http://localhost:8000"
 )
 
 # With user tracking (applied to all traces including auto-instrumented)
 auditi.init(
     api_key="your-api-key",
-    base_url="https://api.auditi.dev",
+    base_url="http://localhost:8000",
     user_id="user123",
     session_id="conv456"
 )
@@ -892,7 +887,7 @@ python examples/01_basic_integration.py
 
    ```python
    import auditi
-   auditi.init(api_key="your-key", base_url="https://api.auditi.dev")
+   auditi.init(api_key="your-key", base_url="http://localhost:8000")
    ```
 
 2. **Enable debug logging:**

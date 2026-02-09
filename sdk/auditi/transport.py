@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -33,7 +33,7 @@ import httpx
 from typing import Any, Dict
 import logging
 
-logger = logging.getLogger("auditi")
+logger = logging.getLogger(__name__)
 
 
 class BaseTransport(abc.ABC):
@@ -97,4 +97,4 @@ class DebugTransport(BaseTransport):
         """Print trace data to console."""
         trace_id = trace_data.get("id", "unknown")
         spans_count = len(trace_data.get("spans", []))
-        print(f"[Auditi] Trace captured: {trace_id} ({spans_count} spans)")
+        logger.debug("Trace captured: %s (%d spans)", trace_id, spans_count)

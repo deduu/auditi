@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -82,7 +82,7 @@ def init(
 
     Example:
         >>> import auditi
-        >>> auditi.init(api_key="your-key", base_url="https://api.auditi.dev")
+        >>> auditi.init(api_key="your-key", base_url="http://localhost:8000")
         >>> # With user context (applied to all traces including auto-instrumented)
         >>> auditi.init(api_key="your-key", user_id="user123", session_id="conv456")
     """

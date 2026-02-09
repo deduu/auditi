@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -28,6 +28,7 @@ This version uses the provider abstraction layer for robust multi-provider suppo
 
 import functools
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -49,6 +50,8 @@ from .evaluator import BaseEvaluator
 from .providers import detect_provider
 from .events import EventType, INTERNAL_EVENTS, CONTENT_EVENTS
 
+logger = logging.getLogger(__name__)
+
 # Debug flag - set via environment variable
 DEBUG = os.getenv("AUDITI_DEBUG", "false").lower() in ("true", "1", "yes")
 
@@ -56,13 +59,13 @@ DEBUG = os.getenv("AUDITI_DEBUG", "false").lower() in ("true", "1", "yes")
 def _debug_log(message: str, data: Any = None) -> None:
     """Helper function to conditionally log debug information."""
     if DEBUG:
-        print(f"[Auditi Debug] {message}")
+        logger.debug(message)
         if data is not None:
             try:
-                print(json.dumps(data, indent=2, default=str))
+                logger.debug(json.dumps(data, indent=2, default=str))
             except Exception as e:
-                print(f"[Auditi Debug] Could not serialize data: {e}")
-                print(f"Raw data: {data}")
+                logger.debug("Could not serialize data: %s", e)
+                logger.debug("Raw data: %s", data)
 
 
 def _apply_usage_to_span(span: SpanInput, usage: Any, response: Any = None) -> None:
@@ -258,7 +261,7 @@ def _execute_as_standalone_trace(
 
     try:
         result = func(*args, **kwargs)
-        print(f"[Auditi] Standalone {span_type} trace captured.")
+        logger.info("Standalone %s trace captured.", span_type)
 
         # Extract model from response if not set
         if not span.model:
@@ -449,7 +452,7 @@ async def _execute_as_standalone_trace_async(
 
     try:
         result = await func(*args, **kwargs)
-        print(f"[Auditi] Standalone {span_type} trace captured.")
+        logger.info("Standalone %s trace captured.", span_type)
 
         if not span.model:
             provider = detect_provider(response=result)
@@ -652,10 +655,10 @@ def trace_agent(
 
                 try:
                     result = await func(*args, **kwargs)
-                    print("[Auditi] Trace captured.")
+                    logger.info("Trace captured.")
                     if DEBUG:
-                        print(f"result type: {type(result)}")
-                        print(f"result: {str(result)[:200]}")
+                        logger.debug("result type: %s", type(result))
+                        logger.debug("result: %s", str(result)[:200])
 
                     # Smart extraction of assistant output
                     if isinstance(result, str):
@@ -746,7 +749,7 @@ def trace_agent(
 
                             _debug_log("Evaluation result:", eval_result)
                         except Exception as e:
-                            print(f"[Auditi] Evaluator failed: {e}")
+                            logger.error("Evaluator failed: %s", e)
 
                     # Prepare and log payload
                     trace_payload = trace.model_dump(mode="json")
@@ -904,7 +907,7 @@ def trace_agent(
                         except Exception:
                             pass
 
-                    print("[Auditi] Async generator trace captured.")
+                    logger.info("Async generator trace captured.")
                     _debug_log(
                         f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
                     )
@@ -947,7 +950,7 @@ def trace_agent(
 
                             _debug_log("Evaluation result:", eval_result)
                         except Exception as e:
-                            print(f"[Auditi] Evaluator failed: {e}")
+                            logger.error("Evaluator failed: %s", e)
 
                     # Prepare and log payload
                     trace_payload = trace.model_dump(mode="json")
@@ -1040,9 +1043,9 @@ def trace_agent(
 
                 try:
                     result = func(*args, **kwargs)
-                    print("[Auditi] Trace captured.")
+                    logger.info("Trace captured.")
                     if DEBUG:
-                        print(f"result: {result}")
+                        logger.debug("result: %s", result)
 
                     # Smart extraction of assistant output
                     if isinstance(result, str):
@@ -1133,7 +1136,7 @@ def trace_agent(
 
                             _debug_log("Evaluation result:", eval_result)
                         except Exception as e:
-                            print(f"[Auditi] Evaluator failed: {e}")
+                            logger.error("Evaluator failed: %s", e)
 
                     # Prepare and log payload
                     trace_payload = trace.model_dump(mode="json")
