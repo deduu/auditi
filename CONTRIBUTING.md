@@ -19,9 +19,23 @@ Pull requests are the best way to propose changes to the codebase (we use [Githu
 5. Make sure your code lints.
 6. Issue that pull request!
 
-## Any contributions you make will be under the MIT Software License
+## Licensing and Developer Certificate of Origin
 
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
+Auditi uses a dual-license model:
+- **MIT License**: SDK, Core Backend, Core Frontend.
+- **Business Source License (BSL) 1.1**: Enterprise features (Analytics, Evaluations, etc.).
+
+By contributing to Auditi, you agree that your contributions will be licensed under the license applicable to the specific file you are modifying (MIT for MIT files, BSL 1.1 for BSL files).
+
+### Developer Certificate of Origin (DCO)
+
+All contributions must be signed off to certify that you have the right to submit the code. You can do this by adding a `Signed-off-by` line to your commit messages:
+
+```
+Signed-off-by: Jane Doe <jane.doe@example.com>
+```
+
+This certifies that you wrote the code or have the right to contribute it under the project's licenses.
 
 ## Report bugs using Github's [issues](https://github.com/auditi-dev/auditi/issues)
 We use GitHub issues to track public bugs. Report a bug by [opening a new issue](); it's that easy!
@@ -39,4 +53,4 @@ We use GitHub issues to track public bugs. Report a bug by [opening a new issue]
 - Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
 
 ## License
-By contributing, you agree that your contributions will be licensed under its MIT License.
+By contributing, you agree that your contributions will be licensed under the project's applicable licenses (MIT or BSL 1.1).
