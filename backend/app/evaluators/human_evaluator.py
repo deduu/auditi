@@ -5,9 +5,12 @@ Human-based evaluator for manual review workflows.
 Returns traces with "review" status for human evaluation.
 """
 
+import logging
 from typing import Optional, Dict, Any
 
 from .base import BaseBackendEvaluator, EvalResult
+
+logger = logging.getLogger(__name__)
 
 
 class HumanEvaluator(BaseBackendEvaluator):
@@ -36,7 +39,7 @@ class HumanEvaluator(BaseBackendEvaluator):
         Returns:
             EvalResult with status="review" for human evaluation
         """
-        print("[HUMAN EVALUATOR] Trace marked for human review")
+        logger.info("Trace marked for human review")
 
         return EvalResult(
             status="review",

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -50,6 +50,8 @@ from app.routers import (
     analytics_router,
     datasets_router,
     pricing_router,
+    auth_router,
+    api_keys_router,
 )
 from app.routers.evaluation_jobs import router as evaluation_jobs_router
 from app.services.eval_worker import run_eval_worker
@@ -64,6 +66,8 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -76,7 +80,7 @@ async def lifespan(app: FastAPI):
     for i in range(retries):
         try:
             Base.metadata.create_all(bind=engine)
-            print("✓ Database tables created successfully.")
+            logger.info("Database tables created successfully.")
 
             # Seed default model pricing on first run
             from app.routers.pricing import seed_default_pricing
@@ -91,12 +95,12 @@ async def lifespan(app: FastAPI):
         except OperationalError as e:
             if i == retries - 1:
                 raise e
-            print(f"Database not ready, retrying in 2s... ({i+1}/{retries})")
+            logger.warning("Database not ready, retrying in 2s... (%d/%d)", i + 1, retries)
             time.sleep(2)
 
     # Start background evaluation worker
     eval_worker_task = asyncio.create_task(run_eval_worker(SessionLocal))
-    print("✓ Background evaluation worker started.")
+    logger.info("Background evaluation worker started.")
 
     yield
 
@@ -106,7 +110,7 @@ async def lifespan(app: FastAPI):
         await eval_worker_task
     except asyncio.CancelledError:
         pass
-    print("Application shutting down...")
+    logger.info("Application shutting down...")
 
 
 # Create FastAPI application
@@ -115,6 +119,8 @@ app = FastAPI(
     description="AI/LLM Evaluation and Monitoring Platform API",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
 )
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 # Configure CORS
@@ -122,11 +128,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Register routers with /api/v1 prefix
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(api_keys_router, prefix="/api/v1")
 app.include_router(traces_router, prefix="/api/v1")
 app.include_router(conversations_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")

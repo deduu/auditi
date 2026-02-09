@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -29,7 +29,10 @@ from sqlalchemy import desc, cast, String
 from typing import List
 
 from app.database import get_db
+from app.dependencies import get_current_user, validate_api_key
 from app.models import Conversation, Trace, Span
+from app.models.api_key import APIKey
+from app.models.user import User
 from app.schemas import TraceIngest
 from app.services.eval_worker import enqueue_evaluation
 
@@ -38,7 +41,7 @@ router = APIRouter(tags=["traces"])
 
 @router.post("/ingest")
 @router.post("/v1/ingest")
-def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db)):
+def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db), _api_key: APIKey = Depends(validate_api_key)):
     """
     Ingest a trace with spans and evaluation data.
     Creates conversation if it doesn't exist.
@@ -249,6 +252,7 @@ def get_traces(
     name: Optional[str] = None,
     standalone_only: bool = False,
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
 ):
     """
     Get paginated list of traces (flattened view).
@@ -319,7 +323,7 @@ def get_traces(
 
 @router.get("/traces/{trace_id}", response_model=TraceDetail)
 @router.get("/v1/traces/{trace_id}", response_model=TraceDetail)
-def get_trace_detail(trace_id: str, db: Session = Depends(get_db)):
+def get_trace_detail(trace_id: str, db: Session = Depends(get_db), _current_user: User = Depends(get_current_user)):
     """Get detailed view of a single trace including spans."""
     t = db.query(Trace).filter(Trace.id == trace_id).first()
     if not t:
@@ -368,6 +372,7 @@ def get_trace_detail(trace_id: str, db: Session = Depends(get_db)):
 def delete_traces(
     ids: List[str] = Query(..., description="List of trace IDs to delete"),
     db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
 ):
     """
     Bulk delete traces.

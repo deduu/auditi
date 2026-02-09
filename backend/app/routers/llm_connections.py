@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_db
+from ..dependencies import get_current_user
 from ..utils.encryption import encrypt_api_key
 from ..models.llm_connection import LLMConnection
 from ..schemas.llm_connection import (
@@ -21,6 +22,7 @@ from ..schemas.llm_connection import (
 router = APIRouter(
     prefix="/llm-connections",
     tags=["llm-connections"],
+    dependencies=[Depends(get_current_user)],
 )
 
 

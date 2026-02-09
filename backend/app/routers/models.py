@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -22,19 +22,20 @@
 
 """Models API routes."""
 
-from fastapi import APIRouter
+import logging
+from fastapi import APIRouter, Depends
 from typing import List
-
-from app.schemas import ModelStat
-
-router = APIRouter(tags=["models"])
-
-
-from app.database import get_db
-from app.models import Span
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from fastapi import Depends
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models import Span
+from app.schemas import ModelStat
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["models"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/models", response_model=List[ModelStat])
@@ -155,7 +156,5 @@ def get_models(db: Session = Depends(get_db)):
 
         return stats
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Failed to get model statistics")
         raise e

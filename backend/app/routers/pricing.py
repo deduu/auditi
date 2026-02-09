@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models.model_pricing import ModelPricing
 from app.schemas.pricing import (
     ModelPricingCreate,
@@ -24,6 +25,7 @@ router = APIRouter(
     prefix="/pricing",
     tags=["pricing"],
     responses={404: {"description": "Not found"}},
+    dependencies=[Depends(get_current_user)],
 )
 
 

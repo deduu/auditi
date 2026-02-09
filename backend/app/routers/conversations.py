@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Auditibl Inc.
+# Copyright (c) 2026 Auditi Contributors
 #
 # MIT License
 #
@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from datetime import datetime, timedelta, timezone
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import Conversation, Trace, Span
 from app.schemas import (
     ConversationSummary,
@@ -42,7 +43,7 @@ from app.schemas import (
     SpanEvaluation,
 )
 
-router = APIRouter(tags=["conversations"])
+router = APIRouter(tags=["conversations"], dependencies=[Depends(get_current_user)])
 
 
 def extract_models_from_spans(spans: List[Span]) -> List[str]:

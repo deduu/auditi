@@ -446,16 +446,13 @@ class LLMEvaluator(BaseBackendEvaluator):
         # Calculate total processing time
         total_time = sum(step.get("processing_time", 0) for step in execution_steps)
 
-        print("\n" + "=" * 80)
-        print("[AUDITI EVALUATION] Starting granular evaluation")
-        print("=" * 80)
-        print(f"User Input: {user_input[:100]}...")
-        print(f"Assistant Output: {assistant_output[:100]}...")
-        print(f"\nExecution Context:")
-        print(f"  - Execution steps: {len(execution_steps)}")
-        print(f"  - Total tokens: {total_tokens}")
-        print(f"  - Total cost: ${total_cost:.4f}")
-        print(f"  - Total time: {total_time:.2f}s")
+        logger.info("Starting granular evaluation")
+        logger.debug(f"User Input: {user_input[:100]}...")
+        logger.debug(f"Assistant Output: {assistant_output[:100]}...")
+        logger.debug(
+            f"Execution Context: steps={len(execution_steps)}, "
+            f"tokens={total_tokens}, cost=${total_cost:.4f}, time={total_time:.2f}s"
+        )
 
         try:
             client = self._get_client(tenant_api_key)
@@ -472,14 +469,12 @@ class LLMEvaluator(BaseBackendEvaluator):
         # GRANULAR EVALUATION: Evaluate each span
         # ============================================
         if execution_steps and len(execution_steps) > 0:
-            print(
-                f"\n[AUDITI EVALUATION] Step 1: Evaluating {len(execution_steps)} spans individually..."
-            )
+            logger.info(f"Step 1: Evaluating {len(execution_steps)} spans individually")
 
             span_evaluations: List[SpanEvaluation] = []
             for i, step in enumerate(execution_steps, 1):
-                print(
-                    f"\n  Evaluating span {i}/{len(execution_steps)}: {step.get('type')} - {step.get('name')}"
+                logger.debug(
+                    f"Evaluating span {i}/{len(execution_steps)}: {step.get('type')} - {step.get('name')}"
                 )
 
                 span_eval_dict = await self._evaluate_single_span(
@@ -493,12 +488,12 @@ class LLMEvaluator(BaseBackendEvaluator):
                 span_eval = SpanEvaluation(**span_eval_dict)  # Object!
                 span_evaluations.append(span_eval)
 
-                print(
-                    f"    → Relevant: {span_eval.relevant}, Quality: {span_eval.quality_score:.2f}"
+                logger.debug(
+                    f"Span {i} result: relevant={span_eval.relevant}, quality={span_eval.quality_score:.2f}"
                 )
-                print(f"    → Reasoning: {span_eval.reasoning}")
+                logger.debug(f"Span {i} reasoning: {span_eval.reasoning}")
                 if span_eval.issues:
-                    print(f"    → Issues: {', '.join(span_eval.issues)}")
+                    logger.debug(f"Span {i} issues: {', '.join(span_eval.issues)}")
 
             # Build span evaluation summary for trace evaluation
             span_eval_summary = "\n".join(
@@ -515,7 +510,7 @@ class LLMEvaluator(BaseBackendEvaluator):
             # ============================================
             # OVERALL EVALUATION: Evaluate entire trace
             # ============================================
-            print(f"\n[AUDITI EVALUATION] Step 2: Evaluating overall trace...")
+            logger.info("Step 2: Evaluating overall trace")
 
             execution_summary = self._build_execution_summary(execution_steps)
 
@@ -533,7 +528,7 @@ class LLMEvaluator(BaseBackendEvaluator):
 
         else:
             # Simple evaluation for single-turn
-            print("[AUDITI EVALUATION] Using SIMPLE evaluation (no spans)")
+            logger.info("Using simple evaluation (no spans)")
 
             prompt = self._safe_format(
                 self.simple_eval_prompt,
@@ -547,7 +542,7 @@ class LLMEvaluator(BaseBackendEvaluator):
         # Call OpenAI for final evaluation
         # ============================================
         try:
-            print(f"\n[AUDITI EVALUATION] Calling OpenAI model: {self.model}")
+            logger.info(f"Calling LLM model: {self.model}")
 
             response = await client.chat.completions.create(
                 model=self.model,
@@ -558,10 +553,7 @@ class LLMEvaluator(BaseBackendEvaluator):
 
             content = response.choices[0].message.content
 
-            print(f"\n[AUDITI EVALUATION] Raw LLM response:")
-            print("-" * 80)
-            print(content)
-            print("-" * 80 + "\n")
+            logger.debug(f"Raw LLM response: {content}")
 
             result = json.loads(content)
 
@@ -574,9 +566,8 @@ class LLMEvaluator(BaseBackendEvaluator):
 
             # Log schema warnings
             if schema_warnings:
-                print(f"[AUDITI EVALUATION] Schema validation warnings:")
                 for w in schema_warnings:
-                    print(f"  - {w}")
+                    logger.warning(f"Schema validation warning: {w}")
 
             # Extract validated core fields
             status = core_fields["status"]
@@ -607,23 +598,19 @@ class LLMEvaluator(BaseBackendEvaluator):
 
                 reason = enhanced_reason
 
-            print(f"[AUDITI EVALUATION] Final result:")
-            print(f"  Status: {status}")
-            print(f"  Score: {score:.2f}")
+            logger.info(f"Final result: status={status}, score={score:.2f}, failure_mode={failure_mode}")
             if span_evaluations:
-                print(f"  Avg Span Quality: {avg_span_quality:.2f}")
-                print(
-                    f"  Poor Quality Spans: {len(poor_spans)}/{len(span_evaluations)}"
+                logger.info(
+                    f"Span quality: avg={avg_span_quality:.2f}, "
+                    f"poor={len(poor_spans)}/{len(span_evaluations)}"
                 )
-            print(f"  Failure Mode: {failure_mode}")
-            print(f"  Reason: {reason}")
+            logger.debug(f"Reason: {reason}")
             if recommended_action:
-                print(f"  Recommended Action: {recommended_action}")
+                logger.debug(f"Recommended Action: {recommended_action}")
             if custom_fields:
-                print(f"  Custom Fields: {list(custom_fields.keys())}")
+                logger.debug(f"Custom Fields: {list(custom_fields.keys())}")
             if schema_warnings:
-                print(f"  Schema Warnings: {len(schema_warnings)}")
-            print("=" * 80 + "\n")
+                logger.debug(f"Schema Warnings: {len(schema_warnings)}")
 
             logger.info(
                 f"Evaluation complete: status={status}, score={score:.2f}, "
@@ -651,7 +638,6 @@ class LLMEvaluator(BaseBackendEvaluator):
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM response: {e}")
-            print(f"[AUDITI EVALUATION] ERROR: Failed to parse: {e}\n")
             return EvalResult(
                 status="review",
                 score=0.5,

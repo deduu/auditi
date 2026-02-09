@@ -23,6 +23,7 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 from ..database import get_db
+from ..dependencies import get_current_user
 from ..models.score_config import ScoreConfig
 from ..models.annotation_queue import AnnotationQueue, AnnotationQueueItem
 from ..models.annotation import Annotation
@@ -56,6 +57,7 @@ from ..schemas.annotation import (
 router = APIRouter(
     prefix="/annotations",
     tags=["annotations"],
+    dependencies=[Depends(get_current_user)],
 )
 
 

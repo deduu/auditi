@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from ..database import get_db
+from ..dependencies import get_current_user
 from ..models.evaluator import Evaluator, EvaluatorSetupState
 from ..models.llm_connection import LLMConnection
 from ..schemas.evaluator import (
@@ -24,6 +25,7 @@ from ..schemas.evaluator import (
 router = APIRouter(
     prefix="/evaluators",
     tags=["evaluators"],
+    dependencies=[Depends(get_current_user)],
 )
 
 # Built-in managed evaluators with dual prompts:

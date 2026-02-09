@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, case, cast, String, desc
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import Trace, Span
 from app.models.annotation import Annotation
 from app.models.score_config import ScoreConfig
@@ -42,7 +43,7 @@ from app.schemas.analytics import (
     ScoreTrendByEvaluatorResponse,
 )
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(get_current_user)])
 
 
 # ============== Helper Functions ==============

@@ -1,15 +1,19 @@
 """Evaluations API routes."""
 
+import logging
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import case, desc, func
 from typing import List, Optional
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import Trace
 from pydantic import BaseModel
 
-router = APIRouter(tags=["evaluations"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["evaluations"], dependencies=[Depends(get_current_user)])
 
 
 from datetime import datetime, timedelta, timezone
@@ -161,9 +165,7 @@ def get_evaluations(
 
         return EvaluationsResponse(evaluations=stats)
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Failed to get evaluations")
         raise e
 
 

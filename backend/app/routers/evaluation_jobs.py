@@ -10,14 +10,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func, or_, and_, cast, String, Text, text
 import uuid
+import logging
 
 from app.database import get_db
+from app.dependencies import get_current_user
 
 from app.models import Trace, Span
 from app.models.evaluator import Evaluator, EvaluatorSetupState
 from app.models.llm_connection import LLMConnection
 
-router = APIRouter(prefix="/evaluation-jobs", tags=["evaluation-jobs"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/evaluation-jobs", tags=["evaluation-jobs"], dependencies=[Depends(get_current_user)])
 
 
 # ============================================
@@ -182,9 +186,7 @@ def get_traces_preview(
             total=total,
         )
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Failed to fetch trace preview")
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch trace preview: {str(e)}"
         )
@@ -256,7 +258,7 @@ async def create_evaluation_job(
         # Use explicitly selected trace IDs from frontend
         trace_ids_to_evaluate = data.trace_ids
         total_traces = len(trace_ids_to_evaluate)
-        print(f"[EVAL JOB] Using {total_traces} explicitly selected traces")
+        logger.info("Using %d explicitly selected traces for evaluation job", total_traces)
     else:
         # Build query for matching traces
         query = db.query(Trace)
@@ -266,14 +268,14 @@ async def create_evaluation_job(
                 try:
                     dt = datetime.fromisoformat(data.filters.dateFrom)
                     query = query.filter(Trace.start_time >= dt)
-                except:
+                except (ValueError, TypeError):
                     pass
 
             if data.filters.dateTo:
                 try:
                     dt = datetime.fromisoformat(data.filters.dateTo)
                     query = query.filter(Trace.start_time <= dt)
-                except:
+                except (ValueError, TypeError):
                     pass
 
             if data.filters.traceName:
@@ -293,7 +295,7 @@ async def create_evaluation_job(
         sampled_count = int(total_traces * data.sampling_rate)
         traces = query.limit(sampled_count).all()
         trace_ids_to_evaluate = [str(t.id) for t in traces]
-        print(f"[EVAL JOB] Queried {total_traces} traces, sampled {sampled_count}")
+        logger.info("Queried %d traces, sampled %d", total_traces, sampled_count)
 
     # Create job
     job_id = str(uuid.uuid4())
@@ -340,35 +342,32 @@ def run_batch_evaluation(job_id: str):
     """Run batch evaluation - enqueues traces for the eval worker to process"""
     from app.services.eval_worker import enqueue_evaluation
 
-    print(f"\n[BATCH EVAL] Starting batch evaluation job: {job_id}")
+    logger.info("Starting batch evaluation job: %s", job_id)
 
     job = _evaluation_jobs.get(job_id)
     if not job:
-        print(f"[BATCH EVAL] Job {job_id} not found in memory")
+        logger.error("Job %s not found in memory", job_id)
         return
 
-    print(f"[BATCH EVAL] Found job with {len(job['trace_ids'])} traces to evaluate")
+    logger.info("Found job with %d traces to evaluate", len(job["trace_ids"]))
     job["status"] = "running"
 
     try:
         # Enqueue each trace for evaluation
         for i, trace_id in enumerate(job["trace_ids"]):
-            print(
-                f"[BATCH EVAL] Enqueueing trace {i+1}/{len(job['trace_ids'])}: {trace_id}"
+            logger.debug(
+                "Enqueueing trace %d/%d: %s", i + 1, len(job["trace_ids"]), trace_id
             )
             enqueue_evaluation(trace_id)
             job["evaluated_count"] += 1
 
         job["status"] = "completed"
         job["completed_at"] = datetime.now(timezone.utc)
-        print(
-            f"[BATCH EVAL] ✓ Job {job_id} completed - enqueued {job['evaluated_count']} traces"
+        logger.info(
+            "Job %s completed - enqueued %d traces", job_id, job["evaluated_count"]
         )
 
     except Exception as e:
         job["status"] = "failed"
         job["completed_at"] = datetime.now(timezone.utc)
-        print(f"[BATCH EVAL] ✗ Error in job {job_id}: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Error in batch evaluation job %s", job_id)

@@ -2,12 +2,14 @@ from fastapi import APIRouter, HTTPException, Depends
 from dataclasses import asdict
 
 from app.config_loader import load_eval_config, save_eval_config, EvalConfig
+from app.dependencies import get_current_user
 from app.schemas.settings import EvalConfigSchema
 
 router = APIRouter(
     prefix="/settings",
     tags=["settings"],
     responses={404: {"description": "Not found"}},
+    dependencies=[Depends(get_current_user)],
 )
 
 

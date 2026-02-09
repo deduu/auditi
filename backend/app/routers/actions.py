@@ -1,17 +1,21 @@
 # Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """Actions and Failure Modes API routes."""
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import Trace, Action
 from app.schemas import ActionResponse, FailureModeStat
 from app.services.action_generator import generate_actions_from_insights
 
-router = APIRouter(tags=["actions"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(tags=["actions"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/actions", response_model=List[ActionResponse])
@@ -23,7 +27,7 @@ def get_actions(db: Session = Depends(get_db)):
         generate_actions_from_insights(db)
     except Exception as e:
         # Don't fail the read request if generation fails
-        print(f"Action generation failed: {e}")
+        logger.warning("Action generation failed: %s", e)
 
     # 2. Return all non-archived actions
     # Assuming 'completed' is still relevant to show (maybe separate lists in frontend)

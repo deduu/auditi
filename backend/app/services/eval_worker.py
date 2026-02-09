@@ -42,7 +42,6 @@ def enqueue_evaluation(trace_id: str, api_key: Optional[str] = None) -> None:
     job = EvalJob(trace_id=trace_id, api_key=api_key)
     eval_queue.put(job)
     logger.debug(f"Enqueued trace {trace_id} for evaluation")
-    print(f"[EVAL WORKER] Enqueued trace {trace_id} for evaluation")
 
 
 def check_auto_eval_ready(db: Session) -> dict:
@@ -226,21 +225,15 @@ async def process_evaluation(
 
         if not trace:
             logger.warning(f"Trace {job.trace_id} not found, skipping evaluation")
-            print(f"[EVAL WORKER] ⚠️ Trace {job.trace_id} not found in database")
             return
 
         if trace.status not in ("pending", "review", None):
             logger.debug(
                 f"Trace {job.trace_id} already evaluated (status={trace.status})"
             )
-            print(
-                f"[EVAL WORKER] ℹ️ Trace {job.trace_id} already evaluated (status={trace.status})"
-            )
             return
 
-        print(f"\n{'='*80}")
-        print(f"[EVAL WORKER] Processing trace {job.trace_id}")
-        print(f"{'='*80}")
+        logger.info(f"Processing trace {job.trace_id}")
 
         # ============================================
         # Step 2: Extract objective for conversation (if not set)
@@ -264,8 +257,8 @@ async def process_evaluation(
                 )
 
                 if first_trace and first_trace.id == trace.id and trace.user_input:
-                    print(
-                        f"[EVAL WORKER] Extracting objective for conversation {trace.conversation_id}..."
+                    logger.debug(
+                        f"Extracting objective for conversation {trace.conversation_id}"
                     )
                     try:
                         llm_provider = get_llm_provider(
@@ -281,29 +274,27 @@ async def process_evaluation(
                         if objective:
                             conversation.objective = objective
                             db.commit()
-                            print(
-                                f"[EVAL WORKER] ✅ Objective extracted: {objective[:100]}..."
+                            logger.info(
+                                f"Objective extracted: {objective[:100]}..."
                             )
                     except Exception as e:
-                        print(f"[EVAL WORKER] ⚠️ Failed to extract objective: {e}")
+                        logger.warning(f"Failed to extract objective: {e}")
 
         # ============================================
         # Step 3: Build complete conversation context
         # ============================================
         user_input = trace.user_input or ""
-        print(f"[EVAL WORKER] User input: {user_input[:100]}...")
+        logger.debug(f"User input: {user_input[:100]}...")
 
         # Get final assistant output from trace OR last LLM span
         assistant_output = trace.assistant_output or ""
-        print(
-            f"[EVAL WORKER] Trace assistant_output: {assistant_output[:100] if assistant_output else '(empty)'}..."
+        logger.debug(
+            f"Trace assistant_output: {assistant_output[:100] if assistant_output else '(empty)'}..."
         )
 
         # If trace doesn't have assistant_output, reconstruct from spans
         if not assistant_output:
-            print(
-                f"[EVAL WORKER] No assistant_output on trace, looking for LLM spans..."
-            )
+            logger.debug("No assistant_output on trace, looking for LLM spans")
 
             # Get all spans ordered by time
             all_spans = (
@@ -313,24 +304,24 @@ async def process_evaluation(
                 .all()
             )
 
-            print(f"[EVAL WORKER] Found {len(all_spans)} total spans")
+            logger.debug(f"Found {len(all_spans)} total spans")
 
             # Find the FINAL LLM output (last LLM span)
             llm_spans = [s for s in all_spans if s.span_type == "llm" and s.outputs]
-            print(f"[EVAL WORKER] Found {len(llm_spans)} LLM spans with outputs")
+            logger.debug(f"Found {len(llm_spans)} LLM spans with outputs")
 
             if llm_spans:
                 assistant_output = llm_spans[-1].outputs
-                print(
-                    f"[EVAL WORKER] Using final LLM span output: {assistant_output[:100]}..."
+                logger.debug(
+                    f"Using final LLM span output: {assistant_output[:100]}..."
                 )
             else:
-                print(f"[EVAL WORKER] ⚠️ No LLM spans found with outputs!")
+                logger.warning("No LLM spans found with outputs")
 
         # ============================================
         # Step 4: Fetch and process ALL spans
         # ============================================
-        print(f"\n[EVAL WORKER] Fetching all spans for trace {job.trace_id}...")
+        logger.debug(f"Fetching all spans for trace {job.trace_id}")
 
         all_spans = (
             db.query(Span)
@@ -339,7 +330,7 @@ async def process_evaluation(
             .all()
         )
 
-        print(f"[EVAL WORKER] Retrieved {len(all_spans)} spans from database")
+        logger.debug(f"Retrieved {len(all_spans)} spans from database")
 
         # Build execution trace for evaluation
         execution_steps = []
@@ -359,23 +350,21 @@ async def process_evaluation(
             execution_steps.append(step)
 
             # Detailed logging of each span
-            print(f"\n[EVAL WORKER] Span {i}/{len(all_spans)}:")
-            print(f"  - Type: {span.span_type}")
-            print(f"  - Name: {span.name}")
-            print(f"  - Model: {span.model or 'N/A'}")
-            print(f"  - Tokens: {span.tokens or 0}")
-            print(f"  - Has inputs: {bool(span.inputs)}")
-            print(f"  - Has outputs: {bool(span.outputs)}")
-            print(f"  - Processing time: {span.processing_time}s")
+            logger.debug(
+                f"Span {i}/{len(all_spans)}: type={span.span_type}, name={span.name}, "
+                f"model={span.model or 'N/A'}, tokens={span.tokens or 0}, "
+                f"has_inputs={bool(span.inputs)}, has_outputs={bool(span.outputs)}, "
+                f"processing_time={span.processing_time}s"
+            )
             if span.outputs:
-                print(f"  - Output preview: {str(span.outputs)[:80]}...")
+                logger.debug(f"  Span {span.name} output preview: {str(span.outputs)[:80]}...")
             if span.error:
-                print(f"  - ERROR: {span.error}")
+                logger.error(f"  Span {span.name} error: {span.error}")
 
         # ============================================
         # Step 5: Prepare evaluation context
         # ============================================
-        print(f"\n[EVAL WORKER] Building evaluation context...")
+        logger.debug("Building evaluation context")
 
         context = {
             "execution_steps": execution_steps,  # Full agentic flow
@@ -387,18 +376,19 @@ async def process_evaluation(
         # Add tenant API key if available
         if job.api_key:
             context["api_key"] = job.api_key
-            print(f"[EVAL WORKER] Using tenant-specific API key")
+            logger.debug("Using tenant-specific API key")
 
-        print(f"[EVAL WORKER] Context summary:")
-        print(f"  - Execution steps: {len(execution_steps)}")
-        print(f"  - Total tokens: {context['total_tokens']}")
-        print(f"  - Total cost: ${context['total_cost']:.4f}")
-        print(f"  - Span count: {context['span_count']}")
+        logger.debug(
+            f"Context summary: execution_steps={len(execution_steps)}, "
+            f"total_tokens={context['total_tokens']}, "
+            f"total_cost=${context['total_cost']:.4f}, "
+            f"span_count={context['span_count']}"
+        )
 
         # ============================================
         # Step 6: Perform evaluation
         # ============================================
-        print(f"\n[EVAL WORKER] Calling LLM evaluator...")
+        logger.debug("Calling LLM evaluator")
 
         result: EvalResult = await evaluator.evaluate(
             user_input=user_input, assistant_output=assistant_output, context=context
@@ -408,8 +398,8 @@ async def process_evaluation(
         # Step 7: Update trace with results
         # ============================================
         if result.span_evaluations:
-            print(
-                f"\n[EVAL WORKER] Saving {len(result.span_evaluations)} span evaluations..."
+            logger.debug(
+                f"Saving {len(result.span_evaluations)} span evaluations"
             )
 
             for span_eval in result.span_evaluations:
@@ -418,7 +408,7 @@ async def process_evaluation(
                 # Find the span in database
                 span = db.query(Span).filter(Span.id == span_id).first()
                 if not span:
-                    print(f"[EVAL WORKER] ⚠️ Span {span_id} not found, skipping")
+                    logger.warning(f"Span {span_id} not found, skipping")
                     continue
 
                 # Update span with evaluation results
@@ -427,16 +417,16 @@ async def process_evaluation(
                 span.eval_issues = span_eval.issues
                 span.eval_reasoning = span_eval.reasoning
 
-                print(
-                    f"[EVAL WORKER] ✅ Saved eval for span {span.name}: "
+                logger.debug(
+                    f"Saved eval for span {span.name}: "
                     f"relevant={span.eval_relevant}, quality={span.eval_quality_score:.2f}"
                 )
 
         # Update trace with overall evaluation
-        print(f"\n[EVAL WORKER] Overall evaluation result:")
-        print(f"  - Status: {result.status}")
-        print(f"  - Score: {result.score:.2f}")
-        print(f"  - Failure mode: {result.failure_mode or 'None'}")
+        logger.debug(
+            f"Overall evaluation result: status={result.status}, "
+            f"score={result.score:.2f}, failure_mode={result.failure_mode or 'None'}"
+        )
 
         trace.status = result.status
         trace.score = result.score
@@ -450,9 +440,9 @@ async def process_evaluation(
             custom_fields = result.metadata.get("custom_fields", {})
             schema_warnings = result.metadata.get("schema_warnings", [])
             if custom_fields:
-                print(f"  - Custom fields: {list(custom_fields.keys())}")
+                logger.debug(f"Custom fields: {list(custom_fields.keys())}")
             if schema_warnings:
-                print(f"  - Schema warnings: {len(schema_warnings)}")
+                logger.debug(f"Schema warnings: {len(schema_warnings)}")
 
         db.commit()
 
@@ -463,13 +453,8 @@ async def process_evaluation(
             f"spans={len(all_spans)}"
         )
 
-        print(f"[EVAL WORKER] ✅ Trace {job.trace_id} evaluation saved to database")
-        print(f"{'='*80}\n")
-
     except Exception as e:
-        logger.error(f"Evaluation failed for trace {job.trace_id}: {e}")
-        print(f"\n[EVAL WORKER] ❌ ERROR during evaluation: {e}")
-        print(f"{'='*80}\n")
+        logger.exception(f"Evaluation failed for trace {job.trace_id}")
 
         db.rollback()
 
@@ -480,11 +465,11 @@ async def process_evaluation(
                 trace.status = "review"
                 trace.eval_reason = f"Auto-evaluation failed: {str(e)[:200]}"
                 db.commit()
-                print(
-                    f"[EVAL WORKER] Marked trace {job.trace_id} as 'review' due to error"
+                logger.info(
+                    f"Marked trace {job.trace_id} as 'review' due to error"
                 )
         except Exception as inner_e:
-            print(f"[EVAL WORKER] Failed to mark trace as review: {inner_e}")
+            logger.error(f"Failed to mark trace {job.trace_id} as review: {inner_e}")
     finally:
         db.close()
 
@@ -504,8 +489,7 @@ async def run_eval_worker(
         poll_interval: Seconds to wait when queue is empty
         batch_size: Number of concurrent evaluations to process
     """
-    logger.info("[Auditi] Evaluation worker started")
-    print("[EVAL WORKER] 🚀 Evaluation worker started")
+    logger.info("Evaluation worker started")
 
     # Track when to reload config
     last_config_check = 0
@@ -533,8 +517,8 @@ async def run_eval_worker(
                     eval_config = get_evaluator_config(db)
 
                     if not eval_config["ready"]:
-                        print(
-                            f"[EVAL WORKER] [PAUSED] No evaluator config: {eval_config['reason']}"
+                        logger.debug(
+                            f"No evaluator config ready: {eval_config['reason']}"
                         )
                         cached_evaluator = None
                         cached_evaluator_id = None
@@ -559,8 +543,8 @@ async def run_eval_worker(
                             cached_evaluator_id = evaluator_config.id
                             cached_connection_id = connection.id
                             cached_connection_updated = connection.updated_at
-                            print(
-                                f"[EVAL WORKER] 🔄 Loaded evaluator: {evaluator_config.name} "
+                            logger.info(
+                                f"Loaded evaluator: {evaluator_config.name} "
                                 f"(model: {connection.default_model})"
                             )
 
@@ -583,8 +567,8 @@ async def run_eval_worker(
             if jobs_to_process:
                 # Check if we have an evaluator ready
                 if not cached_evaluator:
-                    print(
-                        f"[EVAL WORKER] ⚠️ {len(jobs_to_process)} jobs in queue but no evaluator configured. "
+                    logger.warning(
+                        f"{len(jobs_to_process)} jobs in queue but no evaluator configured. "
                         "Please select an evaluator in LLM-as-a-Judge settings."
                     )
                     # Put jobs back in queue
@@ -593,8 +577,8 @@ async def run_eval_worker(
                     await asyncio.sleep(poll_interval * 4)
                     continue
 
-                print(
-                    f"\n[EVAL WORKER] Processing batch of {len(jobs_to_process)} traces "
+                logger.info(
+                    f"Processing batch of {len(jobs_to_process)} traces"
                 )
 
                 # Process batch concurrently
@@ -604,18 +588,16 @@ async def run_eval_worker(
                 ]
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-                print(f"[EVAL WORKER] Batch complete\n")
+                logger.info("Batch complete")
             else:
                 # Queue is empty, wait before polling again
                 await asyncio.sleep(poll_interval)
 
         except asyncio.CancelledError:
-            logger.info("[Auditi] Evaluation worker shutting down")
-            print("[EVAL WORKER] 🛑 Evaluation worker shutting down")
+            logger.info("Evaluation worker shutting down")
             break
         except Exception as e:
             logger.error(
-                f"[Auditi] Worker error ({type(e).__name__}): {e}", exc_info=True
+                f"Worker error ({type(e).__name__}): {e}", exc_info=True
             )
-            print(f"[EVAL WORKER] ❌ Worker error ({type(e).__name__}): {e}")
             await asyncio.sleep(1)  # Back off on error

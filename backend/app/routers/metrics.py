@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.models import Conversation, Trace
 from app.schemas import MetricsResponse, MetricTrend, MetricDetail
 
-router = APIRouter(tags=["metrics"])
+router = APIRouter(tags=["metrics"], dependencies=[Depends(get_current_user)])
 
 
 def calculate_trend(

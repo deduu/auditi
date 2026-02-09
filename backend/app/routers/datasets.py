@@ -24,6 +24,7 @@ from typing import List, Optional
 logger = logging.getLogger(__name__)
 
 from ..database import get_db
+from ..dependencies import get_current_user
 from ..models.dataset import Dataset, DatasetItem
 from ..models.annotation_queue import AnnotationQueue, AnnotationQueueItem
 from ..models.annotation import Annotation
@@ -48,6 +49,7 @@ from ..schemas.dataset import (
 router = APIRouter(
     prefix="/datasets",
     tags=["datasets"],
+    dependencies=[Depends(get_current_user)],
 )
 
 
