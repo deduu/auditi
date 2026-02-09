@@ -76,6 +76,47 @@ def create_connection(data: LLMConnectionCreate, db: Session = Depends(get_db)):
     )
 
 
+@router.put("/{connection_id}", response_model=LLMConnectionResponse)
+def update_connection(
+    connection_id: str,
+    data: LLMConnectionUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update an existing LLM connection."""
+    connection = (
+        db.query(LLMConnection).filter(LLMConnection.id == connection_id).first()
+    )
+    if not connection:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    # Handle api_key specially: encrypt before storing
+    if "api_key" in update_data:
+        api_key_value = update_data.pop("api_key")
+        if api_key_value is not None:
+            connection.api_key_encrypted = encrypt_api_key(api_key_value)
+
+    for key, value in update_data.items():
+        setattr(connection, key, value)
+
+    db.commit()
+    db.refresh(connection)
+
+    return LLMConnectionResponse(
+        id=connection.id,
+        provider=connection.provider,
+        name=connection.name,
+        base_url=connection.base_url,
+        custom_model_name=connection.custom_model_name,
+        is_default=connection.is_default,
+        default_model=connection.default_model,
+        has_api_key=bool(connection.api_key_encrypted),
+        created_at=connection.created_at,
+        updated_at=connection.updated_at,
+    )
+
+
 @router.get("/{connection_id}", response_model=LLMConnectionResponse)
 def get_connection(connection_id: str, db: Session = Depends(get_db)):
     """Get a specific LLM connection."""

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 from typing import List, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime

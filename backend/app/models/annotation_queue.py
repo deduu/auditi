@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Annotation Queue models for managing human review workflows.
 
@@ -7,7 +8,16 @@ Similar to Langfuse's Annotation Queues, this provides:
 - Assignment of annotators to queues
 """
 
-from sqlalchemy import Column, String, DateTime, Text, Integer, JSON, Boolean, ForeignKey
+from sqlalchemy import (
+    Column,
+    String,
+    DateTime,
+    Text,
+    Integer,
+    JSON,
+    Boolean,
+    ForeignKey,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -23,6 +33,7 @@ class AnnotationQueue(Base):
     - Assign specific score configs to use
     - Assign annotators to specific queues
     """
+
     __tablename__ = "annotation_queues"
 
     # Primary Key
@@ -48,7 +59,9 @@ class AnnotationQueue(Base):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     items = relationship("AnnotationQueueItem", back_populates="queue", lazy="dynamic")
@@ -67,6 +80,7 @@ class AnnotationQueueItem(Base):
     - Locking for concurrency safety
     - Status tracking (pending -> in_progress -> completed)
     """
+
     __tablename__ = "annotation_queue_items"
 
     # Primary Key
@@ -95,7 +109,9 @@ class AnnotationQueueItem(Base):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     queue = relationship("AnnotationQueue", back_populates="items")

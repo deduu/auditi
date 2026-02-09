@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 API router for Human Annotation feature.
 
@@ -552,7 +553,10 @@ def get_next_queue_item(
                 }
 
                 # Include LLM-as-a-judge evaluation data if available
-                if span.eval_quality_score is not None or span.eval_relevant is not None:
+                if (
+                    span.eval_quality_score is not None
+                    or span.eval_relevant is not None
+                ):
                     span_data["evaluation"] = {
                         "evalQualityScore": span.eval_quality_score,
                         "evalRelevant": span.eval_relevant,
@@ -895,8 +899,12 @@ def create_bulk_annotations(
 def export_queue_annotations(
     queue_id: str,
     format: str = Query("csv", description="Export format: csv, jsonl, or parquet"),
-    include_execution_path: bool = Query(False, description="Include execution path (spans) data"),
-    include_llm_evaluation: bool = Query(False, description="Include LLM evaluation data for spans"),
+    include_execution_path: bool = Query(
+        False, description="Include execution path (spans) data"
+    ),
+    include_llm_evaluation: bool = Query(
+        False, description="Include LLM evaluation data for spans"
+    ),
     db: Session = Depends(get_db),
 ):
     """
@@ -991,7 +999,10 @@ def export_queue_annotations(
                             span_info["duration_ms"] = 0.0
 
                         # Include LLM evaluation if requested
-                        if include_llm_evaluation and span.eval_quality_score is not None:
+                        if (
+                            include_llm_evaluation
+                            and span.eval_quality_score is not None
+                        ):
                             span_info["llm_evaluation"] = {
                                 "quality_score": span.eval_quality_score,
                                 "relevant": span.eval_relevant,
@@ -1006,12 +1017,16 @@ def export_queue_annotations(
                         row["execution_path"] = spans_data
                     else:
                         # For CSV, flatten the execution path
-                        row["execution_path_json"] = json.dumps(spans_data, ensure_ascii=False)
+                        row["execution_path_json"] = json.dumps(
+                            spans_data, ensure_ascii=False
+                        )
                         row["span_count"] = len(spans_data)
                         # Include summary of tool calls
                         tool_calls = [s for s in spans_data if s.get("type") == "tool"]
                         row["tool_calls_count"] = len(tool_calls)
-                        row["tool_names"] = ", ".join([s.get("name", "") for s in tool_calls])
+                        row["tool_names"] = ", ".join(
+                            [s.get("name", "") for s in tool_calls]
+                        )
 
         elif item.object_type == "span":
             span = db.query(Span).filter(Span.id == item.object_id).first()
@@ -1026,7 +1041,9 @@ def export_queue_annotations(
                     row["llm_quality_score"] = span.eval_quality_score
                     row["llm_relevant"] = span.eval_relevant
                     row["llm_reasoning"] = span.eval_reasoning
-                    row["llm_issues"] = json.dumps(span.eval_issues) if span.eval_issues else ""
+                    row["llm_issues"] = (
+                        json.dumps(span.eval_issues) if span.eval_issues else ""
+                    )
 
         # Get annotations for this item
         annotations = (

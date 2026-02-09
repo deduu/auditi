@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 API router for Datasets feature.
 
@@ -95,12 +96,15 @@ def create_dataset(
 ):
     """Create a new empty dataset."""
     # Check for duplicate name (exclude archived datasets)
-    existing = db.query(Dataset).filter(
-        Dataset.name == dataset.name,
-        Dataset.is_archived == False
-    ).first()
+    existing = (
+        db.query(Dataset)
+        .filter(Dataset.name == dataset.name, Dataset.is_archived == False)
+        .first()
+    )
     if existing:
-        raise HTTPException(status_code=400, detail=f"Dataset with name '{dataset.name}' already exists")
+        raise HTTPException(
+            status_code=400, detail=f"Dataset with name '{dataset.name}' already exists"
+        )
 
     db_dataset = Dataset(
         id=str(uuid.uuid4()),
@@ -141,12 +145,16 @@ def update_dataset(
 
     # Check name uniqueness if being changed (exclude archived datasets)
     if "name" in update_data and update_data["name"] != dataset.name:
-        existing = db.query(Dataset).filter(
-            Dataset.name == update_data["name"],
-            Dataset.is_archived == False
-        ).first()
+        existing = (
+            db.query(Dataset)
+            .filter(Dataset.name == update_data["name"], Dataset.is_archived == False)
+            .first()
+        )
         if existing:
-            raise HTTPException(status_code=400, detail=f"Dataset with name '{update_data['name']}' already exists")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dataset with name '{update_data['name']}' already exists",
+            )
 
     # Remap metadata to meta for the model
     if "metadata" in update_data:
@@ -270,7 +278,11 @@ def create_dataset_item(
     return db_item
 
 
-@router.post("/{dataset_id}/items/bulk", response_model=List[DatasetItemResponse], status_code=201)
+@router.post(
+    "/{dataset_id}/items/bulk",
+    response_model=List[DatasetItemResponse],
+    status_code=201,
+)
 def create_bulk_dataset_items(
     dataset_id: str,
     bulk: BulkDatasetItemCreate,
@@ -315,10 +327,14 @@ def get_dataset_item(
     db: Session = Depends(get_db),
 ):
     """Get a specific dataset item."""
-    item = db.query(DatasetItem).filter(
-        DatasetItem.id == item_id,
-        DatasetItem.dataset_id == dataset_id,
-    ).first()
+    item = (
+        db.query(DatasetItem)
+        .filter(
+            DatasetItem.id == item_id,
+            DatasetItem.dataset_id == dataset_id,
+        )
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Dataset item not found")
     return item
@@ -332,10 +348,14 @@ def update_dataset_item(
     db: Session = Depends(get_db),
 ):
     """Update a dataset item."""
-    item = db.query(DatasetItem).filter(
-        DatasetItem.id == item_id,
-        DatasetItem.dataset_id == dataset_id,
-    ).first()
+    item = (
+        db.query(DatasetItem)
+        .filter(
+            DatasetItem.id == item_id,
+            DatasetItem.dataset_id == dataset_id,
+        )
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Dataset item not found")
 
@@ -365,10 +385,14 @@ def delete_dataset_item(
     db: Session = Depends(get_db),
 ):
     """Archive a dataset item (soft delete)."""
-    item = db.query(DatasetItem).filter(
-        DatasetItem.id == item_id,
-        DatasetItem.dataset_id == dataset_id,
-    ).first()
+    item = (
+        db.query(DatasetItem)
+        .filter(
+            DatasetItem.id == item_id,
+            DatasetItem.dataset_id == dataset_id,
+        )
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Dataset item not found")
 
@@ -404,12 +428,16 @@ def publish_from_annotation_queue(
         raise HTTPException(status_code=404, detail="Annotation queue not found")
 
     # Check for duplicate dataset name (exclude archived datasets)
-    existing = db.query(Dataset).filter(
-        Dataset.name == request.dataset_name,
-        Dataset.is_archived == False
-    ).first()
+    existing = (
+        db.query(Dataset)
+        .filter(Dataset.name == request.dataset_name, Dataset.is_archived == False)
+        .first()
+    )
     if existing:
-        raise HTTPException(status_code=400, detail=f"Dataset with name '{request.dataset_name}' already exists")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Dataset with name '{request.dataset_name}' already exists",
+        )
 
     # Get completed items from queue
     items_query = db.query(AnnotationQueueItem).filter(
@@ -426,7 +454,9 @@ def publish_from_annotation_queue(
     queue_items = items_query.order_by(AnnotationQueueItem.position).all()
 
     if not queue_items:
-        raise HTTPException(status_code=400, detail="No completed items in queue to publish")
+        raise HTTPException(
+            status_code=400, detail="No completed items in queue to publish"
+        )
 
     # Get score configs for annotation labels
     score_configs = (
@@ -440,7 +470,8 @@ def publish_from_annotation_queue(
     db_dataset = Dataset(
         id=str(uuid.uuid4()),
         name=request.dataset_name,
-        description=request.description or f"Published from annotation queue: {queue.name}",
+        description=request.description
+        or f"Published from annotation queue: {queue.name}",
         source_type="annotation_queue",
         source_id=queue_id,
         meta={
@@ -478,13 +509,19 @@ def publish_from_annotation_queue(
                     "latency": trace.latency,
                     "status": trace.status,
                     "original_score": trace.score,
-                    "completed_at": queue_item.completed_at.isoformat() if queue_item.completed_at else None,
+                    "completed_at": (
+                        queue_item.completed_at.isoformat()
+                        if queue_item.completed_at
+                        else None
+                    ),
                 }
 
                 # Include execution path if requested
                 if request.include_execution_path and trace.spans:
                     spans_data = []
-                    for span in sorted(trace.spans, key=lambda s: (s.start_time or datetime.min)):
+                    for span in sorted(
+                        trace.spans, key=lambda s: (s.start_time or datetime.min)
+                    ):
                         span_info = {
                             "id": span.id,
                             "name": span.name,
@@ -497,7 +534,10 @@ def publish_from_annotation_queue(
                             "status": span.status or "ok",
                         }
 
-                        if request.include_llm_evaluation and span.eval_quality_score is not None:
+                        if (
+                            request.include_llm_evaluation
+                            and span.eval_quality_score is not None
+                        ):
                             span_info["llm_evaluation"] = {
                                 "quality_score": span.eval_quality_score,
                                 "relevant": span.eval_relevant,
@@ -526,7 +566,10 @@ def publish_from_annotation_queue(
                     "cost": span.cost,
                 }
 
-                if request.include_llm_evaluation and span.eval_quality_score is not None:
+                if (
+                    request.include_llm_evaluation
+                    and span.eval_quality_score is not None
+                ):
                     item_metadata["llm_evaluation"] = {
                         "quality_score": span.eval_quality_score,
                         "relevant": span.eval_relevant,
@@ -566,8 +609,12 @@ def publish_from_annotation_queue(
             input=input_data,
             expected_output=expected_output if expected_output else None,
             meta=item_metadata if item_metadata else None,
-            source_trace_id=queue_item.object_id if queue_item.object_type == "trace" else None,
-            source_span_id=queue_item.object_id if queue_item.object_type == "span" else None,
+            source_trace_id=(
+                queue_item.object_id if queue_item.object_type == "trace" else None
+            ),
+            source_span_id=(
+                queue_item.object_id if queue_item.object_type == "span" else None
+            ),
             annotations=annotations_data if annotations_data else None,
             version_added=1,
         )
@@ -580,7 +627,9 @@ def publish_from_annotation_queue(
     db.commit()
     db.refresh(db_dataset)
 
-    logger.info(f"Published {items_created} items from queue '{queue.name}' to dataset '{request.dataset_name}'")
+    logger.info(
+        f"Published {items_created} items from queue '{queue.name}' to dataset '{request.dataset_name}'"
+    )
 
     return PublishFromQueueResponse(
         dataset_id=db_dataset.id,
@@ -664,12 +713,26 @@ def export_dataset(
         for row in export_data:
             flat_row = {
                 "id": row["id"],
-                "input_json": json.dumps(row["input"], ensure_ascii=False) if row["input"] else "",
-                "expected_output_json": json.dumps(row["expected_output"], ensure_ascii=False) if row["expected_output"] else "",
-                "metadata_json": json.dumps(row["metadata"], ensure_ascii=False) if row["metadata"] else "",
+                "input_json": (
+                    json.dumps(row["input"], ensure_ascii=False) if row["input"] else ""
+                ),
+                "expected_output_json": (
+                    json.dumps(row["expected_output"], ensure_ascii=False)
+                    if row["expected_output"]
+                    else ""
+                ),
+                "metadata_json": (
+                    json.dumps(row["metadata"], ensure_ascii=False)
+                    if row["metadata"]
+                    else ""
+                ),
                 "source_trace_id": row["source_trace_id"] or "",
                 "source_span_id": row["source_span_id"] or "",
-                "annotations_json": json.dumps(row["annotations"], ensure_ascii=False) if row["annotations"] else "",
+                "annotations_json": (
+                    json.dumps(row["annotations"], ensure_ascii=False)
+                    if row["annotations"]
+                    else ""
+                ),
                 "created_at": row["created_at"] or "",
             }
             flat_data.append(flat_row)

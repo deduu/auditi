@@ -1,10 +1,11 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """Analytics API routes for trends, distributions, and insights."""
 
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, case, cast, String, desc
+from sqlalchemy import func, and_, or_, case, cast, String, desc
 
 from app.database import get_db
 from app.models import Trace, Span
@@ -142,14 +143,20 @@ def get_dashboard_kpis(
     total_traces = total_traces_query.scalar() or 0
 
     # Compute counts by trace type for tab badges
-    all_count = db.query(func.count(Trace.id)).filter(
-        Trace.start_time >= start_date
-    ).scalar() or 0
+    all_count = (
+        db.query(func.count(Trace.id)).filter(Trace.start_time >= start_date).scalar()
+        or 0
+    )
 
-    standalone_count = db.query(func.count(Trace.id)).filter(
-        Trace.start_time >= start_date,
-        func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"')
-    ).scalar() or 0
+    standalone_count = (
+        db.query(func.count(Trace.id))
+        .filter(
+            Trace.start_time >= start_date,
+            func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"'),
+        )
+        .scalar()
+        or 0
+    )
 
     agent_count = all_count - standalone_count
 
@@ -225,7 +232,11 @@ def get_dashboard_kpis(
     )
 
     return {
-        "traces": {"total": total_traces, "by_name": traces_by_name, "counts_by_type": counts_by_type},
+        "traces": {
+            "total": total_traces,
+            "by_name": traces_by_name,
+            "counts_by_type": counts_by_type,
+        },
         "model_costs": {"total": total_cost, "by_model": model_costs},
         "scores": {"total": total_scores, "by_evaluator": score_evaluations},
     }
@@ -347,12 +358,14 @@ def get_low_scoring_traces(
     # Threshold comes in as percentage (e.g., 50), convert to 0-1 for DB query
     db_threshold = threshold / 100.0
 
+    problem_filter = or_(Trace.score < db_threshold, Trace.status == "fail")
+
     traces = (
         db.query(Trace)
         .filter(
             Trace.start_time >= start_date,
             Trace.score != None,
-            Trace.score < db_threshold,
+            problem_filter,
         )
         .order_by(Trace.score.asc())
         .limit(limit)
@@ -365,7 +378,7 @@ def get_low_scoring_traces(
         .filter(
             Trace.start_time >= start_date,
             Trace.score != None,
-            Trace.score < db_threshold,
+            problem_filter,
         )
         .scalar()
     )
@@ -1166,18 +1179,10 @@ def get_latency_percentiles_time_series(
     trace_rows = (
         db.query(
             trace_fmt.label("period"),
-            func.percentile_cont(0.5)
-            .within_group(Trace.latency.asc())
-            .label("p50"),
-            func.percentile_cont(0.9)
-            .within_group(Trace.latency.asc())
-            .label("p90"),
-            func.percentile_cont(0.95)
-            .within_group(Trace.latency.asc())
-            .label("p95"),
-            func.percentile_cont(0.99)
-            .within_group(Trace.latency.asc())
-            .label("p99"),
+            func.percentile_cont(0.5).within_group(Trace.latency.asc()).label("p50"),
+            func.percentile_cont(0.9).within_group(Trace.latency.asc()).label("p90"),
+            func.percentile_cont(0.95).within_group(Trace.latency.asc()).label("p95"),
+            func.percentile_cont(0.99).within_group(Trace.latency.asc()).label("p99"),
         )
         .filter(Trace.start_time >= start_date, Trace.latency.isnot(None))
         .group_by(trace_trunc)

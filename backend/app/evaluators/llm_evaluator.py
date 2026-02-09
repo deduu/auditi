@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Enhanced LLM-based evaluator using OpenAI API for agentic workflows.
 

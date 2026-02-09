@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Score Configuration model for defining annotation scoring criteria.
 
@@ -20,17 +21,22 @@ class ScoreConfig(Base):
     - numerical: Continuous values within a range (e.g., 0-100)
     - binary: Yes/No or True/False
     """
+
     __tablename__ = "score_configs"
 
     # Primary Key
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
 
     # Basic Info
-    name = Column(String(100), nullable=False)  # e.g., "Accuracy", "Helpfulness", "Relevance"
+    name = Column(
+        String(100), nullable=False
+    )  # e.g., "Accuracy", "Helpfulness", "Relevance"
     description = Column(Text, nullable=True)
 
     # Data Type Configuration
-    data_type = Column(String(20), nullable=False, default="numerical")  # categorical, numerical, binary
+    data_type = Column(
+        String(20), nullable=False, default="numerical"
+    )  # categorical, numerical, binary
 
     # For categorical type: list of {value: int, label: str}
     # e.g., [{"value": 1, "label": "Poor"}, {"value": 2, "label": "Fair"}, ...]
@@ -53,7 +59,9 @@ class ScoreConfig(Base):
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     def __repr__(self):
         return f"<ScoreConfig(id={self.id}, name={self.name}, type={self.data_type})>"

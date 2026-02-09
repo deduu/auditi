@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Evaluation jobs router - handles batch evaluation requests and job status.
 """
@@ -7,7 +8,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func, or_, and_, cast, String
+from sqlalchemy import desc, func, or_, and_, cast, String, Text, text
 import uuid
 
 from app.database import get_db
@@ -98,104 +99,120 @@ def get_traces_preview(
     db: Session = Depends(get_db),
 ):
     """Get preview of traces matching filters"""
-    query = db.query(Trace)
+    try:
+        query = db.query(Trace)
 
-    # Apply filters
-    if date_from:
-        try:
-            dt = datetime.fromisoformat(date_from)
-            query = query.filter(Trace.start_time >= dt)
-        except:
-            pass
+        # Apply filters
+        if date_from:
+            try:
+                dt = datetime.fromisoformat(date_from)
+                query = query.filter(Trace.start_time >= dt)
+            except ValueError:
+                pass
 
-    if date_to:
-        try:
-            dt = datetime.fromisoformat(date_to)
-            query = query.filter(Trace.start_time <= dt)
-        except:
-            pass
+        if date_to:
+            try:
+                dt = datetime.fromisoformat(date_to)
+                query = query.filter(Trace.start_time <= dt)
+            except ValueError:
+                pass
 
-    if name:
-        query = query.filter(Trace.name.ilike(f"%{name}%"))
+        if name:
+            query = query.filter(Trace.name.ilike(f"%{name}%"))
 
-    if tags:
-        # Handle comma-separated tags
-        tag_list = tags.split(",")
-        for tag in tag_list:
-            if tag.strip():
+        if models:
+            model_list = [m.strip() for m in models.split(",") if m.strip()]
+            if model_list:
+                query = query.filter(Trace.spans.any(Span.model.in_(model_list)))
+
+        if tags:
+            tag_list = tags.split(",")
+            for tag in tag_list:
+                if tag.strip():
+                    query = query.filter(
+                        cast(Trace.tags, Text).like(f'%"{tag.strip()}"%')
+                    )
+
+        if status and status != "all":
+            if status == "success":
+                query = query.filter(Trace.status == "pass")
+            elif status == "error":
+                query = query.filter(Trace.status == "fail")
+            elif status == "needs_evaluation":
                 query = query.filter(
-                    cast(Trace.tags, String).like(f'%"{tag.strip()}"%')
+                    or_(
+                        Trace.status.is_(None),
+                        Trace.status == "review",
+                        Trace.status == "pending",
+                    )
                 )
-
-    if status and status != "all":
-        if status == "success":
-            query = query.filter(Trace.status == "pass")
-        elif status == "error":
-            query = query.filter(Trace.status == "fail")
-        elif status == "needs_evaluation":
-            # Status is null OR 'review' OR 'pending' (combined view - legacy)
-            query = query.filter(
-                or_(
-                    Trace.status.is_(None),
-                    Trace.status == "review",
-                    Trace.status == "pending",
+            elif status == "pending":
+                query = query.filter(
+                    or_(
+                        Trace.status.is_(None),
+                        Trace.status == "pending",
+                    )
                 )
-            )
-        elif status == "pending":
-            # Only pending/unevaluated traces
-            query = query.filter(
-                or_(
-                    Trace.status.is_(None),
-                    Trace.status == "pending",
+            elif status == "review":
+                query = query.filter(Trace.status == "review")
+            elif status == "pass":
+                query = query.filter(Trace.status == "pass")
+            elif status == "fail":
+                query = query.filter(Trace.status == "fail")
+
+        total = query.count()
+        traces = query.order_by(desc(Trace.start_time)).offset(skip).limit(limit).all()
+
+        return TracePreviewResponse(
+            traces=[
+                TracePreview(
+                    id=str(t.id),
+                    name=t.name,
+                    user_input=t.user_input[:100] if t.user_input else None,
+                    assistant_output=(
+                        t.assistant_output[:100] if t.assistant_output else None
+                    ),
+                    start_time=t.start_time,
+                    latency=t.latency,
+                    total_tokens=t.total_tokens,
+                    status=t.status,
                 )
-            )
-        elif status == "review":
-            # Only traces flagged for review
-            query = query.filter(Trace.status == "review")
-        elif status == "pass":
-            query = query.filter(Trace.status == "pass")
-        elif status == "fail":
-            query = query.filter(Trace.status == "fail")
+                for t in traces
+            ],
+            total=total,
+        )
+    except Exception as e:
+        import traceback
 
-    # Get total count
-    total = query.count()
-
-    # Get limited results
-    traces = query.order_by(desc(Trace.start_time)).offset(skip).limit(limit).all()
-
-    return TracePreviewResponse(
-        traces=[
-            TracePreview(
-                id=str(t.id),
-                name=t.name,
-                user_input=t.user_input[:100] if t.user_input else None,
-                assistant_output=(
-                    t.assistant_output[:100] if t.assistant_output else None
-                ),
-                start_time=t.start_time,
-                latency=t.latency,
-                total_tokens=t.total_tokens,
-                status=t.status,
-            )
-            for t in traces
-        ],
-        total=total,
-    )
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch trace preview: {str(e)}"
+        )
 
 
 @router.get("/traces/models")
 def get_available_models(db: Session = Depends(get_db)):
     """Get list of unique models from traces"""
-    # Get models from spans
-    models = db.query(Span.model).filter(Span.model.isnot(None)).distinct().all()
-    return [m[0] for m in models if m[0]]
+    try:
+        models = db.query(Span.model).filter(Span.model.isnot(None)).distinct().all()
+        return [m[0] for m in models if m[0]]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch models: {str(e)}")
 
 
 @router.get("/traces/tags")
 def get_available_tags(db: Session = Depends(get_db)):
     """Get list of unique tags from traces"""
-    # For now return empty - can implement when tags are added to trace model
-    return []
+    try:
+        result = db.execute(
+            text(
+                "SELECT DISTINCT tag FROM traces, json_array_elements_text(traces.tags) AS tag "
+                "WHERE traces.tags IS NOT NULL ORDER BY tag"
+            )
+        ).fetchall()
+        return [row[0] for row in result]
+    except Exception:
+        return []
 
 
 # ============================================

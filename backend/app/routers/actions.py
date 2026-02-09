@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """Actions and Failure Modes API routes."""
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Annotation model for storing human-provided scores and comments.
 
@@ -18,6 +19,7 @@ class Annotation(Base):
     Each annotation represents a single score dimension applied to an object.
     Multiple annotations can exist for the same object (one per score config).
     """
+
     __tablename__ = "annotations"
 
     # Primary Key
@@ -47,14 +49,18 @@ class Annotation(Base):
     annotator_name = Column(String(100), nullable=True)  # For display
 
     # Optional link to queue item (if annotation came from a queue)
-    queue_item_id = Column(String(36), ForeignKey("annotation_queue_items.id"), nullable=True)
+    queue_item_id = Column(
+        String(36), ForeignKey("annotation_queue_items.id"), nullable=True
+    )
 
     # Source of annotation: "queue", "direct", "api"
     source = Column(String(20), nullable=False, default="direct")
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     # Relationships
     score_config = relationship("ScoreConfig")

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Async background worker for processing trace evaluations.
 
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.evaluators import LLMEvaluator
 from app.evaluators.main_factory import get_evaluator
 from app.evaluators.base import BaseBackendEvaluator, EvalResult
+from app.utils.encryption import decrypt_api_key
 from app.config_loader import load_eval_config
 from app.services.llm_provider import get_llm_provider, extract_objective
 
@@ -192,7 +194,7 @@ def create_evaluator_from_config(evaluator_config, connection) -> LLMEvaluator:
 
     # Create evaluator with connection settings and schema config
     return LLMEvaluator(
-        api_key=connection.api_key_encrypted,  # TODO: Decrypt
+        api_key=decrypt_api_key(connection.api_key_encrypted),
         model=connection.default_model or "gpt-4o",
         base_url=connection.base_url,
         custom_prompts=custom_prompts,
@@ -266,7 +268,12 @@ async def process_evaluation(
                         f"[EVAL WORKER] Extracting objective for conversation {trace.conversation_id}..."
                     )
                     try:
-                        llm_provider = get_llm_provider("openai")
+                        llm_provider = get_llm_provider(
+                            "openai",
+                            api_key=getattr(evaluator, "api_key", None),
+                            base_url=getattr(evaluator, "base_url", None),
+                            model=getattr(evaluator, "model", None) or "gpt-4o",
+                        )
                         objective = await extract_objective(
                             trace.user_input, llm_provider
                         )
@@ -504,9 +511,11 @@ async def run_eval_worker(
     last_config_check = 0
     config_check_interval = 2  # Re-check config every 2 seconds
 
-    # Cached evaluator
+    # Cached evaluator (invalidated when evaluator OR connection changes)
     cached_evaluator = None
     cached_evaluator_id = None
+    cached_connection_id = None
+    cached_connection_updated = None
 
     while True:
         try:
@@ -525,20 +534,31 @@ async def run_eval_worker(
 
                     if not eval_config["ready"]:
                         print(
-                            f"[EVAL WORKER] ⏸️ No evaluator config: {eval_config['reason']}"
+                            f"[EVAL WORKER] [PAUSED] No evaluator config: {eval_config['reason']}"
                         )
                         cached_evaluator = None
                         cached_evaluator_id = None
+                        cached_connection_id = None
+                        cached_connection_updated = None
                     else:
                         # Recreate evaluator if config changed
                         evaluator_config = eval_config["evaluator"]
                         connection = eval_config["connection"]
 
-                        if evaluator_config.id != cached_evaluator_id:
+                        connection_changed = (
+                            connection.id != cached_connection_id
+                            or connection.updated_at != cached_connection_updated
+                        )
+                        if (
+                            evaluator_config.id != cached_evaluator_id
+                            or connection_changed
+                        ):
                             cached_evaluator = create_evaluator_from_config(
                                 evaluator_config, connection
                             )
                             cached_evaluator_id = evaluator_config.id
+                            cached_connection_id = connection.id
+                            cached_connection_updated = connection.updated_at
                             print(
                                 f"[EVAL WORKER] 🔄 Loaded evaluator: {evaluator_config.name} "
                                 f"(model: {connection.default_model})"
@@ -594,6 +614,8 @@ async def run_eval_worker(
             print("[EVAL WORKER] 🛑 Evaluation worker shutting down")
             break
         except Exception as e:
-            logger.error(f"[Auditi] Worker error: {e}")
-            print(f"[EVAL WORKER] ❌ Worker error: {e}")
+            logger.error(
+                f"[Auditi] Worker error ({type(e).__name__}): {e}", exc_info=True
+            )
+            print(f"[EVAL WORKER] ❌ Worker error ({type(e).__name__}): {e}")
             await asyncio.sleep(1)  # Back off on error

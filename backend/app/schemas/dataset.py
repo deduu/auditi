@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
 """
 Pydantic schemas for Dataset API.
 
@@ -16,21 +17,31 @@ from datetime import datetime
 # Dataset Schemas
 # =============================================================================
 
+
 class DatasetBase(BaseModel):
     """Base schema for dataset."""
-    name: str = Field(..., min_length=1, max_length=200, description="Unique dataset name")
+
+    name: str = Field(
+        ..., min_length=1, max_length=200, description="Unique dataset name"
+    )
     description: Optional[str] = Field(None, description="Dataset description")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
 class DatasetCreate(DatasetBase):
     """Schema for creating a new dataset."""
-    input_schema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema for input validation")
-    expected_output_schema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema for expected_output validation")
+
+    input_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for input validation"
+    )
+    expected_output_schema: Optional[Dict[str, Any]] = Field(
+        None, description="JSON Schema for expected_output validation"
+    )
 
 
 class DatasetUpdate(BaseModel):
     """Schema for updating a dataset."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -41,6 +52,7 @@ class DatasetUpdate(BaseModel):
 
 class DatasetResponse(BaseModel):
     """Schema for dataset response."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -62,6 +74,7 @@ class DatasetResponse(BaseModel):
 
 class DatasetListResponse(BaseModel):
     """Schema for listing datasets with pagination."""
+
     datasets: List[DatasetResponse]
     total: int
     page: int
@@ -72,21 +85,31 @@ class DatasetListResponse(BaseModel):
 # Dataset Item Schemas
 # =============================================================================
 
+
 class DatasetItemBase(BaseModel):
     """Base schema for dataset item."""
+
     input: Dict[str, Any] = Field(..., description="The test input data")
-    expected_output: Optional[Dict[str, Any]] = Field(None, description="Expected/ideal output (ground truth)")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional item metadata")
+    expected_output: Optional[Dict[str, Any]] = Field(
+        None, description="Expected/ideal output (ground truth)"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Additional item metadata"
+    )
 
 
 class DatasetItemCreate(DatasetItemBase):
     """Schema for creating a new dataset item."""
-    source_trace_id: Optional[str] = Field(None, description="Source trace ID if linked")
+
+    source_trace_id: Optional[str] = Field(
+        None, description="Source trace ID if linked"
+    )
     source_span_id: Optional[str] = Field(None, description="Source span ID if linked")
 
 
 class DatasetItemUpdate(BaseModel):
     """Schema for updating a dataset item."""
+
     input: Optional[Dict[str, Any]] = None
     expected_output: Optional[Dict[str, Any]] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -95,6 +118,7 @@ class DatasetItemUpdate(BaseModel):
 
 class DatasetItemResponse(BaseModel):
     """Schema for dataset item response."""
+
     id: str
     dataset_id: str
     input: Dict[str, Any]
@@ -115,6 +139,7 @@ class DatasetItemResponse(BaseModel):
 
 class DatasetItemListResponse(BaseModel):
     """Schema for listing dataset items with pagination."""
+
     items: List[DatasetItemResponse]
     total: int
     page: int
@@ -123,6 +148,7 @@ class DatasetItemListResponse(BaseModel):
 
 class BulkDatasetItemCreate(BaseModel):
     """Schema for creating multiple dataset items at once."""
+
     items: List[DatasetItemCreate] = Field(..., min_length=1)
 
 
@@ -130,17 +156,28 @@ class BulkDatasetItemCreate(BaseModel):
 # Publish from Annotation Queue Schemas
 # =============================================================================
 
+
 class PublishFromQueueRequest(BaseModel):
     """Schema for publishing annotation queue to dataset."""
-    dataset_name: str = Field(..., min_length=1, max_length=200, description="Name for the new dataset")
+
+    dataset_name: str = Field(
+        ..., min_length=1, max_length=200, description="Name for the new dataset"
+    )
     description: Optional[str] = Field(None, description="Dataset description")
-    include_execution_path: bool = Field(False, description="Include spans/execution path in metadata")
-    include_llm_evaluation: bool = Field(False, description="Include LLM evaluation data")
-    only_completed: bool = Field(True, description="Only include completed items (not skipped)")
+    include_execution_path: bool = Field(
+        False, description="Include spans/execution path in metadata"
+    )
+    include_llm_evaluation: bool = Field(
+        False, description="Include LLM evaluation data"
+    )
+    only_completed: bool = Field(
+        True, description="Only include completed items (not skipped)"
+    )
 
 
 class PublishFromQueueResponse(BaseModel):
     """Response after publishing annotation queue to dataset."""
+
     dataset_id: str
     dataset_name: str
     items_created: int
@@ -152,8 +189,10 @@ class PublishFromQueueResponse(BaseModel):
 # Dataset Version History
 # =============================================================================
 
+
 class DatasetVersionInfo(BaseModel):
     """Information about a dataset version."""
+
     version: int
     item_count: int
     timestamp: datetime
@@ -164,8 +203,10 @@ class DatasetVersionInfo(BaseModel):
 # Dataset Statistics
 # =============================================================================
 
+
 class DatasetStats(BaseModel):
     """Statistics for a dataset."""
+
     total_items: int
     active_items: int
     archived_items: int
