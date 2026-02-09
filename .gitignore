@@ -81,5 +81,3 @@ tests/uat/
 # Agents
 .agentt
 .claude
-
-src/

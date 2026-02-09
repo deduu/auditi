@@ -37,8 +37,8 @@ Signed-off-by: Jane Doe <jane.doe@example.com>
 
 This certifies that you wrote the code or have the right to contribute it under the project's licenses.
 
-## Report bugs using Github's [issues](https://github.com/auditi-dev/auditi/issues)
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](); it's that easy!
+## Report bugs using Github's [issues](https://github.com/deduu/auditi/issues)
+We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/deduu/auditi/issues); it's that easy!
 
 ## Write bug reports with detail, background, and sample code
 
