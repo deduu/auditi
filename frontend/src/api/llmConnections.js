@@ -18,6 +18,11 @@ export const deleteLLMConnection = async (connectionId) => {
     return response;
 };
 
+export const updateLLMConnection = async (connectionId, data) => {
+    const response = await client.put(`/llm-connections/${connectionId}`, data);
+    return response;
+};
+
 export const getDefaultModel = async () => {
     const response = await client.get('/llm-connections/default/model');
     return response;

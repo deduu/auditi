@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from "react";
 import {
   Zap, ArrowRight, CheckCircle2, Clock, AlertTriangle, TrendingUp, X,
@@ -250,8 +253,8 @@ export const ActionsPage = () => {
           <button
             onClick={() => setActiveTab("insights")}
             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "insights"
-                ? "border-blue-500 text-blue-400"
-                : "border-transparent text-slate-400 hover:text-white"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-400 hover:text-white"
               }`}
           >
             <Lightbulb className="w-4 h-4 inline mr-2" />
@@ -265,8 +268,8 @@ export const ActionsPage = () => {
           <button
             onClick={() => setActiveTab("actions")}
             className={`pb-4 text-sm font-medium border-b-2 transition-colors ${activeTab === "actions"
-                ? "border-blue-500 text-blue-400"
-                : "border-transparent text-slate-400 hover:text-white"
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-400 hover:text-white"
               }`}
           >
             <CheckCircle2 className="w-4 h-4 inline mr-2" />

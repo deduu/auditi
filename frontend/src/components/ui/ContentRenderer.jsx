@@ -114,12 +114,12 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
     const markdownContent = processedContent.text.replace(/\n/g, '  \n');
 
     return (
-        <div className={`prose prose-invert max-w-none prose-pre:p-0 prose-pre:bg-transparent ${className}`}>
+        <div className={`max-w-none ${className}`}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                     p({ children }) {
-                        return <p className="text-base whitespace-pre-wrap break-words leading-relaxed mb-4">{children}</p>;
+                        return <p className="text-sm text-slate-300 whitespace-pre-wrap break-words leading-relaxed mb-3">{children}</p>;
                     },
                     code({ node, inline, className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || '');
@@ -178,7 +178,17 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
                     },
                     blockquote({ children }) {
                         return <blockquote className="border-l-4 border-slate-600 pl-4 py-1 my-4 text-slate-400 italic bg-slate-900/30 rounded-r">{children}</blockquote>
-                    }
+                    },
+                    h1: ({ children }) => <h1 className="text-xl font-bold text-slate-100 mt-5 mb-3">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-lg font-bold text-slate-100 mt-4 mb-2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-base font-semibold text-slate-200 mt-4 mb-2">{children}</h3>,
+                    h4: ({ children }) => <h4 className="text-sm font-semibold text-slate-200 mt-3 mb-1">{children}</h4>,
+                    ol: ({ children }) => <ol className="list-decimal list-outside pl-5 space-y-2 mb-3 text-sm text-slate-300">{children}</ol>,
+                    ul: ({ children }) => <ul className="list-disc list-outside pl-5 space-y-1 mb-3 text-sm text-slate-300">{children}</ul>,
+                    li: ({ children }) => <li className="text-sm text-slate-300 leading-relaxed [&>p]:inline [&>p]:mb-0">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold text-slate-100">{children}</strong>,
+                    em: ({ children }) => <em className="italic text-slate-400">{children}</em>,
+                    hr: () => <hr className="border-slate-700 my-4" />,
                 }}
             >
                 {processedContent.text}

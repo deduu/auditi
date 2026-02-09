@@ -17,7 +17,7 @@ const DATA_TYPE_LABELS = {
   binary: 'Binary (Yes/No)',
 };
 
-export const ScoreConfigManager = ({ onConfigSelect }) => {
+export const ScoreConfigManager = ({ onConfigSelect, onConfigCreated }) => {
   const [configs, setConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -137,10 +137,11 @@ export const ScoreConfigManager = ({ onConfigSelect }) => {
           setEditingConfig(null);
         }}
         config={editingConfig}
-        onSave={() => {
+        onSave={(isNew) => {
           loadConfigs();
           setShowCreateModal(false);
           setEditingConfig(null);
+          if (isNew) onConfigCreated?.();
         }}
       />
     </div>
@@ -227,7 +228,7 @@ const ScoreConfigModal = ({ isOpen, onClose, config, onSave }) => {
       } else {
         await annotationsApi.createScoreConfig(payload);
       }
-      onSave();
+      onSave(!config);
     } catch (error) {
       console.error('Failed to save config:', error);
     } finally {

@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { createPortal } from 'react-dom';

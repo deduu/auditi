@@ -227,6 +227,159 @@ export const AddConnectionModal = ({ isOpen, onClose, onConnectionCreated }) => 
     );
 };
 
+// Modal for editing an existing LLM connection
+export const EditConnectionModal = ({ isOpen, onClose, connection, onConnectionUpdated }) => {
+    const [formData, setFormData] = useState({
+        provider: "openai",
+        providerName: "",
+        apiKey: "",
+        baseUrl: "",
+        customModelName: "",
+    });
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [apiKeyTouched, setApiKeyTouched] = useState(false);
+
+    const providers = [
+        { id: "openai", label: "OpenAI" },
+        { id: "anthropic", label: "Anthropic" },
+        { id: "google", label: "Google (Gemini)" },
+        { id: "azure", label: "Azure OpenAI" },
+        { id: "custom", label: "Custom / Open Source" }
+    ];
+
+    // Pre-populate form when connection changes
+    useEffect(() => {
+        if (connection && isOpen) {
+            setFormData({
+                provider: connection.provider || "openai",
+                providerName: connection.name || "",
+                apiKey: "",
+                baseUrl: connection.base_url || "",
+                customModelName: connection.custom_model_name || "",
+            });
+            setApiKeyTouched(false);
+            setShowAdvanced(!!connection.base_url || !!connection.custom_model_name);
+        }
+    }, [connection, isOpen]);
+
+    const handleSubmit = async () => {
+        setSaving(true);
+        try {
+            const updateData = { ...formData };
+            if (!apiKeyTouched || formData.apiKey === "") {
+                delete updateData.apiKey;
+            }
+            await onConnectionUpdated(connection.id, updateData);
+            onClose();
+        } catch (error) {
+            console.error("Failed to update connection:", error);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Edit LLM Connection" size="md">
+            <div className="space-y-5">
+                {/* Provider Dropdown */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">LLM Adapter</label>
+                    <select
+                        value={formData.provider}
+                        onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    >
+                        {providers.map((p) => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Provider Name */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Provider Name</label>
+                    <input
+                        type="text"
+                        value={formData.providerName}
+                        onChange={(e) => setFormData({ ...formData, providerName: e.target.value })}
+                        placeholder="e.g., my-openai-connection"
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                </div>
+
+                {/* API Key */}
+                <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">API Key</label>
+                    <input
+                        type="password"
+                        value={apiKeyTouched ? formData.apiKey : ""}
+                        onChange={(e) => {
+                            setApiKeyTouched(true);
+                            setFormData({ ...formData, apiKey: e.target.value });
+                        }}
+                        onFocus={() => {
+                            if (!apiKeyTouched) setApiKeyTouched(true);
+                        }}
+                        placeholder={connection?.has_api_key ? "Leave blank to keep current key" : "sk-..."}
+                        className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                    {connection?.has_api_key && !apiKeyTouched && (
+                        <p className="mt-1 text-xs text-slate-500">
+                            An API key is configured. Leave blank to keep it unchanged.
+                        </p>
+                    )}
+                </div>
+
+                {/* Advanced Settings */}
+                <div className="border-t border-slate-800 pt-4">
+                    <button
+                        type="button"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="flex items-center text-sm text-slate-400 hover:text-white transition-colors"
+                    >
+                        {showAdvanced ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
+                        Advanced Settings
+                    </button>
+
+                    {showAdvanced && (
+                        <div className="mt-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">API Base URL</label>
+                                <input
+                                    type="text"
+                                    value={formData.baseUrl}
+                                    onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+                                    placeholder="https://api.openai.com/v1"
+                                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">Custom Model Name</label>
+                                <input
+                                    type="text"
+                                    value={formData.customModelName}
+                                    onChange={(e) => setFormData({ ...formData, customModelName: e.target.value })}
+                                    placeholder="e.g., llama-3-70b"
+                                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-800">
+                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button onClick={handleSubmit} disabled={saving || !formData.providerName}>
+                    {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Save Changes
+                </Button>
+            </div>
+        </Modal>
+    );
+};
+
 // Modal for configuring/selecting the default model
 export const DefaultModelModal = ({ isOpen, onClose, onSave, connections = [], onConnectionCreated }) => {
     const [showAddConnection, setShowAddConnection] = useState(false);
@@ -240,11 +393,11 @@ export const DefaultModelModal = ({ isOpen, onClose, onSave, connections = [], o
         setLocalConnections(connections);
     }, [connections]);
 
-    const modelOptions = {
-        openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
-        anthropic: ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-haiku-20240307"],
-        google: ["gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash"],
-        azure: ["gpt-4", "gpt-35-turbo"],
+    const modelSuggestions = {
+        openai: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4-turbo", "o3", "o4-mini"],
+        anthropic: ["claude-opus-4-6", "claude-sonnet-4-5-20250929", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"],
+        google: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"],
+        azure: ["gpt-4o", "gpt-4", "gpt-35-turbo"],
         custom: []
     };
 
@@ -311,26 +464,21 @@ export const DefaultModelModal = ({ isOpen, onClose, onSave, connections = [], o
                         {/* Model Name */}
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-2">Model name</label>
-                            {selectedConnection?.custom_model_name ? (
-                                <input
-                                    type="text"
-                                    value={selectedModel}
-                                    onChange={(e) => setSelectedModel(e.target.value)}
-                                    placeholder="Enter model name..."
-                                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                                />
-                            ) : (
-                                <select
-                                    value={selectedModel}
-                                    onChange={(e) => setSelectedModel(e.target.value)}
-                                    disabled={!selectedConnectionId}
-                                    className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-50"
-                                >
-                                    <option value="">Select model...</option>
-                                    {(modelOptions[selectedConnection?.provider] || []).map((model) => (
-                                        <option key={model} value={model}>{model}</option>
+                            <input
+                                type="text"
+                                list={selectedConnectionId ? `models-${selectedConnectionId}` : undefined}
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                disabled={!selectedConnectionId}
+                                placeholder="Select or type a model ID..."
+                                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:opacity-50"
+                            />
+                            {selectedConnection && (
+                                <datalist id={`models-${selectedConnectionId}`}>
+                                    {(modelSuggestions[selectedConnection.provider] || []).map((model) => (
+                                        <option key={model} value={model} />
                                     ))}
-                                </select>
+                                </datalist>
                             )}
                         </div>
 

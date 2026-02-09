@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from "react";
 import {
   AlertTriangle,
@@ -454,12 +457,12 @@ export const FailureModesPage = () => {
                 <div
                   key={index}
                   className={`p-4 rounded-lg border ${insight.type === 'danger'
-                      ? 'bg-red-500/5 border-red-500/20'
-                      : insight.type === 'warning'
-                        ? 'bg-amber-500/5 border-amber-500/20'
-                        : insight.type === 'success'
-                          ? 'bg-emerald-500/5 border-emerald-500/20'
-                          : 'bg-blue-500/5 border-blue-500/20'
+                    ? 'bg-red-500/5 border-red-500/20'
+                    : insight.type === 'warning'
+                      ? 'bg-amber-500/5 border-amber-500/20'
+                      : insight.type === 'success'
+                        ? 'bg-emerald-500/5 border-emerald-500/20'
+                        : 'bg-blue-500/5 border-blue-500/20'
                     }`}
                 >
                   <div className="flex items-start space-x-3">

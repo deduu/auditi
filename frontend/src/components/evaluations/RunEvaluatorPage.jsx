@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from "react";
 import { formatTimestamp } from "@utils/formatters";
 import {
@@ -10,6 +13,7 @@ import { Button } from "../ui/Button";
 import { PaginationFooter } from "../ui/PaginationFooter";
 import { SlidePanel } from "../ui/SlidePanel";
 import { TraceDetailPage } from "../../pages/TraceDetailPage";
+import { getTraceModels, getTraceTags, getTracesPreview, createEvaluationJob, getEvaluationJob } from "@api/evaluationJobs";
 
 // ... imports
 
@@ -61,7 +65,7 @@ export const RunEvaluatorPage = ({
     const [executing, setExecuting] = useState(false);
     const [executionProgress, setExecutionProgress] = useState(null);
 
-    // Selected traces for evaluation
+    // Selected traces for evaluation (persists across page changes)
     const [selectedTraceIds, setSelectedTraceIds] = useState(new Set());
 
     // Fetch filter options on mount
@@ -70,33 +74,34 @@ export const RunEvaluatorPage = ({
         fetchPreviewTraces();
     }, []);
 
-    // Refetch preview when filters change
+    // Reset selections and refetch when filters change (new query = different trace set)
     useEffect(() => {
+        setSelectedTraceIds(new Set());
         const debounce = setTimeout(() => {
             fetchPreviewTraces();
         }, 500);
         return () => clearTimeout(debounce);
     }, [filters, includeExisting]);
 
+    // Refetch on pagination changes (preserve selections)
+    useEffect(() => {
+        fetchPreviewTraces();
+    }, [page, limit]);
+
     const fetchFilterOptions = async () => {
         try {
-            // Fetch unique models from traces
-            const modelsRes = await fetch("/api/v1/evaluation-jobs/traces/models");
-            if (modelsRes.ok) {
-                const models = await modelsRes.json();
-                setAvailableModels(models);
-            }
-
-            // Fetch unique tags
-            const tagsRes = await fetch("/api/v1/evaluation-jobs/traces/tags");
-            if (tagsRes.ok) {
-                const tags = await tagsRes.json();
-                // Ensure common types are always available
-                const defaultTags = ["llm", "agent", "tool", "retrieval", "standalone"];
-                setAvailableTags(Array.from(new Set([...defaultTags, ...tags])));
-            }
+            const models = await getTraceModels();
+            setAvailableModels(models);
         } catch (error) {
-            console.error("Failed to fetch filter options:", error);
+            console.error("Failed to fetch models:", error);
+        }
+
+        try {
+            const tags = await getTraceTags();
+            const defaultTags = ["llm", "agent", "tool", "retrieval", "standalone"];
+            setAvailableTags(Array.from(new Set([...defaultTags, ...tags])));
+        } catch (error) {
+            console.error("Failed to fetch tags:", error);
         }
     };
 
@@ -109,28 +114,19 @@ export const RunEvaluatorPage = ({
 
         setLoadingPreview(true);
         try {
-            const params = new URLSearchParams();
-            if (filters.dateFrom) params.append("date_from", filters.dateFrom);
-            if (filters.dateTo) params.append("date_to", filters.dateTo);
-            if (filters.models.length) params.append("models", filters.models.join(","));
-            if (filters.traceName) params.append("name", filters.traceName);
-            if (filters.tags.length) params.append("tags", filters.tags.join(","));
+            const params = {};
+            if (filters.dateFrom) params.date_from = filters.dateFrom;
+            if (filters.dateTo) params.date_to = filters.dateTo;
+            if (filters.models.length) params.models = filters.models.join(",");
+            if (filters.traceName) params.name = filters.traceName;
+            if (filters.tags.length) params.tags = filters.tags.join(",");
+            if (filters.status !== "all") params.status = filters.status;
+            params.limit = limit;
+            params.skip = page * limit;
 
-            // Pass status if not 'all'
-            if (filters.status !== "all") params.append("status", filters.status);
-
-            params.append("limit", limit.toString());
-            params.append("skip", (page * limit).toString());
-
-            const res = await fetch(`/api/v1/evaluation-jobs/traces/preview?${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setPreviewTraces(data.traces || []);
-                setTotalMatchingTraces(data.total || 0);
-                // Auto-select all traces on load if not checking specifically
-                // Or preserve selection? For now re-select all matches displayed
-                setSelectedTraceIds(new Set(data.traces?.map(t => t.id) || []));
-            }
+            const data = await getTracesPreview(params);
+            setPreviewTraces(data.traces || []);
+            setTotalMatchingTraces(data.total || 0);
         } catch (error) {
             console.error("Failed to fetch preview:", error);
         } finally {
@@ -153,34 +149,20 @@ export const RunEvaluatorPage = ({
         setExecutionProgress({ evaluated: 0, total: tracesToEvaluate?.length || Math.round(totalMatchingTraces * samplingRate / 100) });
 
         try {
-            const res = await fetch("/api/v1/evaluation-jobs", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    evaluator_id: evaluator.id,
-                    target_type: targetType,
-                    include_new: includeNew,
-                    include_existing: includeExisting,
-                    sampling_rate: samplingRate / 100,
-                    delay_seconds: delaySeconds,
-                    filters: filters,
-                    // Send selected trace IDs - if provided, backend will use these instead of query
-                    trace_ids: tracesToEvaluate
-                })
+            const job = await createEvaluationJob({
+                evaluator_id: evaluator.id,
+                target_type: targetType,
+                include_new: includeNew,
+                include_existing: includeExisting,
+                sampling_rate: samplingRate / 100,
+                delay_seconds: delaySeconds,
+                filters: filters,
+                trace_ids: tracesToEvaluate
             });
 
-            if (res.ok) {
-                const job = await res.json();
-                setExecutionStatus('sent');
-                setExecutionProgress({ evaluated: 0, total: job.total_traces });
-                // Poll for progress
-                pollJobProgress(job.id);
-            } else {
-                const error = await res.json();
-                setExecutionStatus('failed');
-                console.error("Failed to start evaluation:", error);
-                setExecuting(false);
-            }
+            setExecutionStatus('sent');
+            setExecutionProgress({ evaluated: 0, total: job.total_traces });
+            pollJobProgress(job.id);
         } catch (error) {
             console.error("Failed to start evaluation:", error);
             setExecutionStatus('failed');
@@ -191,24 +173,21 @@ export const RunEvaluatorPage = ({
     const pollJobProgress = async (jobId) => {
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`/api/v1/evaluation-jobs/${jobId}`);
-                if (res.ok) {
-                    const job = await res.json();
-                    setExecutionProgress({
-                        evaluated: job.evaluated_count,
-                        total: job.total_traces
-                    });
+                const job = await getEvaluationJob(jobId);
+                setExecutionProgress({
+                    evaluated: job.evaluated_count,
+                    total: job.total_traces
+                });
 
-                    if (job.status === "completed") {
-                        clearInterval(interval);
-                        setExecuting(false);
-                        setExecutionStatus('completed');
-                        onExecute?.(job);
-                    } else if (job.status === "failed") {
-                        clearInterval(interval);
-                        setExecuting(false);
-                        setExecutionStatus('failed');
-                    }
+                if (job.status === "completed") {
+                    clearInterval(interval);
+                    setExecuting(false);
+                    setExecutionStatus('completed');
+                    onExecute?.(job);
+                } else if (job.status === "failed") {
+                    clearInterval(interval);
+                    setExecuting(false);
+                    setExecutionStatus('failed');
                 }
             } catch (error) {
                 clearInterval(interval);
@@ -230,7 +209,11 @@ export const RunEvaluatorPage = ({
     };
 
     const selectAllTraces = () => {
-        setSelectedTraceIds(new Set(previewTraces.map(t => t.id)));
+        setSelectedTraceIds(prev => {
+            const newSet = new Set(prev);
+            previewTraces.forEach(t => newSet.add(t.id));
+            return newSet;
+        });
     };
 
     const unselectAllTraces = () => {
@@ -481,7 +464,7 @@ export const RunEvaluatorPage = ({
                                         <th className="w-10 px-3 py-2">
                                             <input
                                                 type="checkbox"
-                                                checked={previewTraces.length > 0 && selectedTraceIds.size === previewTraces.length}
+                                                checked={previewTraces.length > 0 && previewTraces.every(t => selectedTraceIds.has(t.id))}
                                                 onChange={(e) => e.target.checked ? selectAllTraces() : unselectAllTraces()}
                                                 className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
                                             />

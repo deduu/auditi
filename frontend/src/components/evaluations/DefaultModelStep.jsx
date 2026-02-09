@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { AlertTriangle, Plus, Trash2, Check, Settings, Loader2 } from "lucide-react";
+import { AlertTriangle, Plus, Trash2, Check, Settings, Loader2, Pencil } from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import * as llmApi from "../../api/llmConnections";
@@ -10,17 +10,29 @@ export const DefaultModelStep = ({
     connections = [],
     onConnectionsChange,
     onSetDefault,
-    onDeleteConnection
+    onDeleteConnection,
+    onEditConnection
 }) => {
     const [localConnections, setLocalConnections] = useState(connections);
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
     useEffect(() => {
         setLocalConnections(connections);
     }, [connections]);
 
+    const handleDeleteClick = (connectionId) => {
+        if (confirmDeleteId === connectionId) {
+            handleDelete(connectionId);
+        } else {
+            setConfirmDeleteId(connectionId);
+            setTimeout(() => setConfirmDeleteId(prev => prev === connectionId ? null : prev), 3000);
+        }
+    };
+
     const handleDelete = async (connectionId) => {
+        setConfirmDeleteId(null);
         setDeletingId(connectionId);
         try {
             await llmApi.deleteLLMConnection(connectionId);
@@ -161,9 +173,21 @@ export const DefaultModelStep = ({
                                             </Button>
                                         )}
                                         <button
-                                            onClick={() => handleDelete(connection.id)}
+                                            onClick={() => onEditConnection?.(connection)}
+                                            className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                            title="Edit connection"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteClick(connection.id)}
                                             disabled={deletingId === connection.id}
-                                            className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                            className={`p-2 rounded-lg transition-colors ${
+                                                confirmDeleteId === connection.id
+                                                    ? "text-red-400 bg-red-500/10"
+                                                    : "text-slate-500 hover:text-red-400 hover:bg-red-500/10"
+                                            }`}
+                                            title={confirmDeleteId === connection.id ? "Click again to confirm" : "Delete connection"}
                                         >
                                             {deletingId === connection.id ? (
                                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -171,6 +195,9 @@ export const DefaultModelStep = ({
                                                 <Trash2 className="w-4 h-4" />
                                             )}
                                         </button>
+                                        {confirmDeleteId === connection.id && (
+                                            <span className="text-xs text-red-400 animate-in fade-in duration-200">Delete?</span>
+                                        )}
                                     </div>
                                 </div>
                             </Card>

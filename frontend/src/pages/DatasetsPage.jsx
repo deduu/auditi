@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect, useMemo } from "react";
 import { formatDate } from "@utils/formatters";
 import {
@@ -444,11 +447,10 @@ const DatasetCard = ({ dataset, onView, onExport, onDelete, onEdit }) => {
               <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded">
                 v{dataset.version}
               </span>
-              <span className={`text-xs px-2 py-0.5 rounded ${
-                dataset.source_type === "annotation_queue"
+              <span className={`text-xs px-2 py-0.5 rounded ${dataset.source_type === "annotation_queue"
                   ? "bg-emerald-500/20 text-emerald-400"
                   : "bg-slate-700 text-slate-400"
-              }`}>
+                }`}>
                 {sourceLabel[dataset.source_type] || dataset.source_type}
               </span>
             </div>
@@ -1095,9 +1097,8 @@ const PublishFromQueueModal = ({ isOpen, onClose, queues, onSave }) => {
             </div>
           </label>
 
-          <label className={`flex items-center p-3 rounded-lg border border-slate-700 hover:border-slate-600 cursor-pointer ${
-            !formData.includeExecutionPath ? "opacity-50" : ""
-          }`}>
+          <label className={`flex items-center p-3 rounded-lg border border-slate-700 hover:border-slate-600 cursor-pointer ${!formData.includeExecutionPath ? "opacity-50" : ""
+            }`}>
             <input
               type="checkbox"
               checked={formData.includeLLMEvaluation}
@@ -1194,11 +1195,10 @@ const ExportDatasetModal = ({ isOpen, onClose, dataset }) => {
             {formatOptions.map((opt) => (
               <label
                 key={opt.value}
-                className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
-                  format === opt.value
+                className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${format === opt.value
                     ? "border-blue-500 bg-blue-500/10"
                     : "border-slate-700 hover:border-slate-600"
-                }`}
+                  }`}
               >
                 <input
                   type="radio"
@@ -1211,9 +1211,8 @@ const ExportDatasetModal = ({ isOpen, onClose, dataset }) => {
                   <div className="font-medium text-white">{opt.label}</div>
                   <div className="text-xs text-slate-400">{opt.desc}</div>
                 </div>
-                <div className={`w-4 h-4 rounded-full border-2 ${
-                  format === opt.value ? "border-blue-500 bg-blue-500" : "border-slate-600"
-                }`} />
+                <div className={`w-4 h-4 rounded-full border-2 ${format === opt.value ? "border-blue-500 bg-blue-500" : "border-slate-600"
+                  }`} />
               </label>
             ))}
           </div>

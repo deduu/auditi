@@ -190,11 +190,11 @@ const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false }) => (
     </Card>
 );
 
-const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, isExpanded = false }) => (
+const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, isExpanded = false, onNavigate }) => (
     <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-bold text-white">Scores</h3>
+                <h3 className="text-lg font-bold text-white">Annotation Scores</h3>
                 {!isExpanded && onExpand && (
                     <button
                         onClick={onExpand}
@@ -205,10 +205,26 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, i
                     </button>
                 )}
             </div>
-            <div className="flex items-baseline space-x-2">
+            <div className="flex items-center space-x-2">
                 <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
                 <span className="text-sm text-slate-400">Total scores tracked</span>
+                <div className="group relative inline-block">
+                    <Info className="w-4 h-4 text-slate-500 hover:text-blue-400 cursor-help transition-colors" />
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-xs text-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none">
+                        <div className="font-semibold text-white mb-1">Annotation Scores</div>
+                        <p className="leading-relaxed">Scores from manual human annotations only. To start annotating, visit the Human Annotation page.</p>
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-slate-600"></div>
+                    </div>
+                </div>
             </div>
+            {onNavigate && (
+                <button
+                    onClick={() => onNavigate('human-annotation')}
+                    className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                >
+                    Go to Human Annotation →
+                </button>
+            )}
         </div>
 
         <div className={`flex-1 overflow-y-auto custom-scrollbar ${isExpanded ? '' : showMore ? 'max-h-[400px]' : 'max-h-[200px]'}`}>
@@ -241,7 +257,17 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, i
                         ))
                     ) : (
                         <tr>
-                            <td colSpan="5" className="py-4 text-center text-slate-500">No score data</td>
+                            <td colSpan="5" className="py-4 text-center text-slate-500">
+                                <div>No annotation scores yet</div>
+                                {onNavigate && (
+                                    <button
+                                        onClick={() => onNavigate('human-annotation')}
+                                        className="mt-1 text-xs text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                                    >
+                                        Start annotating on the Human Annotation page →
+                                    </button>
+                                )}
+                            </td>
                         </tr>
                     )}
                 </tbody>
@@ -354,7 +380,7 @@ const DropdownFilter = ({ value, options, onChange }) => {
 
 // ============== Main Dashboard Component ==============
 
-export const DashboardPage = () => {
+export const DashboardPage = ({ onNavigate }) => {
     const [timeRange, setTimeRange] = useState("7d");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -653,6 +679,7 @@ export const DashboardPage = () => {
                             showMore={showMoreScores}
                             onShowMore={() => setShowMoreScores(!showMoreScores)}
                             onExpand={() => setExpandedCard('scores')}
+                            onNavigate={onNavigate}
                         />
                     </div>
 
@@ -1000,6 +1027,7 @@ export const DashboardPage = () => {
                         showMore={true}
                         onShowMore={() => {}}
                         isExpanded
+                        onNavigate={onNavigate}
                     />
                 )}
             </Modal>

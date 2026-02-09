@@ -1,4 +1,6 @@
-
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState } from "react";
 import { deleteTraces } from "../api/traces";
 import { Filter, Eye, RefreshCw, Trash2, ChevronDown } from "lucide-react";

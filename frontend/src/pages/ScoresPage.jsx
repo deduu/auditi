@@ -1,8 +1,14 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from "react";
-import { AlertTriangle, TrendingUp, BarChart3, Target, AlertCircle, ExternalLink, Clock, Cpu } from "lucide-react";
+import { AlertTriangle, TrendingUp, BarChart3, Target, AlertCircle, ExternalLink, Clock, Cpu, ChevronDown } from "lucide-react";
 import api from "../api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { SlidePanel } from "../components/ui/SlidePanel";
+import { TraceDetailPage } from "./TraceDetailPage";
+import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { exportToCSV } from "../utils/exportUtils";
 import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
 
@@ -63,7 +69,13 @@ const ScoreDistributionChart = ({ distribution, loading }) => {
     );
 };
 
-const LowScoringTracesList = ({ traces, loading, total }) => {
+const LowScoringTracesList = ({ traces, loading, total, onSelectTrace }) => {
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(5);
+
+    // Reset page when traces change (e.g. time range switch)
+    React.useEffect(() => { setCurrentPage(1); }, [traces]);
+
     if (loading) {
         return (
             <div className="h-48 flex items-center justify-center">
@@ -80,12 +92,16 @@ const LowScoringTracesList = ({ traces, loading, total }) => {
         );
     }
 
+    const totalPages = Math.ceil(traces.length / pageSize);
+    const paginatedTraces = traces.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     return (
         <div className="space-y-2">
-            {traces.map((trace) => (
+            {paginatedTraces.map((trace) => (
                 <div
                     key={trace.id}
                     className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer group"
+                    onClick={() => onSelectTrace(trace.id)}
                 >
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2">
@@ -121,12 +137,15 @@ const LowScoringTracesList = ({ traces, loading, total }) => {
                     </div>
                 </div>
             ))}
-            {total > traces.length && (
-                <div className="text-center pt-2">
-                    <span className="text-xs text-slate-500">
-                        Showing {traces.length} of {total} low-scoring traces
-                    </span>
-                </div>
+            {totalPages > 1 && (
+                <PaginationFooter
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    pageSize={pageSize}
+                    onPageChange={setCurrentPage}
+                    onPageSizeChange={(newSize) => { setPageSize(newSize); setCurrentPage(1); }}
+                    pageSizeOptions={[5, 10, 25]}
+                />
             )}
         </div>
     );
@@ -141,6 +160,37 @@ export const ScoresPage = () => {
     const [tracesLoading, setTracesLoading] = useState(true);
     const [error, setError] = useState(null);
     const [timeRange, setTimeRange] = useState("7d");
+    const [selectedTraceId, setSelectedTraceId] = useState(null);
+    const [expandedEvaluations, setExpandedEvaluations] = useState(new Set());
+    const [evalTracesMap, setEvalTracesMap] = useState({});
+    const [evalTracesLoadingMap, setEvalTracesLoadingMap] = useState({});
+    const [evalPageMap, setEvalPageMap] = useState({});
+
+    const handleExpandEvaluation = async (evaluation) => {
+        const name = evaluation.name;
+        setExpandedEvaluations(prev => {
+            const next = new Set(prev);
+            if (next.has(name)) {
+                next.delete(name);
+            } else {
+                next.add(name);
+            }
+            return next;
+        });
+        // Only fetch if not already cached
+        if (!evalTracesMap[name]) {
+            setEvalTracesLoadingMap(prev => ({ ...prev, [name]: true }));
+            try {
+                const traces = await api.getTraces({ name });
+                setEvalTracesMap(prev => ({ ...prev, [name]: traces }));
+            } catch (err) {
+                console.error("Failed to fetch traces for evaluation:", err);
+                setEvalTracesMap(prev => ({ ...prev, [name]: [] }));
+            } finally {
+                setEvalTracesLoadingMap(prev => ({ ...prev, [name]: false }));
+            }
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -153,7 +203,7 @@ export const ScoresPage = () => {
                 const [evalData, distData, lowScoreData] = await Promise.all([
                     api.getEvaluations({ timeRange }),
                     api.getScoreDistribution(timeRange),
-                    api.getLowScoringTraces({ timeRange, threshold: 50, limit: 5 })
+                    api.getLowScoringTraces({ timeRange, threshold: 50, limit: 50 })
                 ]);
 
                 setEvaluations(evalData.evaluations || []);
@@ -287,8 +337,8 @@ export const ScoresPage = () => {
                 <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
                         <div>
-                            <h2 className="text-lg font-semibold text-white">Low-Scoring Traces</h2>
-                            <p className="text-xs text-slate-500 mt-1">Traces scoring below 50%</p>
+                            <h2 className="text-lg font-semibold text-white">Failed & Low-Scoring Traces</h2>
+                            <p className="text-xs text-slate-500 mt-1">Traces that failed evaluation or scored below 50%</p>
                         </div>
                         <span className="text-xs font-medium text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-full">
                             {lowScoringTraces.total} total
@@ -299,6 +349,7 @@ export const ScoresPage = () => {
                             traces={lowScoringTraces.traces}
                             loading={tracesLoading}
                             total={lowScoringTraces.total}
+                            onSelectTrace={setSelectedTraceId}
                         />
                     </div>
                 </Card>
@@ -317,9 +368,10 @@ export const ScoresPage = () => {
                 ) : evaluations.length > 0 ? (
                     <div className="divide-y divide-slate-800">
                         {evaluations.map((evaluation) => (
-                            <div key={evaluation.id} className="p-6 hover:bg-slate-800/30 transition-colors">
+                            <div key={evaluation.id} className="p-6 hover:bg-slate-800/30 transition-colors cursor-pointer" onClick={() => handleExpandEvaluation(evaluation)}>
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center space-x-3">
+                                        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${expandedEvaluations.has(evaluation.name) ? 'rotate-180' : ''}`} />
                                         <h3 className="text-base font-medium text-white">{evaluation.name}</h3>
                                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full bg-slate-800 ${getTrendColor(evaluation.trend)}`}>
                                             {evaluation.trend}
@@ -354,6 +406,74 @@ export const ScoresPage = () => {
                                         style={{ width: `${evaluation.score}%` }}
                                     />
                                 </div>
+
+                                {expandedEvaluations.has(evaluation.name) && (
+                                    <div className="mt-4 pt-4 border-t border-slate-700/50">
+                                        <p className="text-xs font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                                            Individual Traces
+                                        </p>
+                                        {evalTracesLoadingMap[evaluation.name] ? (
+                                            <div className="text-slate-500 text-sm py-4 text-center">Loading traces...</div>
+                                        ) : (evalTracesMap[evaluation.name] || []).length === 0 ? (
+                                            <div className="text-slate-500 text-sm py-4 text-center">No traces found</div>
+                                        ) : (() => {
+                                            const allTraces = evalTracesMap[evaluation.name] || [];
+                                            const evalPage = evalPageMap[evaluation.name] || 1;
+                                            const evalPageSize = 5;
+                                            const evalTotalPages = Math.ceil(allTraces.length / evalPageSize);
+                                            const paginatedTraces = allTraces.slice((evalPage - 1) * evalPageSize, evalPage * evalPageSize);
+                                            return (
+                                                <div className="space-y-2">
+                                                    {paginatedTraces.map((trace) => (
+                                                        <div
+                                                            key={trace.id}
+                                                            className="flex items-center justify-between p-2.5 bg-slate-800/50 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedTraceId(trace.id);
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center space-x-3 min-w-0">
+                                                                <span className="text-xs font-mono text-slate-500 shrink-0">
+                                                                    {trace.id.slice(0, 8)}
+                                                                </span>
+                                                                <span className="text-sm text-slate-300 truncate">
+                                                                    {trace.userInputPreview || trace.name || "No input"}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center space-x-3 shrink-0">
+                                                                {trace.score != null && (
+                                                                    <span className={`text-sm font-bold ${getScoreColor(trace.score * 100)}`}>
+                                                                        {Math.round(trace.score * 100)}%
+                                                                    </span>
+                                                                )}
+                                                                <span className={`text-xs px-1.5 py-0.5 rounded ${trace.status === 'pass' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                                        trace.status === 'fail' ? 'bg-rose-500/20 text-rose-400' :
+                                                                            'bg-slate-700 text-slate-400'
+                                                                    }`}>
+                                                                    {trace.status || 'pending'}
+                                                                </span>
+                                                                <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                    {evalTotalPages > 1 && (
+                                                        <div onClick={(e) => e.stopPropagation()}>
+                                                            <PaginationFooter
+                                                                currentPage={evalPage}
+                                                                totalPages={evalTotalPages}
+                                                                pageSize={evalPageSize}
+                                                                onPageChange={(page) => setEvalPageMap(prev => ({ ...prev, [evaluation.name]: page }))}
+                                                                onPageSizeChange={() => { }}
+                                                                pageSizeOptions={[5]}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -363,6 +483,21 @@ export const ScoresPage = () => {
                     </div>
                 )}
             </Card>
+
+            {/* Slide Panel for Trace Details */}
+            <SlidePanel
+                isOpen={!!selectedTraceId}
+                onClose={() => setSelectedTraceId(null)}
+                title="Trace Details"
+            >
+                {selectedTraceId && (
+                    <TraceDetailPage
+                        traceId={selectedTraceId}
+                        onBack={() => setSelectedTraceId(null)}
+                        inPanel={true}
+                    />
+                )}
+            </SlidePanel>
         </div>
     );
 };

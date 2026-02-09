@@ -191,8 +191,8 @@ export const SpanItem = ({ span, isFinalGenerator = false, showEvaluation = true
                             <p className="text-xs font-medium text-slate-400 mb-1">
                                 Outputs:
                             </p>
-                            <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-60 resize-y overflow-y-auto">
-                                <ContentRenderer content={span.outputs} type="auto" className="text-xs" />
+                            <div className="bg-slate-900/60 border border-slate-700 rounded p-3 h-60 resize-y overflow-y-auto">
+                                <ContentRenderer content={span.outputs} type="auto" className="text-sm" />
                             </div>
                         </div>
                     )}

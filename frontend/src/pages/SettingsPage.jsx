@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React from "react";
 import { Bell, Shield, Database, Key, Save } from "lucide-react";
 import { Button } from "../components/ui/Button";

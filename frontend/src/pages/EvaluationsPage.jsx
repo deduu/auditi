@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from "react";
 import { CheckCircle, XCircle, AlertCircle, TrendingUp, BarChart3, Target, AlertTriangle } from "lucide-react";
 import api from "../api";
@@ -85,8 +88,8 @@ export const EvaluationsPage = () => {
                 key={range}
                 onClick={() => setTimeRange(range)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${timeRange === range
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "text-slate-400 hover:text-white"
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "text-slate-400 hover:text-white"
                   }`}
               >
                 {range.toUpperCase()}

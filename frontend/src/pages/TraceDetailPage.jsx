@@ -1,4 +1,6 @@
-
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React from "react";
 import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target } from "lucide-react";
 import { useTraceDetail } from "../hooks/useTraces";

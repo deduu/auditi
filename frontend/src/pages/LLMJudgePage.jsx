@@ -1,9 +1,12 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from "react";
 import { Check, ChevronRight, Play, Loader2, Zap, ZapOff } from "lucide-react";
 import { DefaultModelStep } from "../components/evaluations/DefaultModelStep";
 import { SelectEvaluatorStep } from "../components/evaluations/SelectEvaluatorStep";
 import { RunEvaluatorPage } from "../components/evaluations/RunEvaluatorPage";
-import { DefaultModelModal, CreateEvaluatorModal, EditEvaluatorModal } from "../components/evaluations/EvaluationModals";
+import { DefaultModelModal, CreateEvaluatorModal, EditEvaluatorModal, EditConnectionModal } from "../components/evaluations/EvaluationModals";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import * as llmApi from "../api/llmConnections";
@@ -23,6 +26,8 @@ export const LLMJudgePage = () => {
     const [showCreateEvaluatorModal, setShowCreateEvaluatorModal] = useState(false);
     const [showEditEvaluatorModal, setShowEditEvaluatorModal] = useState(false);
     const [evaluatorToEdit, setEvaluatorToEdit] = useState(null);
+    const [showEditConnectionModal, setShowEditConnectionModal] = useState(false);
+    const [connectionToEdit, setConnectionToEdit] = useState(null);
     const [evaluatorsRefreshTrigger, setEvaluatorsRefreshTrigger] = useState(0);
 
     const steps = [
@@ -140,6 +145,38 @@ export const LLMJudgePage = () => {
         // Check if this was the default
         if (defaultModel?.connectionId === connectionId) {
             setDefaultModel(null);
+        }
+    };
+
+    const handleEditConnection = (connection) => {
+        setConnectionToEdit(connection);
+        setShowEditConnectionModal(true);
+    };
+
+    const handleConnectionUpdated = async (connectionId, updatedData) => {
+        try {
+            const payload = {
+                provider: updatedData.provider,
+                name: updatedData.providerName || updatedData.provider,
+                base_url: updatedData.baseUrl || null,
+                custom_model_name: updatedData.customModelName || null,
+            };
+            if (updatedData.apiKey) {
+                payload.api_key = updatedData.apiKey;
+            }
+            const updated = await llmApi.updateLLMConnection(connectionId, payload);
+            setConnections(prev =>
+                prev.map(c => c.id === connectionId ? updated : c)
+            );
+            if (defaultModel?.connectionId === connectionId) {
+                setDefaultModel(prev => ({
+                    ...prev,
+                    provider: updated.provider,
+                }));
+            }
+        } catch (error) {
+            console.error("Failed to update connection:", error);
+            throw error;
         }
     };
 
@@ -316,6 +353,7 @@ export const LLMJudgePage = () => {
                         onConnectionsChange={handleConnectionsChange}
                         onSetDefault={handleSetDefault}
                         onDeleteConnection={handleDeleteConnection}
+                        onEditConnection={handleEditConnection}
                     />
                 )}
 
@@ -373,6 +411,13 @@ export const LLMJudgePage = () => {
                 evaluator={evaluatorToEdit}
                 onSave={handleEditEvaluatorSave}
                 defaultModel={defaultModel}
+            />
+
+            <EditConnectionModal
+                isOpen={showEditConnectionModal}
+                onClose={() => setShowEditConnectionModal(false)}
+                connection={connectionToEdit}
+                onConnectionUpdated={handleConnectionUpdated}
             />
         </div>
     );

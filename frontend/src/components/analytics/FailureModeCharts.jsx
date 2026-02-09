@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React from "react";
 import {
   BarChart,
@@ -69,7 +72,7 @@ export const FailureModeCharts = ({ timeRange = "7d" }) => {
                 stroke="#64748b"
               />
               <YAxis tick={{ fill: '#94a3b8' }} stroke="#64748b" />
-              <Tooltip content={<CustomTooltip />} cursor={{fill: '#334155', opacity: 0.4}} />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: '#334155', opacity: 0.4 }} />
               <Bar dataKey="count" fill="#f43f5e" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

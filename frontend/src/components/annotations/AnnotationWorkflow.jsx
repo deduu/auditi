@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
@@ -221,11 +224,10 @@ export const AnnotationWorkflow = ({ queue, onBack, onComplete }) => {
                 return hasEvaluations ? (
                   <button
                     onClick={() => setShowLLMEvaluation(!showLLMEvaluation)}
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-sm transition-all ${
-                      showLLMEvaluation
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-sm transition-all ${showLLMEvaluation
                         ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                         : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
-                    }`}
+                      }`}
                     title={showLLMEvaluation ? 'Hide LLM insights to avoid bias' : 'Show LLM evaluation insights'}
                   >
                     {showLLMEvaluation ? (
@@ -446,11 +448,10 @@ const ExecutionPath = ({ spans, showEvaluation = false }) => {
             ({spans.length} step{spans.length !== 1 ? 's' : ''})
           </span>
           {hasEvaluations && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${
-              showEvaluation
+            <span className={`text-xs px-1.5 py-0.5 rounded ${showEvaluation
                 ? 'bg-purple-500/20 text-purple-300'
                 : 'bg-slate-700 text-slate-400'
-            }`}>
+              }`}>
               <Sparkles className="w-3 h-3 inline mr-1" />
               LLM Evaluated
             </span>

@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState } from "react";
 import { formatTimestamp } from "@utils/formatters";
 import {
@@ -141,7 +144,7 @@ const TurnCard = ({ turn, turnNumber }) => {
                   <p className="text-xs font-medium text-slate-400 mb-1">
                     Assistant
                   </p>
-                  <div className="text-sm text-slate-200">
+                  <div className="text-sm text-slate-100 leading-relaxed">
                     <ContentRenderer content={turn?.assistant?.content} />
                   </div>
                 </div>

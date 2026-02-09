@@ -1,8 +1,10 @@
+/*
+ * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
+ */
 import React, { useState, useEffect, useMemo } from "react";
 import { formatDate } from "@utils/formatters";
 import {
   Plus,
-  ListTodo,
   Trash2,
   CheckCircle2,
   Settings,
@@ -249,7 +251,13 @@ export const HumanAnnotationPage = () => {
             Back to Overview
           </Button>
         </div>
-        <ScoreConfigManager onConfigSelect={() => { }} />
+        <ScoreConfigManager
+          onConfigSelect={() => { }}
+          onConfigCreated={() => {
+            loadData();
+            setView("overview");
+          }}
+        />
       </div>
     );
   }
@@ -262,8 +270,10 @@ export const HumanAnnotationPage = () => {
     );
   }
 
-  // Check if setup is needed
-  const needsSetup = scoreConfigs.length === 0;
+  // Setup progress: step 1 = need configs, step 2 = need queues, null = done
+  const setupStep = scoreConfigs.length === 0 ? 1
+    : queues.length === 0 ? 2
+      : null;
   const hasQueues = queues.length > 0;
 
   return (
@@ -277,19 +287,21 @@ export const HumanAnnotationPage = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <Button
-            variant="secondary"
-            className={showFilters ? "ring-2 ring-blue-500" : ""}
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-            {activeFilterCount > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 bg-blue-500 text-white text-[10px] rounded-full">
-                {activeFilterCount}
-              </span>
-            )}
-          </Button>
+          {setupStep === null && (
+            <Button
+              variant="secondary"
+              className={showFilters ? "ring-2 ring-blue-500" : ""}
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filter
+              {activeFilterCount > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 bg-blue-500 text-white text-[10px] rounded-full">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => setView("configs")}>
             <Settings className="w-4 h-4 mr-2" />
             Manage Score Configs
@@ -297,8 +309,8 @@ export const HumanAnnotationPage = () => {
         </div>
       </div>
 
-      {/* Setup Guide - Shows when no configs exist */}
-      {needsSetup && (
+      {/* Setup Guide - Shows until queues exist */}
+      {setupStep !== null && (
         <Card className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 border-blue-500/30 p-6">
           <div className="flex items-start space-x-4">
             <div className="p-3 bg-blue-500/20 rounded-xl">
@@ -310,45 +322,62 @@ export const HumanAnnotationPage = () => {
                 Human annotation allows your team to review and score AI responses. Follow these steps:
               </p>
               <div className="grid md:grid-cols-3 gap-4 mb-6">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold shrink-0">
-                    1
+                {/* Step 1 */}
+                <div className={`flex items-start space-x-3 ${setupStep > 1 ? "opacity-60" : ""}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${setupStep > 1
+                      ? "bg-emerald-500/20"
+                      : "bg-blue-500/20"
+                    }`}>
+                    {setupStep > 1 ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <span className="text-blue-400 text-sm font-bold">1</span>
+                    )}
                   </div>
                   <div>
-                    <div className="font-medium text-white">Create Score Configs</div>
+                    <div className={`font-medium ${setupStep > 1 ? "text-slate-400 line-through" : "text-white"}`}>Create Score Configs</div>
                     <div className="text-sm text-slate-400">Define what metrics you want to measure</div>
                   </div>
                 </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold shrink-0">
-                    2
+                {/* Step 2 */}
+                <div className={`flex items-start space-x-3 ${setupStep < 2 ? "opacity-60" : ""}`}>
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-blue-400 text-sm font-bold">2</span>
                   </div>
                   <div>
-                    <div className="font-medium text-white">Create an Annotation Queue</div>
+                    <div className={`font-medium ${setupStep === 2 ? "text-white" : "text-slate-500"}`}>Create an Annotation Queue</div>
                     <div className="text-sm text-slate-400">Organize traces for review</div>
                   </div>
                 </div>
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold shrink-0">
-                    3
+                {/* Step 3 */}
+                <div className="flex items-start space-x-3 opacity-60">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                    <span className="text-blue-400 text-sm font-bold">3</span>
                   </div>
                   <div>
-                    <div className="font-medium text-white">Add Traces & Start Annotating</div>
+                    <div className="font-medium text-slate-500">Add Traces & Start Annotating</div>
                     <div className="text-sm text-slate-400">Add traces to the queue and begin reviewing</div>
                   </div>
                 </div>
               </div>
-              <Button onClick={() => setView("configs")}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Your First Score Config
-              </Button>
+              {setupStep === 1 ? (
+                <Button onClick={() => setView("configs")}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Score Config
+                </Button>
+              ) : (
+                <Button onClick={() => setShowCreateQueueModal(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Your First Queue
+                </Button>
+              )}
             </div>
           </div>
         </Card>
       )}
 
       {/* Filter Bar */}
-      {!needsSetup && showFilters && (
+      {setupStep === null && showFilters && (
         <QueueFilterBar
           filters={filters}
           onFiltersChange={setFilters}
@@ -380,7 +409,7 @@ export const HumanAnnotationPage = () => {
       )}
 
       {/* Annotation Queues Section */}
-      {!needsSetup && (
+      {setupStep !== 1 && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <div>
@@ -397,19 +426,7 @@ export const HumanAnnotationPage = () => {
             </Button>
           </div>
 
-          {!hasQueues ? (
-            <Card className="p-8 text-center">
-              <ListTodo className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-white mb-2">No Annotation Queues Yet</h4>
-              <p className="text-slate-400 mb-4">
-                Create a queue to organize traces for human review.
-              </p>
-              <Button onClick={() => setShowCreateQueueModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create First Queue
-              </Button>
-            </Card>
-          ) : filteredQueues.length === 0 ? (
+          {!hasQueues ? null : filteredQueues.length === 0 ? (
             <Card className="p-8 text-center">
               <Search className="w-12 h-12 text-slate-600 mx-auto mb-4" />
               <h4 className="text-lg font-medium text-white mb-2">No Queues Match Filters</h4>
@@ -479,7 +496,7 @@ export const HumanAnnotationPage = () => {
       )}
 
       {/* Quick Stats */}
-      {!needsSetup && hasQueues && (
+      {setupStep === null && hasQueues && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-slate-900/50 p-4">
             <div className="text-sm text-slate-400 mb-1">Total Queues</div>
@@ -1189,11 +1206,10 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
           <label className="block text-sm font-medium text-slate-300 mb-2">Include Additional Data</label>
           <div className="space-y-3">
             {/* Execution Path Toggle */}
-            <label className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
-              includeExecutionPath
+            <label className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${includeExecutionPath
                 ? "border-emerald-500 bg-emerald-500/10"
                 : "border-slate-700 hover:border-slate-600"
-            }`}>
+              }`}>
               <input
                 type="checkbox"
                 checked={includeExecutionPath}
@@ -1211,21 +1227,18 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
                   Include tool calls, LLM invocations, and intermediate steps
                 </div>
               </div>
-              <div className={`w-10 h-6 rounded-full transition-colors ${
-                includeExecutionPath ? "bg-emerald-500" : "bg-slate-700"
-              }`}>
-                <div className={`w-4 h-4 rounded-full bg-white mt-1 transition-transform ${
-                  includeExecutionPath ? "translate-x-5" : "translate-x-1"
-                }`} />
+              <div className={`w-10 h-6 rounded-full transition-colors ${includeExecutionPath ? "bg-emerald-500" : "bg-slate-700"
+                }`}>
+                <div className={`w-4 h-4 rounded-full bg-white mt-1 transition-transform ${includeExecutionPath ? "translate-x-5" : "translate-x-1"
+                  }`} />
               </div>
             </label>
 
             {/* LLM Evaluation Toggle */}
-            <label className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
-              includeLLMEvaluation
+            <label className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${includeLLMEvaluation
                 ? "border-purple-500 bg-purple-500/10"
                 : "border-slate-700 hover:border-slate-600"
-            } ${!includeExecutionPath ? "opacity-50 pointer-events-none" : ""}`}>
+              } ${!includeExecutionPath ? "opacity-50 pointer-events-none" : ""}`}>
               <input
                 type="checkbox"
                 checked={includeLLMEvaluation}
@@ -1244,12 +1257,10 @@ const ExportModal = ({ isOpen, onClose, queue }) => {
                   Include LLM-as-a-judge scores, reasoning, and issues for spans
                 </div>
               </div>
-              <div className={`w-10 h-6 rounded-full transition-colors ${
-                includeLLMEvaluation ? "bg-purple-500" : "bg-slate-700"
-              }`}>
-                <div className={`w-4 h-4 rounded-full bg-white mt-1 transition-transform ${
-                  includeLLMEvaluation ? "translate-x-5" : "translate-x-1"
-                }`} />
+              <div className={`w-10 h-6 rounded-full transition-colors ${includeLLMEvaluation ? "bg-purple-500" : "bg-slate-700"
+                }`}>
+                <div className={`w-4 h-4 rounded-full bg-white mt-1 transition-transform ${includeLLMEvaluation ? "translate-x-5" : "translate-x-1"
+                  }`} />
               </div>
             </label>
             {!includeExecutionPath && (

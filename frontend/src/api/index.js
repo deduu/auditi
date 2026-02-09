@@ -14,6 +14,7 @@ export * as tracesApi from "./traces";
 export * as annotationsApi from "./annotations";
 export * as analyticsApi from "./analytics";
 export * as datasetsApi from "./datasets";
+export * as evaluationJobsApi from "./evaluationJobs";
 
 // Legacy default export for backward compatibility
 import client from "./client";
