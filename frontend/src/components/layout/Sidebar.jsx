@@ -21,12 +21,18 @@ import {
   Wrench
 } from 'lucide-react';
 import { useSidebar } from '../../context/SidebarContext';
+import { useAuth } from '../../context/AuthContext';
 
 export const Sidebar = ({ activeTab, onTabChange }) => {
   const { isCollapsed, toggleSidebar, sidebarWidth } = useSidebar();
+  const { user, logout } = useAuth();
   const [logoHovered, setLogoHovered] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
+
+  const userInitials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : '?';
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -202,7 +208,7 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
               <div className="border-t border-slate-700 my-1"></div>
               <button
                 className="w-full px-4 py-2 text-sm text-red-400 hover:bg-slate-700 hover:text-red-300 flex items-center"
-                onClick={() => setShowUserMenu(false)}
+                onClick={() => { setShowUserMenu(false); logout(); }}
               >
                 <LogOut className="w-4 h-4 mr-3" />
                 Log out
@@ -216,15 +222,15 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
           className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 rounded-lg hover:bg-slate-800/50 transition-colors focus:outline-none`}
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-lg shadow-purple-500/20">
-            AD
+            {userInitials}
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-white truncate">
-                Admin User
+                {user?.name || 'User'}
               </p>
               <p className="text-xs text-slate-500 truncate">
-                admin@auditi.ai
+                {user?.email || ''}
               </p>
             </div>
           )}

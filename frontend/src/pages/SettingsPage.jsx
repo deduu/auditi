@@ -5,6 +5,7 @@ import React from "react";
 import { Bell, Shield, Database, Key, Save } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { SettingSection, ToggleSetting } from "../components/settings/SettingsComponents";
+import { ApiKeySettings } from "../components/settings/ApiKeySettings";
 
 export const SettingsPage = () => {
   return (
@@ -84,21 +85,11 @@ export const SettingsPage = () => {
         </SettingSection>
 
         {/* API Keys */}
-        <SettingSection
-          icon={Key}
-          title="API Keys"
-          description="Manage your API access tokens"
-        >
-          <div className="space-y-4 opacity-50 pointer-events-none">
-            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg">
-              <div>
-                <div className="text-sm font-medium text-white">Production Key</div>
-                <div className="text-xs text-slate-500 font-mono">sk-prod-****-****-****</div>
-              </div>
-              <Button variant="ghost" size="sm" disabled>Regenerate</Button>
-            </div>
+        <div className="lg:col-span-2">
+          <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-6">
+            <ApiKeySettings />
           </div>
-        </SettingSection>
+        </div>
       </div>
     </div>
   );

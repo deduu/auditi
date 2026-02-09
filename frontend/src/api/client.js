@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Auditibl Inc.
+ * Copyright (c) 2026 Auditi Contributors
  *
  * MIT License
  *
@@ -42,12 +42,18 @@ async function request(endpoint, options = {}) {
       "Content-Type": "application/json",
       ...options.headers,
     },
+    credentials: "include",
     ...options,
   };
 
   try {
     const response = await fetch(url, config);
     if (!response.ok) {
+      // Dispatch auth event on 401 (skip auth endpoints to avoid loops)
+      if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
+
       // Try to parse error response body for detailed message
       let errorMessage = `HTTP error! status: ${response.status}`;
       try {

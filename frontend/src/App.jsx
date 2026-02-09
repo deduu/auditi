@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Auditibl Inc.
+ * Copyright (c) 2026 Auditi Contributors
  *
  * MIT License
  *
@@ -40,11 +40,14 @@ import { DashboardPage } from "./pages/DashboardPage";
 
 import { TracesPage } from "./pages/TracesPage";
 import { TraceDetailPage } from "./pages/TraceDetailPage";
+import { LoginPage } from "./pages/LoginPage";
+import { SetupPage } from "./pages/SetupPage";
 import { Sidebar } from "./components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "./context/SidebarContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 
-function AppContent() {
+function AuthenticatedApp() {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [selectedTrace, setSelectedTrace] = useState(null);
@@ -125,11 +128,37 @@ function AppContent() {
     );
 }
 
-function App() {
+function AppContent() {
+    const { isAuthenticated, isLoading, setupRequired } = useAuth();
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (setupRequired) {
+        return <SetupPage />;
+    }
+
+    if (!isAuthenticated) {
+        return <LoginPage />;
+    }
+
     return (
         <SidebarProvider>
-            <AppContent />
+            <AuthenticatedApp />
         </SidebarProvider>
+    );
+}
+
+function App() {
+    return (
+        <AuthProvider>
+            <AppContent />
+        </AuthProvider>
     );
 }
 
