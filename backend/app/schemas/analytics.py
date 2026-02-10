@@ -42,7 +42,7 @@ class TrendMetric(BaseModel):
     data: List[TrendDataPoint]
     current: float
     previous: float
-    change_percent: float
+    change_percent: Optional[float] = None
 
 
 class TrendsResponse(BaseModel):

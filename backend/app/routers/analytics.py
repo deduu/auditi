@@ -466,7 +466,7 @@ def get_trends(
 
     def calc_change(current, previous):
         if not previous or previous == 0:
-            return 0.0
+            return None
         return round(((current - previous) / previous) * 100, 1)
 
     def build_metric(data_key, current_val, prev_val):
