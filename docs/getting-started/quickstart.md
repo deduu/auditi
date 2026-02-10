@@ -1,5 +1,5 @@
 ---
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 # Quickstart
@@ -9,8 +9,9 @@ Get up and running with Auditi in less than 5 minutes.
 ## Prerequisites
 
 1. Ensure the Auditi Platform is running (see [Installation](./installation.md)).
-2. Install the SDK: `pip install auditi-sdk`.
-3. Have an OpenAI (or other provider) API key ready.
+2. Create your account and generate an API key (see [Authentication](./authentication.md)).
+3. Install the SDK: `pip install auditi-sdk` (or `pip install -e .` from the `sdk/` directory).
+4. Have an OpenAI (or other provider) API key ready.
 
 ## 1. Initialize the SDK
 
@@ -18,11 +19,10 @@ In your agent code, import `auditi` and initialize it pointing to your platform 
 
 ```python
 import auditi
-import os
 
-# Point to your Auditi backend
+# Point to your Auditi backend with your API key
 auditi.init(
-    api_key="your-api-key-if-auth-enabled",
+    api_key="audi_...",
     base_url="http://localhost:8000"
 )
 ```
@@ -54,6 +54,12 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-## 4. View Verification
+## 4. View Your Traces
 
-Go to [http://localhost:3000](http://localhost:3000) to see your trace in real-time!
+Go to [http://localhost:5173](http://localhost:5173) to see your trace in real-time!
+
+## Next Steps
+
+- Learn about [SDK Integration Patterns](../guides/sdk-integration.md) for more advanced usage
+- Explore [Platform Features](../guides/platform-features.md) like evaluation and analytics
+- Configure [Cost Tracking & Pricing](../guides/pricing.md) for your models
