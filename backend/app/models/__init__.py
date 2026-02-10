@@ -13,6 +13,7 @@ from .dataset import Dataset, DatasetItem
 from .model_pricing import ModelPricing
 from .user import User
 from .api_key import APIKey
+from .user_settings import UserSettings
 
 __all__ = [
     "Conversation",
@@ -31,4 +32,5 @@ __all__ = [
     "ModelPricing",
     "User",
     "APIKey",
+    "UserSettings",
 ]

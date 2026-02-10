@@ -45,6 +45,9 @@ from .trace import (
     TraceIngest,
 )
 
+# User Settings
+from .settings import UserSettingsResponse, UserSettingsUpdate
+
 # Auth
 from .auth import (
     UserCreate,
@@ -93,4 +96,7 @@ __all__ = [
     "APIKeyResponse",
     "SetupStatus",
     "SetupRequest",
+    # User Settings
+    "UserSettingsResponse",
+    "UserSettingsUpdate",
 ]
