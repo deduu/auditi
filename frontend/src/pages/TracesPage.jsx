@@ -1,15 +1,16 @@
 /*
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { deleteTraces } from "../api/traces";
-import { Filter, Eye, RefreshCw, Trash2, ChevronDown } from "lucide-react";
+import { Filter, Eye, RefreshCw, Trash2, ChevronDown, ArrowRight, Terminal } from "lucide-react";
 import { useTraces } from "../hooks/useTraces";
 import { useModels } from "../hooks/useModels";
 import { TraceTable } from "../components/traces/TraceTable";
 import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { Toast, getNotificationsEnabled } from "../components/ui/Toast";
 
 import { Modal } from "../components/ui/Modal";
 import { SlidePanel } from "../components/ui/SlidePanel";
@@ -26,6 +27,52 @@ export const TracesPage = ({ onSelectTrace }) => {
     });
     const { models } = useModels();
     const [showFilters, setShowFilters] = useState(false);
+
+    // Toast for new traces and evaluation completions
+    const [evalToast, setEvalToast] = useState(null);
+    const prevTraceCountRef = useRef(null);
+    const prevPendingCountRef = useRef(null);
+
+    // Track newly arrived trace IDs for row highlight animation
+    const prevTraceIdsRef = useRef(new Set());
+    const [newItemIds, setNewItemIds] = useState(new Set());
+
+    useEffect(() => {
+        const totalCount = traces.length;
+        const pendingCount = traces.filter(t => !t.status || t.status === "pending").length;
+
+        // Detect newly arrived traces for row highlight
+        const currentIds = new Set(traces.map(t => t.id));
+        if (prevTraceIdsRef.current.size > 0) {
+            const arrivedIds = new Set();
+            for (const id of currentIds) {
+                if (!prevTraceIdsRef.current.has(id)) arrivedIds.add(id);
+            }
+            if (arrivedIds.size > 0) {
+                setNewItemIds(arrivedIds);
+                setTimeout(() => setNewItemIds(new Set()), 3000);
+            }
+        }
+        prevTraceIdsRef.current = currentIds;
+
+        if (getNotificationsEnabled()) {
+            // Detect new traces appearing
+            if (prevTraceCountRef.current !== null && totalCount > prevTraceCountRef.current) {
+                const newCount = totalCount - prevTraceCountRef.current;
+                if (pendingCount > 0) {
+                    setEvalToast({ message: `${newCount} new trace${newCount > 1 ? "s" : ""} ingested — evaluating...`, type: "info" });
+                }
+            }
+            // Detect evaluations completing
+            else if (prevPendingCountRef.current !== null && prevPendingCountRef.current > 0 && pendingCount < prevPendingCountRef.current) {
+                const evaluated = prevPendingCountRef.current - pendingCount;
+                setEvalToast({ message: `${evaluated} trace${evaluated > 1 ? "s" : ""} evaluated successfully`, type: "success" });
+            }
+        }
+
+        prevTraceCountRef.current = totalCount;
+        prevPendingCountRef.current = pendingCount;
+    }, [traces]);
 
     // Selection state
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -108,20 +155,21 @@ export const TracesPage = ({ onSelectTrace }) => {
                 </div>
                 <div className="flex items-center space-x-3">
                     {/* View Toggle */}
-                    <div className="flex items-center bg-slate-900 rounded-lg p-1 border border-slate-700 mr-4">
+                    <div className="flex items-center bg-slate-900 rounded-xl p-1 border border-slate-700 mr-4 gap-1">
                         <button
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${filters.standalone_only
-                                ? 'bg-blue-600 text-white shadow-lg ring-1 ring-blue-500/50'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${filters.standalone_only
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                                : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
                                 }`}
                             onClick={() => setFilters(prev => ({ ...prev, standalone_only: true }))}
                         >
                             Standalone
                         </button>
+                        <div className="w-px h-5 bg-slate-700" />
                         <button
-                            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${!filters.standalone_only
-                                ? 'bg-blue-600 text-white shadow-lg ring-1 ring-blue-500/50'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${!filters.standalone_only
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
+                                : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
                                 }`}
                             onClick={() => setFilters(prev => ({ ...prev, standalone_only: false }))}
                         >
@@ -234,6 +282,23 @@ export const TracesPage = ({ onSelectTrace }) => {
                     selectedIds={selectedIds}
                     onToggleSelection={handleToggleSelection}
                     onToggleAll={handleToggleAll}
+                    newItemIds={newItemIds}
+                    emptyState={filters.standalone_only ? (
+                        <div className="p-12 text-center">
+                            <Terminal className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+                            <h3 className="text-lg font-medium text-slate-300 mb-2">No standalone traces yet</h3>
+                            <p className="text-slate-500 mb-6">
+                                Standalone traces appear here when you use the SDK outside of agent conversations.
+                            </p>
+                            <button
+                                onClick={() => setFilters(prev => ({ ...prev, standalone_only: false }))}
+                                className="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors shadow-lg shadow-blue-500/20"
+                            >
+                                View All Traces
+                                <ArrowRight className="w-4 h-4 ml-2" />
+                            </button>
+                        </div>
+                    ) : undefined}
                 />
                 {!loading && traces.length > 0 && (
                     <PaginationFooter
@@ -287,6 +352,14 @@ export const TracesPage = ({ onSelectTrace }) => {
                     />
                 )}
             </SlidePanel>
+
+            {evalToast && (
+                <Toast
+                    message={evalToast.message}
+                    type={evalToast.type}
+                    onClose={() => setEvalToast(null)}
+                />
+            )}
         </div>
     );
 };

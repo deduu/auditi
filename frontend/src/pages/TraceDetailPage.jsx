@@ -6,13 +6,14 @@ import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpC
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { Toast, getNotificationsEnabled } from "../components/ui/Toast";
 import ContentRenderer from "../components/ui/ContentRenderer";
 import { formatDateTime } from "@utils/formatters";
 import { EvaluationBadge } from "../components/ui/EvaluationBadge";
 import { SpanItem } from "../components/ui/SpanItem";
 
 export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
-    const { trace, loading, error } = useTraceDetail(traceId);
+    const { trace, loading, error, justEvaluated } = useTraceDetail(traceId);
 
     if (loading) {
         return (
@@ -141,6 +142,13 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                     </div>
                 </Card>
             </div>
+
+            {justEvaluated && getNotificationsEnabled() && (
+                <Toast
+                    message={`Evaluation complete: ${trace.status}`}
+                    type={trace.status === "pass" ? "success" : trace.status === "fail" ? "error" : "info"}
+                />
+            )}
         </div>
     );
 };

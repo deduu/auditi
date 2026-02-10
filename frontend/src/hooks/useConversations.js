@@ -1,5 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../api";
+
+const POLL_INTERVAL_FAST = 5000;  // 5s when pending conversations exist
+const POLL_INTERVAL_SLOW = 15000; // 15s baseline for new conversation discovery
 
 // Mock sessions data - represents user sessions with conversation summaries
 const mockSessions = [
@@ -86,15 +89,15 @@ export const useConversations = (initialFilters = {}) => {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
 
-  const fetchConversations = useCallback(async (abortController) => {
+  const fetchConversations = useCallback(async (abortController, isPoll = false) => {
     // Handle optional abortController (it's undefined when called from refetch())
     const signal = abortController ? abortController.signal : null;
 
     try {
-      setLoading(true);
+      if (!isPoll) setLoading(true);
       // Pass signal to api call to actually cancel the request if component unmounts
       const data = await api.getConversations({ ...filters, limit: 500 }, { signal });
-      
+
       if (!signal || !signal.aborted) {
         // Map backend fields to frontend display format
         const formattedData = data.map(session => ({
@@ -102,48 +105,66 @@ export const useConversations = (initialFilters = {}) => {
           latency: session.latency || (session.avgLatencyMs !== undefined ? `${(session.avgLatencyMs / 1000).toFixed(2)}s` : "0.00s"),
           cost: session.cost || (session.totalCost !== undefined ? `$${Number(session.totalCost).toFixed(5)}` : "$0.00"),
         }));
-        
+
         setConversations(formattedData);
         setError(null);
       }
     } catch (err) {
       if (signal && signal.aborted) return;
-      
-      console.error("Failed to fetch conversations:", err);
-      
-      // Apply local filtering to mock data for a better UX when API fails
-      let filtered = [...mockSessions];
-      
-      if (filters.status) {
-        filtered = filtered.filter(s => s.overallStatus === filters.status);
-      }
-      
-      if (filters.model) {
-        filtered = filtered.filter(s => s.models.includes(filters.model));
-      }
-      
-      if (filters.range === '24h') {
-          // In a real app we'd filter by timestamp. Here we just show a subset.
-          filtered = filtered.slice(0, 2); 
-      }
 
-      setConversations(filtered);
-      setError(null);
+      if (!isPoll) {
+        console.error("Failed to fetch conversations:", err);
+
+        // Apply local filtering to mock data for a better UX when API fails
+        let filtered = [...mockSessions];
+
+        if (filters.status) {
+          filtered = filtered.filter(s => s.overallStatus === filters.status);
+        }
+
+        if (filters.model) {
+          filtered = filtered.filter(s => s.models.includes(filters.model));
+        }
+
+        if (filters.range === '24h') {
+            // In a real app we'd filter by timestamp. Here we just show a subset.
+            filtered = filtered.slice(0, 2);
+        }
+
+        setConversations(filtered);
+        setError(null);
+      }
     } finally {
-      if (!signal || !signal.aborted) {
+      if ((!signal || !signal.aborted) && !isPoll) {
         setLoading(false);
       }
     }
   }, [filters]);
 
+  // Initial fetch and filter-change fetch
   useEffect(() => {
     const abortController = new AbortController();
     fetchConversations(abortController);
-    
+
     return () => {
       abortController.abort();
     };
   }, [fetchConversations]);
+
+  // Always poll: fast when pending conversations, slow otherwise (for new conversation discovery)
+  const hasPendingConversations = useMemo(
+    () => conversations.some(c => !c.overallStatus || c.overallStatus === "pending"),
+    [conversations]
+  );
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const controller = new AbortController();
+      fetchConversations(controller, true);
+    }, hasPendingConversations ? POLL_INTERVAL_FAST : POLL_INTERVAL_SLOW);
+
+    return () => clearInterval(interval);
+  }, [hasPendingConversations, fetchConversations]);
 
   const refetch = () => fetchConversations();
 

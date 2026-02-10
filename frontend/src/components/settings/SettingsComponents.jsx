@@ -28,11 +28,11 @@ export const ToggleSetting = ({ label, description, checked, onChange, disabled 
             <button
                 onClick={() => !disabled && onChange(!checked)}
                 disabled={disabled}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? "bg-blue-600" : "bg-slate-700"
+                className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ring-1 ${checked ? "bg-emerald-500 ring-emerald-400" : "bg-rose-500/80 ring-rose-400"
                     } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
             >
                 <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${checked ? "translate-x-6" : "translate-x-1"
+                    className={`inline-block h-5 w-5 transform rounded-full shadow-md transition-transform ${checked ? "translate-x-6 bg-white" : "translate-x-0.5 bg-slate-400"
                         }`}
                 />
             </button>

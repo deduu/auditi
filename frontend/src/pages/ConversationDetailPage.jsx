@@ -22,6 +22,7 @@ import { useConversationDetail } from "../hooks/useConversationDetail";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
+import { Toast, getNotificationsEnabled } from "../components/ui/Toast";
 
 import ContentRenderer from "../components/ui/ContentRenderer";
 import { EvaluationBadge } from "../components/ui/EvaluationBadge";
@@ -216,7 +217,7 @@ const TurnCard = ({ turn, turnNumber }) => {
 };
 
 export const ConversationDetailPage = ({ conversationId, onBack, inPanel = false }) => {
-  const { detail, loading, error } = useConversationDetail(conversationId);
+  const { detail, loading, error, justEvaluated } = useConversationDetail(conversationId);
 
   if (loading) {
     return (
@@ -348,6 +349,13 @@ export const ConversationDetailPage = ({ conversationId, onBack, inPanel = false
           ))}
         </div>
       </div>
+
+      {justEvaluated && getNotificationsEnabled() && (
+        <Toast
+          message={`Evaluation complete: ${detail.overallStatus}`}
+          type={detail.overallStatus === "pass" ? "success" : detail.overallStatus === "fail" ? "error" : "info"}
+        />
+      )}
     </div>
   );
 };

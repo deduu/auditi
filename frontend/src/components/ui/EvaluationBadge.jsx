@@ -58,15 +58,18 @@ export const EvaluationBadge = ({ status, score }) => {
             </div>
         );
     } else {
-        // Pending / Unknown
+        // Pending / Evaluating
         return (
             <div className="flex items-center space-x-2">
                 <Badge
                     variant="secondary"
-                    className="bg-slate-500/10 text-slate-400 border border-slate-500/20"
+                    className="bg-blue-500/10 text-blue-400 border border-blue-500/20"
                 >
-                    <div className="w-2 h-2 rounded-full bg-slate-400 mr-2" />
-                    Evaluation Needed
+                    <span className="relative flex h-2 w-2 mr-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                    </span>
+                    Evaluating...
                 </Badge>
             </div>
         );

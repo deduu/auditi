@@ -15,27 +15,37 @@ import {
 import { formatDateTime } from '@utils/formatters';
 
 const StatusBadge = ({ status }) => {
+    if (!status || status === "pending") {
+        return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-500/10 text-blue-400 border-blue-500/20">
+                <span className="relative flex h-2.5 w-2.5 mr-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                </span>
+                Evaluating...
+            </span>
+        );
+    }
+
     const styles = {
         pass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
         fail: "bg-red-500/10 text-red-400 border-red-500/20",
         review: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-        pending: "bg-slate-500/10 text-slate-400 border-slate-500/20",
     };
 
     const icons = {
         pass: CheckCircle,
         fail: AlertCircle,
         review: HelpCircle,
-        pending: Clock,
     };
 
-    const Icon = icons[status] || Clock;
-    const style = styles[status] || styles.pending;
+    const Icon = icons[status];
+    const style = styles[status];
 
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${style}`}>
             <Icon className="w-3 h-3 mr-1" />
-            {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Evaluation Needed"}
+            {status.charAt(0).toUpperCase() + status.slice(1)}
         </span>
     );
 };
@@ -57,6 +67,8 @@ export const TraceTable = ({
     selectedIds = new Set(),
     onToggleSelection = () => { },
     onToggleAll = () => { },
+    newItemIds = new Set(),
+    emptyState,
 }) => {
     if (loading) {
         return (
@@ -68,6 +80,7 @@ export const TraceTable = ({
     }
 
     if (traces.length === 0) {
+        if (emptyState) return emptyState;
         return (
             <div className="p-12 text-center text-slate-500">
                 <Terminal className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -80,6 +93,16 @@ export const TraceTable = ({
     const allSelected = traces.length > 0 && traces.every(t => selectedIds.has(t.id));
 
     return (
+        <>
+        <style>{`
+            @keyframes newRowGlow {
+                0% { background-color: rgba(59, 130, 246, 0.15); }
+                100% { background-color: transparent; }
+            }
+            .animate-new-row {
+                animation: newRowGlow 3s ease-out forwards;
+            }
+        `}</style>
         <table className="w-full text-left border-collapse">
             <thead>
                 <tr className="border-b border-slate-800 text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -104,12 +127,13 @@ export const TraceTable = ({
             <tbody>
                 {traces.map((trace) => {
                     const isSelected = selectedIds.has(trace.id);
+                    const isNew = newItemIds.has(trace.id);
                     return (
                         <tr
                             key={trace.id}
                             onClick={() => onSelectTrace(trace.id)}
                             className={`border-b border-slate-800/50 transition-colors cursor-pointer group ${isSelected ? 'bg-blue-900/10 hover:bg-blue-900/20' : 'hover:bg-slate-800/30'
-                                }`}
+                                } ${isNew ? 'animate-new-row' : ''}`}
                         >
                             <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                                 <input
@@ -187,5 +211,6 @@ export const TraceTable = ({
                 })}
             </tbody>
         </table>
+        </>
     );
 };

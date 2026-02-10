@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { deleteConversations } from "../api/conversations";
 import {
   Users,
@@ -23,6 +23,7 @@ import { ConversationTable } from "../components/conversations/ConversationTable
 import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { Toast, getNotificationsEnabled } from "../components/ui/Toast";
 import { exportToCSV } from "../utils/exportUtils";
 import { Modal } from "../components/ui/Modal";
 import { SlidePanel } from "../components/ui/SlidePanel";
@@ -36,6 +37,52 @@ export const ConversationsPage = ({ onSelectConversation }) => {
   const { models } = useModels();
   const { metrics } = useMetrics(filters); // Fetch metrics
   const [showFilters, setShowFilters] = useState(false);
+
+  // Toast for new conversations and evaluation completions
+  const [evalToast, setEvalToast] = useState(null);
+  const prevConversationCountRef = useRef(null);
+  const prevPendingCountRef = useRef(null);
+
+  // Track newly arrived conversation IDs for row highlight animation
+  const prevConversationIdsRef = useRef(new Set());
+  const [newItemIds, setNewItemIds] = useState(new Set());
+
+  useEffect(() => {
+    const totalCount = conversations.length;
+    const pendingCount = conversations.filter(c => !c.overallStatus || c.overallStatus === "pending").length;
+
+    // Detect newly arrived conversations for row highlight
+    const currentIds = new Set(conversations.map(c => c.id));
+    if (prevConversationIdsRef.current.size > 0) {
+      const arrivedIds = new Set();
+      for (const id of currentIds) {
+        if (!prevConversationIdsRef.current.has(id)) arrivedIds.add(id);
+      }
+      if (arrivedIds.size > 0) {
+        setNewItemIds(arrivedIds);
+        setTimeout(() => setNewItemIds(new Set()), 3000);
+      }
+    }
+    prevConversationIdsRef.current = currentIds;
+
+    if (getNotificationsEnabled()) {
+      // Detect new conversations appearing
+      if (prevConversationCountRef.current !== null && totalCount > prevConversationCountRef.current) {
+        const newCount = totalCount - prevConversationCountRef.current;
+        if (pendingCount > 0) {
+          setEvalToast({ message: `${newCount} new conversation${newCount > 1 ? "s" : ""} — evaluating...`, type: "info" });
+        }
+      }
+      // Detect evaluations completing
+      else if (prevPendingCountRef.current !== null && prevPendingCountRef.current > 0 && pendingCount < prevPendingCountRef.current) {
+        const evaluated = prevPendingCountRef.current - pendingCount;
+        setEvalToast({ message: `${evaluated} conversation${evaluated > 1 ? "s" : ""} evaluated successfully`, type: "success" });
+      }
+    }
+
+    prevConversationCountRef.current = totalCount;
+    prevPendingCountRef.current = pendingCount;
+  }, [conversations]);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -307,6 +354,7 @@ export const ConversationsPage = ({ onSelectConversation }) => {
           selectedIds={selectedIds}
           onToggleSelection={handleToggleSelection}
           onToggleAll={handleToggleAll}
+          newItemIds={newItemIds}
         />
         {/* Pagination Footer */}
         {!loading && conversations.length > 0 && (
@@ -371,6 +419,14 @@ export const ConversationsPage = ({ onSelectConversation }) => {
           />
         )}
       </SlidePanel>
+
+      {evalToast && (
+        <Toast
+          message={evalToast.message}
+          type={evalToast.type}
+          onClose={() => setEvalToast(null)}
+        />
+      )}
     </div>
   );
 };

@@ -43,9 +43,12 @@ const getStatusBadge = (status, passCount, failCount) => {
     );
   } else {
     return (
-      <Badge variant="secondary" className="bg-slate-500/10 text-slate-400 border-slate-500/20">
-        <div className="w-2 h-2 rounded-full bg-slate-400 mr-2" />
-        Evaluation Needed
+      <Badge variant="secondary" className="bg-blue-500/10 text-blue-400 border-blue-500/20">
+        <span className="relative flex h-2 w-2 mr-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+        </span>
+        Evaluating...
       </Badge>
     );
   }
@@ -60,6 +63,7 @@ export const ConversationTable = ({
   selectedIds = new Set(),
   onToggleSelection = () => { },
   onToggleAll = () => { },
+  newItemIds = new Set(),
 }) => {
   if (loading) {
     return <Spinner size="lg" />;
@@ -77,6 +81,15 @@ export const ConversationTable = ({
 
   return (
     <div className="overflow-x-auto">
+      <style>{`
+        @keyframes newRowGlow {
+          0% { background-color: rgba(59, 130, 246, 0.15); }
+          100% { background-color: transparent; }
+        }
+        .animate-new-row {
+          animation: newRowGlow 3s ease-out forwards;
+        }
+      `}</style>
       <table className="min-w-full">
         <thead className="bg-slate-900/50 border-b border-slate-800">
           <tr>
@@ -120,11 +133,12 @@ export const ConversationTable = ({
         <tbody className="bg-transparent divide-y divide-slate-800">
           {conversations.map((session) => {
             const isSelected = selectedIds.has(session.id);
+            const isNew = newItemIds.has(session.id);
             return (
               <tr
                 key={session.id}
                 className={`transition-colors border-b border-slate-800 last:border-0 ${isSelected ? 'bg-blue-900/10 hover:bg-blue-900/20' : 'hover:bg-slate-800/50'
-                  }`}
+                  } ${isNew ? 'animate-new-row' : ''}`}
                 onClick={() => onSelectConversation(session.id)}
               >
                 <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>

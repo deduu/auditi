@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "../api";
+
+const POLL_INTERVAL = 5000;
 
 // Mock detailed session data with conversation turns and evaluations
 const mockSessionDetails = {
@@ -251,6 +253,8 @@ export const useConversationDetail = (sessionId) => {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [justEvaluated, setJustEvaluated] = useState(false);
+  const prevStatusRef = useRef(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -265,18 +269,20 @@ export const useConversationDetail = (sessionId) => {
       try {
         setLoading(true);
         const data = await api.getConversationDetail(sessionId, { signal: abortController.signal });
-        
+
         if (!abortController.signal.aborted) {
           setDetail(data);
+          prevStatusRef.current = data?.overallStatus || null;
           setError(null);
         }
       } catch (err) {
         if (abortController.signal.aborted) return;
-        
+
         console.error("Failed to fetch session detail:", err);
         // Use mock data as fallback
         const mockData = mockSessionDetails[sessionId] || mockSessionDetails.session_001;
         setDetail(mockData);
+        prevStatusRef.current = mockData?.overallStatus || null;
         setError(null);
       } finally {
         if (!abortController.signal.aborted) {
@@ -292,5 +298,31 @@ export const useConversationDetail = (sessionId) => {
     };
   }, [sessionId]);
 
-  return { detail, loading, error };
+  // Conditional polling when conversation is pending
+  const isPending = detail && (!detail.overallStatus || detail.overallStatus === "pending");
+
+  useEffect(() => {
+    if (!isPending || !sessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const data = await api.getConversationDetail(sessionId);
+        setDetail(data);
+
+        const wasP = !prevStatusRef.current || prevStatusRef.current === "pending";
+        const nowDone = data.overallStatus && data.overallStatus !== "pending";
+        if (wasP && nowDone) {
+          setJustEvaluated(true);
+          setTimeout(() => setJustEvaluated(false), 5000);
+        }
+        prevStatusRef.current = data?.overallStatus || null;
+      } catch {
+        // Silently ignore poll errors
+      }
+    }, POLL_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [isPending, sessionId]);
+
+  return { detail, loading, error, justEvaluated };
 };
