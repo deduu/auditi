@@ -80,13 +80,19 @@ def _instrument_openai():
 
     @trace_llm(name="OpenAI Chat Completion", standalone=True)
     def patched_create(self, *args, **kwargs):
-        # We need to make sure we don't double-trace if the user is already using decorators
-        # But for now, simple wrapping using our existing @trace_llm is easiest.
-        # It handles standalone vs nested automatically.
+        # When streaming, request usage in the final chunk so the wrapper can capture it
+        if kwargs.get("stream", False):
+            stream_opts = kwargs.get("stream_options") or {}
+            stream_opts["include_usage"] = True
+            kwargs["stream_options"] = stream_opts
         return original_create(self, *args, **kwargs)
 
     @trace_llm(name="OpenAI Chat Completion", standalone=True)
     async def patched_async_create(self, *args, **kwargs):
+        if kwargs.get("stream", False):
+            stream_opts = kwargs.get("stream_options") or {}
+            stream_opts["include_usage"] = True
+            kwargs["stream_options"] = stream_opts
         return await original_async_create(self, *args, **kwargs)
 
     # Mark as patched

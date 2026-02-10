@@ -258,10 +258,30 @@ def _execute_as_standalone_trace(
 
     result = None
     error_msg = None
+    stream_returned = False
 
     try:
         result = func(*args, **kwargs)
         logger.info("Standalone %s trace captured.", span_type)
+
+        # Check for streaming response BEFORE extraction
+        from .stream_wrappers import wrap_stream_if_needed
+
+        wrapped_result, is_stream = wrap_stream_if_needed(
+            result=result,
+            span=span,
+            trace=trace,
+            client=client,
+            start_time=start_time,
+            is_standalone=True,
+        )
+        if is_stream:
+            stream_returned = True
+            pop_span()
+            from .context import clear_current_trace
+
+            clear_current_trace()
+            return wrapped_result
 
         # Extract model from response if not set
         if not span.model:
@@ -354,29 +374,30 @@ def _execute_as_standalone_trace(
         raise
 
     finally:
-        end_time = datetime.now(timezone.utc)
-        span.end_time = end_time
-        span.processing_time = (end_time - start_time).total_seconds()
-        trace.end_time = end_time
+        if not stream_returned:
+            end_time = datetime.now(timezone.utc)
+            span.end_time = end_time
+            span.processing_time = (end_time - start_time).total_seconds()
+            trace.end_time = end_time
 
-        pop_span()
-        trace.spans.append(span)
+            pop_span()
+            trace.spans.append(span)
 
-        # Aggregate metrics from span to trace
-        if span.tokens:
-            trace.total_tokens = span.tokens
-        if span.cost:
-            trace.cost = span.cost
+            # Aggregate metrics from span to trace
+            if span.tokens:
+                trace.total_tokens = span.tokens
+            if span.cost:
+                trace.cost = span.cost
 
-        # Send trace
-        trace_payload = trace.model_dump(mode="json")
-        _debug_log(f"Sending standalone trace payload for '{func_name}':", trace_payload)
-        client.transport.send_trace(trace_payload)
+            # Send trace
+            trace_payload = trace.model_dump(mode="json")
+            _debug_log(f"Sending standalone trace payload for '{func_name}':", trace_payload)
+            client.transport.send_trace(trace_payload)
 
-        # Clear context
-        from .context import clear_current_trace
+            # Clear context
+            from .context import clear_current_trace
 
-        clear_current_trace()
+            clear_current_trace()
 
     return result
 
@@ -449,10 +470,30 @@ async def _execute_as_standalone_trace_async(
 
     result = None
     error_msg = None
+    stream_returned = False
 
     try:
         result = await func(*args, **kwargs)
         logger.info("Standalone %s trace captured.", span_type)
+
+        # Check for streaming response BEFORE extraction
+        from .stream_wrappers import wrap_stream_if_needed
+
+        wrapped_result, is_stream = wrap_stream_if_needed(
+            result=result,
+            span=span,
+            trace=trace,
+            client=client,
+            start_time=start_time,
+            is_standalone=True,
+        )
+        if is_stream:
+            stream_returned = True
+            pop_span()
+            from .context import clear_current_trace
+
+            clear_current_trace()
+            return wrapped_result
 
         if not span.model:
             provider = detect_provider(response=result)
@@ -534,26 +575,27 @@ async def _execute_as_standalone_trace_async(
         raise
 
     finally:
-        end_time = datetime.now(timezone.utc)
-        span.end_time = end_time
-        span.processing_time = (end_time - start_time).total_seconds()
-        trace.end_time = end_time
+        if not stream_returned:
+            end_time = datetime.now(timezone.utc)
+            span.end_time = end_time
+            span.processing_time = (end_time - start_time).total_seconds()
+            trace.end_time = end_time
 
-        pop_span()
-        trace.spans.append(span)
+            pop_span()
+            trace.spans.append(span)
 
-        if span.tokens:
-            trace.total_tokens = span.tokens
-        if span.cost:
-            trace.cost = span.cost
+            if span.tokens:
+                trace.total_tokens = span.tokens
+            if span.cost:
+                trace.cost = span.cost
 
-        trace_payload = trace.model_dump(mode="json")
-        _debug_log(f"Sending standalone trace payload for '{func_name}':", trace_payload)
-        client.transport.send_trace(trace_payload)
+            trace_payload = trace.model_dump(mode="json")
+            _debug_log(f"Sending standalone trace payload for '{func_name}':", trace_payload)
+            client.transport.send_trace(trace_payload)
 
-        from .context import clear_current_trace
+            from .context import clear_current_trace
 
-        clear_current_trace()
+            clear_current_trace()
 
     return result
 
@@ -1395,8 +1437,25 @@ def _trace_span(
 
                 push_span(span)
 
+                stream_returned = False
                 try:
                     result = await func(*args, **kwargs)
+
+                    # Check for streaming response BEFORE extraction
+                    from .stream_wrappers import wrap_stream_if_needed
+
+                    wrapped_result, is_stream = wrap_stream_if_needed(
+                        result=result,
+                        span=span,
+                        trace=trace,
+                        client=None,
+                        start_time=start_time,
+                        is_standalone=False,
+                    )
+                    if is_stream:
+                        stream_returned = True
+                        pop_span()
+                        return wrapped_result
 
                     # Capture output
                     if isinstance(result, str):
@@ -1414,13 +1473,14 @@ def _trace_span(
                     span.status = "error"
                     raise
                 finally:
-                    span.end_time = datetime.now(timezone.utc)
-                    span.processing_time = (span.end_time - span.start_time).total_seconds()
-                    pop_span()
+                    if not stream_returned:
+                        span.end_time = datetime.now(timezone.utc)
+                        span.processing_time = (span.end_time - span.start_time).total_seconds()
+                        pop_span()
 
-                    span_payload = span.model_dump(mode="json")
-                    _debug_log(f"Adding span '{span_name}' to trace:", span_payload)
-                    trace.spans.append(span)
+                        span_payload = span.model_dump(mode="json")
+                        _debug_log(f"Adding span '{span_name}' to trace:", span_payload)
+                        trace.spans.append(span)
 
             return async_span_wrapper
 
@@ -1526,8 +1586,25 @@ def _trace_span(
 
             push_span(span)
 
+            stream_returned = False
             try:
                 result = func(*args, **kwargs)
+
+                # Check for streaming response BEFORE extraction
+                from .stream_wrappers import wrap_stream_if_needed
+
+                wrapped_result, is_stream = wrap_stream_if_needed(
+                    result=result,
+                    span=span,
+                    trace=trace,
+                    client=None,
+                    start_time=start_time,
+                    is_standalone=False,
+                )
+                if is_stream:
+                    stream_returned = True
+                    pop_span()
+                    return wrapped_result
 
                 # Use provider abstraction to extract model if not set
                 if not span.model:
@@ -1619,15 +1696,16 @@ def _trace_span(
                 _debug_log(f"Span '{span_name}' failed:", {"error": str(e)})
                 raise
             finally:
-                span.end_time = datetime.now(timezone.utc)
-                span.processing_time = (span.end_time - span.start_time).total_seconds()
-                pop_span()
+                if not stream_returned:
+                    span.end_time = datetime.now(timezone.utc)
+                    span.processing_time = (span.end_time - span.start_time).total_seconds()
+                    pop_span()
 
-                # Log span payload before adding to trace
-                span_payload = span.model_dump(mode="json")
-                _debug_log(f"Adding span '{span_name}' to trace:", span_payload)
+                    # Log span payload before adding to trace
+                    span_payload = span.model_dump(mode="json")
+                    _debug_log(f"Adding span '{span_name}' to trace:", span_payload)
 
-                trace.spans.append(span)
+                    trace.spans.append(span)
 
         return wrapper
 
