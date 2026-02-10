@@ -177,4 +177,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Model fine-tuning workflows
 - [ ] A/B testing framework
 
+## Enterprise
+
+For teams that need advanced security, compliance, and support:
+
+- **SSO/SAML** — Connect your identity provider
+- **Advanced RBAC** — Granular permissions and workspace isolation
+- **Audit logging** — Full activity trail for compliance
+- **Data retention policies** — Configurable cleanup and archival
+- **Priority support** — Dedicated support with SLA
+- **Custom integrations** — Tailored to your stack
+
+**Contact:** auditi.ai.team@gmail.com
+
 ---

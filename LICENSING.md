@@ -32,3 +32,7 @@ On **2028-02-09** (4 years from publication), all BSL 1.1 code will automaticall
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to both MIT and BSL licensed components.
+
+## Enterprise Licensing
+
+For enterprise licensing inquiries, custom agreements, or questions about the BSL license, contact us at **auditi.ai.team@gmail.com**.
