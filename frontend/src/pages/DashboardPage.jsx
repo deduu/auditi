@@ -31,13 +31,25 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 // ============== Reusable Components ==============
 
+const ChangeIndicator = ({ value, invertColor = false }) => {
+    if (value === null || value === undefined || !isFinite(value)) return null;
+    const isPositive = value > 0;
+    const isZero = value === 0;
+    const isGood = invertColor ? !isPositive : isPositive;
+    return (
+        <span className={`inline-flex items-center text-xs font-medium ml-2 ${isZero ? 'text-slate-500' : isGood ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {isPositive ? '↑' : isZero ? '→' : '↓'} {Math.abs(value).toFixed(1)}%
+        </span>
+    );
+};
+
 const EmptyChart = ({ message = "No data" }) => (
     <div className="h-full flex items-center justify-center border-2 border-dashed border-slate-700 rounded-lg bg-slate-900/30">
         <span className="text-slate-500 text-sm">{message}</span>
     </div>
 );
 
-const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAllTraces = false, countsByType, onExpand, isExpanded = false }) => {
+const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAllTraces = false, countsByType, onExpand, isExpanded = false, changePercent }) => {
     const displayData = data && !isExpanded && !showAllTraces ? data.slice(0, 5) : data;
 
     return (
@@ -57,6 +69,7 @@ const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAl
                 </div>
                 <div className="flex items-baseline space-x-2 mb-4">
                     <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
+                    <ChangeIndicator value={changePercent} />
                     <span className="text-sm text-slate-400">Total traces tracked</span>
                 </div>
                 {/* Underline tabs */}
@@ -115,7 +128,7 @@ const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAl
     );
 };
 
-const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false }) => (
+const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false, changePercent }) => (
     <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -132,6 +145,7 @@ const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false }) => (
             </div>
             <div className="flex items-center space-x-2">
                 <span className="text-3xl font-bold text-white">${(total || 0).toFixed(6)}</span>
+                <ChangeIndicator value={changePercent} invertColor />
                 <span className="text-sm text-slate-400">Total cost</span>
                 <div className="group relative inline-block">
                     <Info className="w-4 h-4 text-slate-500 hover:text-blue-400 cursor-help transition-colors" />
@@ -190,7 +204,7 @@ const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false }) => (
     </Card>
 );
 
-const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, isExpanded = false, onNavigate }) => (
+const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, isExpanded = false, onNavigate, changePercent }) => (
     <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -207,6 +221,7 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, i
             </div>
             <div className="flex items-center space-x-2">
                 <span className="text-3xl font-bold text-white">{(total || 0).toLocaleString()}</span>
+                <ChangeIndicator value={changePercent} />
                 <span className="text-sm text-slate-400">Total scores tracked</span>
                 <div className="group relative inline-block">
                     <Info className="w-4 h-4 text-slate-500 hover:text-blue-400 cursor-help transition-colors" />
@@ -286,13 +301,24 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, i
     </Card>
 );
 
-const ChartCard = ({ title, subtitle, children, tabs, activeTab, onTabChange, rightContent }) => (
-    <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden h-full flex flex-col">
-        <div className="px-6 pt-5 pb-0">
+const ChartCard = ({ title, subtitle, info, children, tabs, activeTab, onTabChange, rightContent }) => (
+    <Card className="bg-slate-900/50 border-slate-800 p-0 h-full flex flex-col">
+        <div className="px-6 pt-5 pb-0 relative overflow-visible">
             {/* Header row: Title + Right content (filters) */}
             <div className="flex items-start justify-between mb-4">
                 <div>
-                    <h2 className="text-lg font-semibold text-white">{title}</h2>
+                    <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-semibold text-white">{title}</h2>
+                        {info && (
+                            <div className="group relative inline-block">
+                                <Info className="w-4 h-4 text-slate-500 hover:text-blue-400 cursor-help transition-colors" />
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-xs text-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none">
+                                    <p className="leading-relaxed">{info}</p>
+                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-slate-600"></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
                 </div>
                 {rightContent && <div className="flex items-center gap-3">{rightContent}</div>}
@@ -320,7 +346,7 @@ const ChartCard = ({ title, subtitle, children, tabs, activeTab, onTabChange, ri
                 </div>
             )}
         </div>
-        <div className="p-6 flex-1">{children}</div>
+        <div className="p-6 flex-1 overflow-hidden">{children}</div>
     </Card>
 );
 
@@ -389,7 +415,6 @@ export const DashboardPage = ({ onNavigate }) => {
     const [trends, setTrends] = useState(null);
     const [models, setModels] = useState([]);
     const [dashboardKPIs, setDashboardKPIs] = useState(null);
-    const [scoreDistribution, setScoreDistribution] = useState(null);
     const [observationsData, setObservationsData] = useState(null);
     const [latencyData, setLatencyData] = useState(null);
     const [userConsumptionData, setUserConsumptionData] = useState(null);
@@ -398,27 +423,26 @@ export const DashboardPage = ({ onNavigate }) => {
     // UI States
     const [traceType, setTraceType] = useState(null); // null (all), 'agent', 'standalone'
     const [section2LeftTab, setSection2LeftTab] = useState("traces");
-    const [section2RightTab, setSection2RightTab] = useState("cost-by-model");
+    const [section2RightTab, setSection2RightTab] = useState("score");
     const [section3LeftTab, setSection3LeftTab] = useState("token-cost");
     const [latencyPercentile, setLatencyPercentile] = useState("99th Percentile");
     const [selectedModel, setSelectedModel] = useState("All models");
     const [showAllTraces, setShowAllTraces] = useState(false);
     const [showMoreScores, setShowMoreScores] = useState(false);
     const [expandedCard, setExpandedCard] = useState(null); // 'traces' | 'models' | 'scores' | null
+    const [healthTab, setHealthTab] = useState("cost");
 
     // Initial Fetch
     useEffect(() => {
         const fetchBaseData = async () => {
             setLoading(true);
             try {
-                const [trendsData, modelsData, distributionData] = await Promise.all([
+                const [trendsData, modelsData] = await Promise.all([
                     api.getTrends(timeRange),
-                    api.getModelComparison(timeRange),
-                    api.getScoreDistribution(timeRange)
+                    api.getModelComparison(timeRange)
                 ]);
                 setTrends(trendsData);
                 setModels(modelsData.models || []);
-                setScoreDistribution(distributionData);
             } catch (err) {
                 console.error("Failed to fetch dashboard data:", err);
                 setError("Failed to load dashboard data");
@@ -572,46 +596,29 @@ export const DashboardPage = ({ onNavigate }) => {
         return models.filter(m => m.model === selectedModel);
     }, [models, selectedModel]);
 
-    const totalModelCost = filteredModels.reduce((acc, m) => acc + m.cost, 0);
-
-    // Model Usage Charts Data
-    const modelUsageData = useMemo(() => {
+    // Model Performance Charts Data
+    const modelPerformanceData = useMemo(() => {
         if (!filteredModels.length) return [];
 
-        const sortedModels = [...filteredModels];
-
         switch (section2RightTab) {
-            case "cost-by-model":
-                return sortedModels
-                    .sort((a, b) => b.cost - a.cost)
-                    .map((m, i) => ({ name: m.model, value: m.cost, fill: COLORS[i % COLORS.length] }))
-                    .slice(0, 5);
-            case "cost-by-type":
-                // Basic grouping by name prefix as proxy for type
-                const costByType = {};
-                filteredModels.forEach(m => {
-                    // Try to extract provider/type (e.g., "gpt-4" -> "gpt", "claude-3" -> "claude")
-                    const type = m.model.split(/[-:]/)[0] || 'other';
-                    costByType[type] = (costByType[type] || 0) + m.cost;
-                });
-                return Object.entries(costByType)
-                    .map(([name, value], i) => ({ name, value, fill: COLORS[i % COLORS.length] }))
-                    .sort((a, b) => b.value - a.value);
-            case "usage-by-model":
-                // Use volume (request count) for usage
-                return sortedModels
-                    .sort((a, b) => b.volume - a.volume)
-                    .map((m, i) => ({ name: m.model, value: m.volume, fill: COLORS[i % COLORS.length] }))
-                    .slice(0, 5);
-            case "usage-by-type":
-                const usageByType = {};
-                filteredModels.forEach(m => {
-                    const type = m.model.split(/[-:]/)[0] || 'other';
-                    usageByType[type] = (usageByType[type] || 0) + m.volume;
-                });
-                return Object.entries(usageByType)
-                    .map(([name, value], i) => ({ name, value, fill: COLORS[i % COLORS.length] }))
-                    .sort((a, b) => b.value - a.value);
+            case "score":
+                return [...filteredModels]
+                    .filter(m => m.score > 0)
+                    .sort((a, b) => b.score - a.score)
+                    .map((m, i) => ({ name: m.model, value: m.score, fill: COLORS[i % COLORS.length] }))
+                    .slice(0, 7);
+            case "error-rate":
+                return [...filteredModels]
+                    .sort((a, b) => b.error_rate - a.error_rate)
+                    .map((m, i) => ({ name: m.model, value: m.error_rate, fill: COLORS[i % COLORS.length] }))
+                    .slice(0, 7);
+            case "efficiency":
+                return [...filteredModels]
+                    .filter(m => m.volume > 0)
+                    .map(m => ({ ...m, costPerReq: m.cost / m.volume }))
+                    .sort((a, b) => a.costPerReq - b.costPerReq)
+                    .map((m, i) => ({ name: m.model, value: m.costPerReq, fill: COLORS[i % COLORS.length] }))
+                    .slice(0, 7);
             default:
                 return [];
         }
@@ -667,11 +674,13 @@ export const DashboardPage = ({ onNavigate }) => {
                             onShowAll={() => setShowAllTraces(!showAllTraces)}
                             countsByType={dashboardKPIs?.traces?.counts_by_type}
                             onExpand={() => setExpandedCard('traces')}
+                            changePercent={trends?.volume?.change_percent}
                         />
                         <ModelCostTableCard
                             total={dashboardKPIs?.model_costs?.total}
                             data={dashboardKPIs?.model_costs?.by_model}
                             onExpand={() => setExpandedCard('models')}
+                            changePercent={trends?.cost?.change_percent}
                         />
                         <ScoreTableCard
                             total={dashboardKPIs?.scores?.total}
@@ -680,6 +689,7 @@ export const DashboardPage = ({ onNavigate }) => {
                             onShowMore={() => setShowMoreScores(!showMoreScores)}
                             onExpand={() => setExpandedCard('scores')}
                             onNavigate={onNavigate}
+                            changePercent={trends?.score?.change_percent}
                         />
                     </div>
 
@@ -688,6 +698,9 @@ export const DashboardPage = ({ onNavigate }) => {
                         {/* LEFT: Traces by Time */}
                         <ChartCard
                             title={section2LeftTab === "traces" ? "Traces by Time" : "Observations by Level"}
+                            info={section2LeftTab === "traces"
+                                ? "Track trace volume over time to spot usage spikes or drops. A sudden change may indicate deployment issues or traffic shifts."
+                                : "See how different span types (LLM, tool, agent) are distributed over time. A drop in a specific type may signal a broken integration."}
                             tabs={[
                                 { id: "traces", label: "Traces" },
                                 { id: "observations", label: "Observations by Level" }
@@ -752,48 +765,75 @@ export const DashboardPage = ({ onNavigate }) => {
                             </div>
                         </ChartCard>
 
-                        {/* RIGHT: Model Usage */}
+                        {/* RIGHT: Model Performance */}
                         <ChartCard
-                            title="Model Usage"
+                            title="Model Performance"
+                            subtitle="Compare models by quality, reliability, and efficiency"
+                            info="Compare models side-by-side on quality (score), reliability (error rate), and cost efficiency (cost per request) to decide which model to use or optimize."
                             tabs={[
-                                { id: "cost-by-model", label: "Cost by model" },
-                                { id: "cost-by-type", label: "Cost by type" },
-                                { id: "usage-by-model", label: "Usage by model" },
-                                { id: "usage-by-type", label: "Usage by type" }
+                                { id: "score", label: "Avg Score" },
+                                { id: "error-rate", label: "Error Rate" },
+                                { id: "efficiency", label: "Cost / Request" }
                             ]}
                             activeTab={section2RightTab}
                             onTabChange={setSection2RightTab}
                             rightContent={<DropdownFilter value={selectedModel} options={modelOptions} onChange={setSelectedModel} />}
                         >
-                            <div className="mb-4">
-                                <span className="text-2xl font-bold text-amber-400">
-                                    {section2RightTab.includes("cost")
-                                        ? `$${totalModelCost.toFixed(2)}`
-                                        : modelUsageData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
-                                </span>
-                                <span className="text-slate-400 ml-2">
-                                    {section2RightTab.includes("cost") ? "Cost" : "Requests"}
-                                </span>
-                            </div>
-                            <div className="h-64">
-                                {modelUsageData.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                        <BarChart data={modelUsageData} layout="vertical">
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
-                                            <XAxis type="number" stroke="#64748b" fontSize={12} tickFormatter={(v) => section2RightTab.includes("cost") ? `$${v.toFixed(3)}` : v} />
-                                            <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={11} width={120} tickFormatter={(v) => v.length > 18 ? v.slice(0, 18) + '...' : v} />
-                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                            <Bar dataKey="value" name={section2RightTab.includes("cost") ? "Cost" : "Usage"} radius={[0, 4, 4, 0]}>
-                                                {modelUsageData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                ) : (
-                                    <EmptyChart />
-                                )}
-                            </div>
+                            {(() => {
+                                const headlineConfig = {
+                                    score: {
+                                        value: filteredModels.length ? (filteredModels.reduce((a, m) => a + m.score, 0) / filteredModels.length).toFixed(1) + "%" : "—",
+                                        label: "Avg score across models",
+                                        color: "text-emerald-400",
+                                        xFormat: (v) => `${v.toFixed(0)}%`,
+                                        barName: "Score",
+                                    },
+                                    "error-rate": {
+                                        value: filteredModels.length ? (filteredModels.reduce((a, m) => a + m.error_rate, 0) / filteredModels.length).toFixed(2) + "%" : "—",
+                                        label: "Avg error rate",
+                                        color: "text-rose-400",
+                                        xFormat: (v) => `${v.toFixed(1)}%`,
+                                        barName: "Error Rate",
+                                    },
+                                    efficiency: {
+                                        value: filteredModels.length && filteredModels.some(m => m.volume > 0)
+                                            ? "$" + (filteredModels.reduce((a, m) => a + m.cost, 0) / filteredModels.reduce((a, m) => a + m.volume, 0)).toFixed(6)
+                                            : "—",
+                                        label: "Avg cost per request",
+                                        color: "text-amber-400",
+                                        xFormat: (v) => `$${v.toFixed(4)}`,
+                                        barName: "Cost/Req",
+                                    },
+                                };
+                                const h = headlineConfig[section2RightTab];
+                                return (
+                                    <>
+                                        <div className="mb-4">
+                                            <span className={`text-2xl font-bold ${h.color}`}>{h.value}</span>
+                                            <span className="text-slate-400 ml-2">{h.label}</span>
+                                        </div>
+                                        <div className="h-64">
+                                            {modelPerformanceData.length > 0 ? (
+                                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                                    <BarChart data={modelPerformanceData} layout="vertical">
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                                                        <XAxis type="number" stroke="#64748b" fontSize={12} tickFormatter={h.xFormat} />
+                                                        <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={11} width={120} tickFormatter={(v) => v.length > 18 ? v.slice(0, 18) + '...' : v} />
+                                                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                                        <Bar dataKey="value" name={h.barName} radius={[0, 4, 4, 0]}>
+                                                            {modelPerformanceData.map((entry, index) => (
+                                                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                                            ))}
+                                                        </Bar>
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            ) : (
+                                                <EmptyChart message="No model performance data" />
+                                            )}
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </ChartCard>
                     </div>
 
@@ -803,6 +843,7 @@ export const DashboardPage = ({ onNavigate }) => {
                         <ChartCard
                             title="User consumption"
                             subtitle={`Showing top 10 users by ${section3LeftTab === "token-cost" ? "token cost" : "trace count"}. Export for full data.`}
+                            info="Identify which users are driving the most cost or usage. Use this to detect runaway consumers, allocate budgets, or investigate unusual activity."
                             tabs={[
                                 { id: "token-cost", label: "Token cost" },
                                 { id: "trace-count", label: "Count of Traces" }
@@ -860,6 +901,7 @@ export const DashboardPage = ({ onNavigate }) => {
                         <ChartCard
                             title="Scores"
                             subtitle="Average score per evaluator over time"
+                            info="Track how each evaluator's scores trend over time. A declining score for a specific evaluator may indicate degrading quality in that area."
                         >
                             <div className="mb-4">
                                 <span className="text-2xl font-bold text-emerald-400">
@@ -901,11 +943,11 @@ export const DashboardPage = ({ onNavigate }) => {
                     {/* ============== SECTION 4: Latency Percentiles ============== */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
-                            { title: "Trace latency percentiles", key: "trace_latency" },
-                            { title: "Generation latency percentiles", key: "generation_latency" },
-                            { title: "Span latency percentiles", key: "span_latency" },
-                        ].map(({ title, key }) => (
-                            <ChartCard key={key} title={title}>
+                            { title: "Trace latency percentiles", key: "trace_latency", info: "End-to-end latency of full traces at P50/P90/P95/P99. A widening gap between P50 and P99 indicates inconsistent performance affecting some users." },
+                            { title: "Generation latency percentiles", key: "generation_latency", info: "LLM generation call latency at each percentile. Use this to identify if slow responses are caused by the LLM provider." },
+                            { title: "Span latency percentiles", key: "span_latency", info: "Processing time across all span types. Compare with trace latency to understand how much overhead your application adds beyond LLM calls." },
+                        ].map(({ title, key, info }) => (
+                            <ChartCard key={key} title={title} info={info}>
                                 <div className="h-48">
                                     {!latencyData ? (
                                         <div className="h-full flex items-center justify-center">
@@ -937,6 +979,7 @@ export const DashboardPage = ({ onNavigate }) => {
                     <ChartCard
                         title="Model latencies"
                         subtitle="Latencies (seconds) per LLM generation"
+                        info="Compare response times across models at different percentiles. Use this to choose faster models or identify models that need caching or optimization."
                         tabs={[
                             { id: "50th Percentile", label: "50th Percentile" },
                             { id: "90th Percentile", label: "90th Percentile" },
@@ -970,26 +1013,87 @@ export const DashboardPage = ({ onNavigate }) => {
                         </div>
                     </ChartCard>
 
-                    {/* ============== SECTION 6: Scores Analytics ============== */}
+                    {/* ============== SECTION 6: System Health Trends ============== */}
                     <ChartCard
-                        title="Scores Analytics"
-                        subtitle="Aggregate scores and averages over time"
+                        title="System Health"
+                        subtitle="Cost, latency, and error rate trends over time"
+                        info="Monitor operational health at a glance. Rising costs, increasing latency, or growing error rates are early warning signs that need investigation."
+                        tabs={[
+                            { id: "cost", label: "Cost" },
+                            { id: "latency", label: "Latency" },
+                            { id: "error-rate", label: "Error Rate" }
+                        ]}
+                        activeTab={healthTab}
+                        onTabChange={setHealthTab}
                     >
-                        <div className="h-80">
-                            {scoreDistribution?.buckets?.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                    <BarChart data={scoreDistribution.buckets}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                        <XAxis dataKey="range" stroke="#64748b" fontSize={12} />
-                                        <YAxis stroke="#64748b" fontSize={12} />
-                                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                        <Bar dataKey="count" name="Traces" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <EmptyChart />
-                            )}
-                        </div>
+                        {(() => {
+                            const config = {
+                                cost: {
+                                    data: trends?.cost?.data,
+                                    current: trends?.cost?.current,
+                                    change: trends?.cost?.change_percent,
+                                    label: "Total cost",
+                                    format: (v) => `$${(v || 0).toFixed(4)}`,
+                                    yFormat: (v) => `$${v.toFixed(2)}`,
+                                    color: "#f59e0b",
+                                    gradientId: "costGradient",
+                                    invertColor: true,
+                                },
+                                latency: {
+                                    data: trends?.latency?.data,
+                                    current: trends?.latency?.current,
+                                    change: trends?.latency?.change_percent,
+                                    label: "Avg latency",
+                                    format: (v) => `${(v || 0).toFixed(2)}s`,
+                                    yFormat: (v) => `${v.toFixed(1)}s`,
+                                    color: "#8b5cf6",
+                                    gradientId: "latencyGradient",
+                                    invertColor: true,
+                                },
+                                "error-rate": {
+                                    data: trends?.error_rate?.data,
+                                    current: trends?.error_rate?.current,
+                                    change: trends?.error_rate?.change_percent,
+                                    label: "Error rate",
+                                    format: (v) => `${(v || 0).toFixed(2)}%`,
+                                    yFormat: (v) => `${v.toFixed(1)}%`,
+                                    color: "#ef4444",
+                                    gradientId: "errorGradient",
+                                    invertColor: true,
+                                },
+                            };
+                            const c = config[healthTab];
+                            return (
+                                <>
+                                    <div className="mb-4 flex items-baseline">
+                                        <span className="text-2xl font-bold text-white">{c.format(c.current)}</span>
+                                        <ChangeIndicator value={c.change} invertColor={c.invertColor} />
+                                        <span className="text-slate-400 ml-2">{c.label}</span>
+                                    </div>
+                                    <div className="h-72">
+                                        {c.data?.length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                                <AreaChart data={c.data}>
+                                                    <defs>
+                                                        <linearGradient id={c.gradientId} x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor={c.color} stopOpacity={0.3} />
+                                                            <stop offset="95%" stopColor={c.color} stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                                                    <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} minTickGap={40} />
+                                                    <YAxis stroke="#64748b" fontSize={12} tickFormatter={c.yFormat} />
+                                                    <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                                                    <Area type="monotone" dataKey="value" name={c.label} stroke={c.color} fill={`url(#${c.gradientId})`} strokeWidth={2} />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        ) : (
+                                            <EmptyChart message={`No ${c.label.toLowerCase()} data`} />
+                                        )}
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </ChartCard>
                 </>
             )}
