@@ -98,7 +98,7 @@ function AuthenticatedApp() {
             case "failure-modes":
                 return <FailureModesPage />;
             case "models":
-                return <ModelsPage />;
+                return <ModelsPage onNavigate={setActiveTab} />;
             case "actions":
                 return <ActionsPage />;
             case "settings":
