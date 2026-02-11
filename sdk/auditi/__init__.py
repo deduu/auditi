@@ -27,19 +27,16 @@ This package provides decorators and utilities for tracing AI agent
 interactions and sending them to the Auditi platform for evaluation.
 """
 
-from .client import init, get_client, AuditiClient
-from .decorators import trace_agent, trace_tool, trace_llm, trace_embedding, trace_retrieval
+from .client import AuditiClient, get_client, init
+from .context import get_context, get_current_trace, set_context, set_current_trace
+from .decorators import trace_agent, trace_embedding, trace_llm, trace_retrieval, trace_tool
 from .evaluator import BaseEvaluator
-from .context import get_current_trace, set_current_trace, set_context, get_context
-from .client import get_client
-from .evaluator import BaseEvaluator
-from .transport import BaseTransport, SyncHttpTransport, DebugTransport
-from .types import TraceInput, SpanInput, EvaluationResult
 from .events import EventType, StreamEvent
-from .pricing import configure_pricing
-
 from .instrumentation import instrument
 from .middleware import AuditiMiddleware
+from .pricing import configure_pricing
+from .transport import BaseTransport, DebugTransport, SyncHttpTransport
+from .types import EvaluationResult, SpanInput, TraceInput
 
 __version__ = "0.1.0"
 

@@ -31,7 +31,9 @@ def test_patch_nonexistent_action_returns_404():
     mock_db.query.return_value = mock_query
 
     from app.database import get_db
+    from app.dependencies import get_current_user
     app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_current_user] = lambda: MagicMock()
 
     try:
         resp = client.patch(

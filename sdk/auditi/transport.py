@@ -29,9 +29,10 @@ Provides different transport implementations for various use cases:
 """
 
 import abc
-import httpx
-from typing import Any, Dict
 import logging
+from typing import Any, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class BaseTransport(abc.ABC):
     """
 
     @abc.abstractmethod
-    def send_trace(self, trace_data: Dict[str, Any]) -> None:
+    def send_trace(self, trace_data: dict[str, Any]) -> None:
         """
         Send trace data to the Auditi platform.
 
@@ -59,7 +60,7 @@ class SyncHttpTransport(BaseTransport):
     Sends traces immediately via HTTP POST.
     """
 
-    def __init__(self, base_url: str, api_key: str = None):
+    def __init__(self, base_url: str, api_key: Optional[str] = None):
         """
         Initialize the transport.
 
@@ -75,7 +76,7 @@ class SyncHttpTransport(BaseTransport):
         if api_key:
             self.headers["Authorization"] = f"Bearer {api_key}"
 
-    def send_trace(self, trace_data: Dict[str, Any]) -> None:
+    def send_trace(self, trace_data: dict[str, Any]) -> None:
         """Send trace data via HTTP POST."""
         url = f"{self.base_url}/api/v1/ingest"
         try:
@@ -93,7 +94,7 @@ class DebugTransport(BaseTransport):
     Useful for local development and testing.
     """
 
-    def send_trace(self, trace_data: Dict[str, Any]) -> None:
+    def send_trace(self, trace_data: dict[str, Any]) -> None:
         """Print trace data to console."""
         trace_id = trace_data.get("id", "unknown")
         spans_count = len(trace_data.get("spans", []))

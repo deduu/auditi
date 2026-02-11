@@ -24,7 +24,8 @@
 Anthropic provider implementation for usage extraction and cost calculation.
 """
 
-from typing import Optional, Any, Dict, Tuple
+from typing import Any, Optional
+
 from .base import BaseProvider
 
 
@@ -46,7 +47,7 @@ class AnthropicProvider(BaseProvider):
         return "anthropic"
 
     @property
-    def model_pricing(self) -> Dict[str, Tuple[float, float]]:
+    def model_pricing(self) -> dict[str, tuple[float, float]]:
         """
         Anthropic model pricing per 1M tokens (input, output) in USD.
         Updated as of February 2026.
@@ -83,14 +84,14 @@ class AnthropicProvider(BaseProvider):
             "claude-instant-1.2": (0.80, 2.40),
         }
 
-    def get_default_pricing(self) -> Tuple[float, float]:
+    def get_default_pricing(self) -> tuple[float, float]:
         """Conservative default for unknown Anthropic models."""
         return (3.00, 15.00)  # Similar to Sonnet pricing
 
     def get_model_prefixes(self) -> list[str]:
         return ["claude-"]
 
-    def extract_usage(self, usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    def extract_usage(self, usage: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Extract usage from Anthropic response.
 

@@ -23,8 +23,10 @@
 """
 Base evaluator class for implementing custom evaluation logic.
 """
+
 from abc import ABC, abstractmethod
-from .types import TraceInput, EvaluationResult
+
+from .types import EvaluationResult, TraceInput
 
 
 class BaseEvaluator(ABC):

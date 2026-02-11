@@ -240,6 +240,14 @@ class TestInstrumentationEdgeCases:
         """Test that only specified providers are instrumented."""
         auditi.init(api_key="test-api-key", transport=DebugTransport())
 
+        # Capture the current state of Anthropic's Messages.create before this call
+        anthropic_create_before = None
+        try:
+            from anthropic.resources.messages import Messages
+            anthropic_create_before = Messages.create
+        except ImportError:
+            pass
+
         # Only instrument OpenAI, not others
         auditi.instrument(openai=True, anthropic=False, google=False)
 
@@ -250,12 +258,15 @@ class TestInstrumentationEdgeCases:
         except ImportError:
             pass  # OK if OpenAI not installed
 
-        # Verify Anthropic is NOT patched (if installed)
-        try:
-            from anthropic.resources.messages import Messages
-            assert not getattr(Messages.create, "_is_auditi_patched", False)
-        except ImportError:
-            pass  # OK if Anthropic not installed
+        # Verify Anthropic was NOT re-patched by this call (method reference unchanged)
+        if anthropic_create_before is not None:
+            try:
+                from anthropic.resources.messages import Messages
+                assert Messages.create is anthropic_create_before, (
+                    "Anthropic Messages.create should not be changed when anthropic=False"
+                )
+            except ImportError:
+                pass
 
     def test_error_handling_in_traced_function(self):
         """Test that errors in traced functions are properly captured."""

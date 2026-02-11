@@ -29,10 +29,10 @@ Supports three pricing sources in priority order:
 3. Hardcoded defaults (from each provider)
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 # Type alias for pricing: (input_price_per_1M, output_price_per_1M)
-PricingTuple = Tuple[float, float]
+PricingTuple = tuple[float, float]
 
 
 class PricingManager:
@@ -40,10 +40,10 @@ class PricingManager:
     Manages model pricing with support for user overrides and remote pricing.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._base_url: Optional[str] = None
-        self._overrides: Dict[str, Dict[str, PricingTuple]] = {}
-        self._remote_cache: Dict[str, PricingTuple] = {}
+        self._overrides: dict[str, dict[str, PricingTuple]] = {}
+        self._remote_cache: dict[str, PricingTuple] = {}
 
     def set_base_url(self, base_url: str) -> None:
         """Set the base URL for remote pricing API lookups."""
@@ -108,7 +108,7 @@ def get_pricing_manager() -> PricingManager:
 
 
 def configure_pricing(
-    overrides: Optional[Dict[str, Dict[str, PricingTuple]]] = None,
+    overrides: Optional[dict[str, dict[str, PricingTuple]]] = None,
 ) -> PricingManager:
     """
     Configure pricing with optional user overrides.

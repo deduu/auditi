@@ -29,7 +29,8 @@ to the correct user.
 
 Requires starlette (installed with FastAPI).
 """
-from typing import Optional, Callable, Tuple
+
+from typing import Callable, Optional
 
 from .context import set_context
 
@@ -70,7 +71,7 @@ class AuditiMiddleware:
         app,
         user_id_header: str = "X-User-ID",
         session_id_header: str = "X-Session-ID",
-        user_id_resolver: Optional[Callable] = None,
+        user_id_resolver: Optional[Callable[..., Optional[str]]] = None,
     ):
         self.app = app
         self.user_id_header = user_id_header.lower().encode()

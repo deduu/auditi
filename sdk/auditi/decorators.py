@@ -26,29 +26,29 @@ Tracing decorators for instrumenting AI agents, tools, and LLM calls.
 This version uses the provider abstraction layer for robust multi-provider support.
 """
 
+import asyncio
 import functools
+import inspect
 import json
 import logging
 import os
 from datetime import datetime, timezone
+from typing import Any, Callable, Optional
 from uuid import uuid4
-import asyncio
-import inspect
-from typing import Optional, Callable, Any
 
-from .types import TraceInput, SpanInput
-from .context import (
-    get_current_trace,
-    set_current_trace,
-    get_current_span,
-    push_span,
-    pop_span,
-    get_context,
-)
 from .client import get_client
+from .context import (
+    get_context,
+    get_current_span,
+    get_current_trace,
+    pop_span,
+    push_span,
+    set_current_trace,
+)
 from .evaluator import BaseEvaluator
+from .events import INTERNAL_EVENTS, EventType
 from .providers import detect_provider
-from .events import EventType, INTERNAL_EVENTS, CONTENT_EVENTS
+from .types import SpanInput, TraceInput
 
 logger = logging.getLogger(__name__)
 
@@ -678,7 +678,7 @@ def trace_agent(
                     )
                     user_input = _ensure_str_input(raw)
 
-                _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
+                _debug_log("Captured user input:", {"user_input": user_input[:200]})
 
                 # Create Trace
                 trace = TraceInput(
@@ -750,7 +750,7 @@ def trace_agent(
                                 _debug_log(f"Failed to extract usage: {e}")
 
                     _debug_log(
-                        f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                        "Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
                     )
 
                 except Exception as e:
@@ -869,7 +869,7 @@ def trace_agent(
                     )
                     user_input = _ensure_str_input(raw)
 
-                _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
+                _debug_log("Captured user input:", {"user_input": user_input[:200]})
 
                 # Create Trace
                 trace = TraceInput(
@@ -951,7 +951,7 @@ def trace_agent(
 
                     logger.info("Async generator trace captured.")
                     _debug_log(
-                        f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                        "Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
                     )
 
                 except Exception as e:
@@ -1066,7 +1066,7 @@ def trace_agent(
                     )
                     user_input = _ensure_str_input(raw)
 
-                _debug_log(f"Captured user input:", {"user_input": user_input[:200]})
+                _debug_log("Captured user input:", {"user_input": user_input[:200]})
 
                 # Create Trace
                 trace = TraceInput(
@@ -1137,7 +1137,7 @@ def trace_agent(
                                 _debug_log(f"Failed to extract usage: {e}")
 
                     _debug_log(
-                        f"Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
+                        "Captured assistant output:", {"output": str(trace.assistant_output)[:200]}
                     )
 
                 except Exception as e:

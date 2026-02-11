@@ -98,6 +98,7 @@ extend-exclude = '''
 line-length = 100
 target-version = "py39"
 
+[tool.ruff.lint]
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
@@ -114,7 +115,7 @@ ignore = [
     "C901",  # too complex
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__ files
 "tests/**/*.py" = ["F401", "F811"]  # test files can have duplicate/unused imports
 
@@ -136,6 +137,28 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = "auditi.instrumentation"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disable_error_code = ["method-assign", "no-untyped-call"]
+
+[[tool.mypy.overrides]]
+module = "auditi.stream_wrappers"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+module = "auditi.decorators"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disable_error_code = ["type-arg", "no-untyped-call", "assignment"]
+
+[[tool.mypy.overrides]]
+module = "auditi.middleware"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
 

@@ -25,7 +25,7 @@ Base provider interface for LLM usage extraction and cost calculation.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Dict, Tuple
+from typing import Any, Optional
 
 from ..pricing import get_pricing_manager
 
@@ -48,7 +48,7 @@ class BaseProvider(ABC):
 
     @property
     @abstractmethod
-    def model_pricing(self) -> Dict[str, Tuple[float, float]]:
+    def model_pricing(self) -> dict[str, tuple[float, float]]:
         """
         Model pricing dictionary.
 
@@ -64,7 +64,7 @@ class BaseProvider(ABC):
         pass
 
     @abstractmethod
-    def extract_usage(self, usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    def extract_usage(self, usage: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Extract token counts from provider-specific usage object.
 
@@ -126,7 +126,7 @@ class BaseProvider(ABC):
 
         return input_cost + output_cost
 
-    def get_pricing(self, model: Optional[str]) -> Tuple[float, float]:
+    def get_pricing(self, model: Optional[str]) -> tuple[float, float]:
         """
         Get pricing for a model with remote fetching and override support.
 
@@ -149,7 +149,7 @@ class BaseProvider(ABC):
         return pricing_manager.get_pricing(self.name, model, default)
 
     @abstractmethod
-    def get_default_pricing(self) -> Tuple[float, float]:
+    def get_default_pricing(self) -> tuple[float, float]:
         """
         Get default fallback pricing for unknown models.
 

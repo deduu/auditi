@@ -25,14 +25,16 @@ Context management for trace and span tracking.
 
 Uses Python's contextvars for thread-safe context propagation.
 """
+
 from contextvars import ContextVar
-from typing import Optional, List
-from .types import TraceInput, SpanInput
+from typing import Optional
+
+from .types import SpanInput, TraceInput
 
 # Context variables for thread-safe trace tracking
 _current_trace: ContextVar[Optional[TraceInput]] = ContextVar("current_trace", default=None)
-_span_stack: ContextVar[List[SpanInput]] = ContextVar("span_stack", default=[])
-_global_context: ContextVar[dict] = ContextVar("global_context", default={})
+_span_stack: ContextVar[list[SpanInput]] = ContextVar("span_stack", default=[])  # noqa: B039
+_global_context: ContextVar[dict[str, str]] = ContextVar("global_context", default={})  # noqa: B039
 
 
 def get_current_trace() -> Optional[TraceInput]:
@@ -78,7 +80,7 @@ def pop_span() -> Optional[SpanInput]:
     return span
 
 
-def set_context(user_id: str = None, session_id: str = None) -> None:
+def set_context(user_id: Optional[str] = None, session_id: Optional[str] = None) -> None:
     """Set global context for the current execution context."""
     ctx = _global_context.get().copy()
     if user_id:
@@ -88,6 +90,6 @@ def set_context(user_id: str = None, session_id: str = None) -> None:
     _global_context.set(ctx)
 
 
-def get_context() -> dict:
+def get_context() -> dict[str, str]:
     """Get the current global context."""
     return _global_context.get()

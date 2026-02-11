@@ -24,10 +24,11 @@
 Pydantic models for Auditi SDK API types.
 """
 
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Optional
 from uuid import UUID
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class SpanInput(BaseModel):
@@ -47,7 +48,7 @@ class SpanInput(BaseModel):
     processing_time: Optional[float] = None  # NEW: Duration in seconds
 
     # Input/Output
-    inputs: Optional[Dict[str, Any]] = None
+    inputs: Optional[dict[str, Any]] = None
     outputs: Optional[str] = None
 
     # LLM specific
@@ -62,7 +63,7 @@ class SpanInput(BaseModel):
     error: Optional[str] = None
 
     # Metadata
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Optional[dict[str, Any]] = Field(default_factory=dict)
 
 
 class TraceInput(BaseModel):
@@ -95,15 +96,16 @@ class TraceInput(BaseModel):
     eval_reason: Optional[str] = None
 
     # Relations
-    spans: List[SpanInput] = Field(default_factory=list)
+    spans: list[SpanInput] = Field(default_factory=list)
 
     # Metadata
-    tags: List[str] = Field(default_factory=list)
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
+    metadata: Optional[dict[str, Any]] = Field(default_factory=dict)
     error: Optional[str] = None
 
     @field_validator("user_input", mode="before")
-    def normalize_user_input(cls, v):
+    @classmethod
+    def normalize_user_input(cls, v: Any) -> Optional[str]:
         if isinstance(v, str):
             return v
         if isinstance(v, list):

@@ -20,13 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import importlib
-import functools
-from typing import Any, Callable, Optional
 import logging
 
 from .decorators import trace_llm
-from .client import get_client
 
 logger = logging.getLogger("auditi.instrumentation")
 
@@ -61,9 +57,9 @@ def instrument(
 def _instrument_openai():
     """Patch OpenAI client methods"""
     try:
-        import openai
-        from openai import OpenAI, AsyncOpenAI
-        from openai.resources.chat.completions import Completions, AsyncCompletions
+        import openai  # noqa: F401
+        from openai import AsyncOpenAI, OpenAI  # noqa: F401
+        from openai.resources.chat.completions import AsyncCompletions, Completions
     except ImportError:
         logger.debug("OpenAI library not found, skipping instrumentation")
         return
@@ -109,7 +105,7 @@ def _instrument_openai():
 def _instrument_openai_responses():
     """Patch OpenAI Responses API methods (client.responses.create)."""
     try:
-        from openai.resources.responses import Responses, AsyncResponses
+        from openai.resources.responses import AsyncResponses, Responses
     except ImportError:
         logger.debug("OpenAI Responses API not available (older openai library), skipping")
         return
@@ -142,8 +138,8 @@ def _instrument_openai_responses():
 def _instrument_anthropic():
     """Patch Anthropic client methods"""
     try:
-        import anthropic
-        from anthropic.resources.messages import Messages, AsyncMessages
+        import anthropic  # noqa: F401
+        from anthropic.resources.messages import AsyncMessages, Messages
     except ImportError:
         logger.debug("Anthropic library not found, skipping instrumentation")
         return
@@ -176,7 +172,7 @@ def _instrument_anthropic():
 def _instrument_google():
     """Patch Google Generative AI (Gemini) client methods"""
     try:
-        import google.generativeai as genai
+        import google.generativeai as genai  # noqa: F401
         from google.generativeai import GenerativeModel
     except ImportError:
         logger.debug("Google Generative AI library not found, skipping instrumentation")
@@ -213,7 +209,7 @@ def _instrument_google():
 def _instrument_google_genai():
     """Patch new google-genai SDK methods (client.models.generate_content)."""
     try:
-        from google.genai.models import Models, AsyncModels
+        from google.genai.models import AsyncModels, Models
     except ImportError:
         logger.debug("google-genai SDK not found, skipping instrumentation")
         return

@@ -46,11 +46,11 @@ Adding a new provider:
     4. That's it! It will automatically be used for detection
 """
 
-from .base import BaseProvider
-from .registry import get_registry, detect_provider, ProviderRegistry
-from .openai import OpenAIProvider
 from .anthropic import AnthropicProvider
+from .base import BaseProvider
 from .google import GoogleProvider
+from .openai import OpenAIProvider
+from .registry import ProviderRegistry, detect_provider, get_registry
 
 __all__ = [
     "BaseProvider",

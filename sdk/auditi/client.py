@@ -25,9 +25,11 @@ Auditi SDK Client
 
 Manages SDK initialization and provides access to the transport layer.
 """
+
 from typing import Optional
-from .transport import BaseTransport, SyncHttpTransport
+
 from .pricing import get_pricing_manager
+from .transport import BaseTransport, SyncHttpTransport
 
 
 class AuditiClient:

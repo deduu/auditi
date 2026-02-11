@@ -24,11 +24,12 @@
 Provider registry for auto-detecting and managing LLM providers.
 """
 
-from typing import Optional, Any, List
-from .base import BaseProvider
-from .openai import OpenAIProvider
+from typing import Any, Optional
+
 from .anthropic import AnthropicProvider
+from .base import BaseProvider
 from .google import GoogleProvider
+from .openai import OpenAIProvider
 
 
 class ProviderRegistry:
@@ -42,8 +43,8 @@ class ProviderRegistry:
     - Fallback to generic provider
     """
 
-    def __init__(self):
-        self._providers: List[BaseProvider] = []
+    def __init__(self) -> None:
+        self._providers: list[BaseProvider] = []
         self._default_provider: Optional[BaseProvider] = None
 
         # Register built-in providers

@@ -24,7 +24,8 @@
 OpenAI provider implementation for usage extraction and cost calculation.
 """
 
-from typing import Optional, Any, Dict, Tuple
+from typing import Any, Optional
+
 from .base import BaseProvider
 
 
@@ -46,7 +47,7 @@ class OpenAIProvider(BaseProvider):
         return "openai"
 
     @property
-    def model_pricing(self) -> Dict[str, Tuple[float, float]]:
+    def model_pricing(self) -> dict[str, tuple[float, float]]:
         """
         OpenAI model pricing per 1M tokens (input, output) in USD.
         Updated as of February 2026.
@@ -99,14 +100,14 @@ class OpenAIProvider(BaseProvider):
             "o1": (15.00, 60.00),
         }
 
-    def get_default_pricing(self) -> Tuple[float, float]:
+    def get_default_pricing(self) -> tuple[float, float]:
         """Conservative default for unknown OpenAI models."""
         return (10.00, 30.00)  # Similar to GPT-4 Turbo
 
     def get_model_prefixes(self) -> list[str]:
         return ["gpt-", "o1-", "o1", "o3-", "o3", "o4-", "o4"]
 
-    def extract_usage(self, usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    def extract_usage(self, usage: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Extract usage from OpenAI response.
 

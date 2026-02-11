@@ -26,9 +26,9 @@ Standardized event types for streaming agent responses.
 This module provides a clear contract for all event types used in the tracing system.
 """
 
-from enum import Enum
-from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Optional
 
 
 class EventType(str, Enum):
@@ -86,19 +86,19 @@ class StreamEvent:
 
     type: EventType
     content: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    usage: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
+    usage: Optional[dict[str, Any]] = None
     error: Optional[str] = None
-    tool_calls: Optional[List[Any]] = field(default=None)
+    tool_calls: Optional[list[Any]] = field(default=None)
     # Additional fields for specific events
     phase: Optional[str] = None  # For PHASE_START/PHASE_END
     tool: Optional[str] = None  # For TOOL_EXEC_START/TOOL_EXEC_END
-    history: Optional[List[Any]] = field(default=None)  # For COMPLETE
-    messages: Optional[List[Any]] = field(default=None)  # For COMPLETE
+    history: Optional[list[Any]] = field(default=None)  # For COMPLETE
+    messages: Optional[list[Any]] = field(default=None)  # For COMPLETE
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for backward compatibility."""
-        result = {"type": self.type.value}
+        result: dict[str, Any] = {"type": self.type.value}
         if self.content is not None:
             result["content"] = self.content
         if self.metadata is not None:
@@ -120,7 +120,7 @@ class StreamEvent:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StreamEvent":
+    def from_dict(cls, data: dict[str, Any]) -> "StreamEvent":
         """
         Create StreamEvent from dictionary (for backward compatibility).
 
@@ -167,18 +167,18 @@ class StreamEvent:
 
 
 # Helper factory functions for common events
-def token_event(content: str) -> Dict[str, Any]:
+def token_event(content: str) -> dict[str, Any]:
     """Create a token event dictionary."""
     return {"type": EventType.TOKEN.value, "content": content}
 
 
 def complete_event(
     content: str,
-    history: Optional[List[Any]] = None,
-    messages: Optional[List[Any]] = None,
-) -> Dict[str, Any]:
+    history: Optional[list[Any]] = None,
+    messages: Optional[list[Any]] = None,
+) -> dict[str, Any]:
     """Create a complete event dictionary."""
-    result = {"type": EventType.COMPLETE.value, "content": content}
+    result: dict[str, Any] = {"type": EventType.COMPLETE.value, "content": content}
     if history is not None:
         result["history"] = history
     if messages is not None:
@@ -187,12 +187,12 @@ def complete_event(
 
 
 def turn_metadata_event(
-    tool_calls: Optional[List[Any]] = None,
-    usage: Optional[Dict[str, Any]] = None,
+    tool_calls: Optional[list[Any]] = None,
+    usage: Optional[dict[str, Any]] = None,
     perplexity: Optional[float] = None,
     confidence_level: Optional[str] = None,
     total_tokens: Optional[int] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create a turn_metadata event dictionary."""
     return {
         "type": EventType.TURN_METADATA.value,
@@ -204,13 +204,13 @@ def turn_metadata_event(
     }
 
 
-def phase_event(phase: str, start: bool = True) -> Dict[str, Any]:
+def phase_event(phase: str, start: bool = True) -> dict[str, Any]:
     """Create a phase start/end event dictionary."""
     event_type = EventType.PHASE_START if start else EventType.PHASE_END
     return {"type": event_type.value, "phase": phase}
 
 
-def tool_exec_event(tool: str, start: bool = True) -> Dict[str, Any]:
+def tool_exec_event(tool: str, start: bool = True) -> dict[str, Any]:
     """Create a tool execution start/end event dictionary."""
     event_type = EventType.TOOL_EXEC_START if start else EventType.TOOL_EXEC_END
     return {"type": event_type.value, "tool": tool}

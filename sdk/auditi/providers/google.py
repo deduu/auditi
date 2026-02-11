@@ -24,7 +24,8 @@
 Google Gemini provider implementation for usage extraction and cost calculation.
 """
 
-from typing import Optional, Any, Dict, Tuple
+from typing import Any, Optional
+
 from .base import BaseProvider
 
 
@@ -46,7 +47,7 @@ class GoogleProvider(BaseProvider):
         return "google"
 
     @property
-    def model_pricing(self) -> Dict[str, Tuple[float, float]]:
+    def model_pricing(self) -> dict[str, tuple[float, float]]:
         """
         Google Gemini model pricing per 1M tokens (input, output) in USD.
         Updated as of February 2026.
@@ -86,14 +87,14 @@ class GoogleProvider(BaseProvider):
             "gemini-exp-1206": (0.00, 0.00),  # Experimental, free
         }
 
-    def get_default_pricing(self) -> Tuple[float, float]:
+    def get_default_pricing(self) -> tuple[float, float]:
         """Conservative default for unknown Google models."""
         return (1.25, 5.00)  # Similar to Gemini 1.5 Pro
 
     def get_model_prefixes(self) -> list[str]:
         return ["gemini-", "gemini"]
 
-    def extract_usage(self, usage: Any) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    def extract_usage(self, usage: Any) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """
         Extract usage from Google Gemini response.
 
@@ -181,7 +182,7 @@ class GoogleProvider(BaseProvider):
             # Try common locations
             model = response.get("model") or response.get("modelVersion")
             if model:
-                return model
+                return str(model)
 
         # Try object attribute
         if hasattr(response, "model"):

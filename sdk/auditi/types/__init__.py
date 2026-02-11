@@ -24,7 +24,7 @@
 Type definitions for Auditi SDK.
 """
 
-from .api_types import TraceInput, SpanInput, EvaluationResult, TraceResponse
+from .api_types import EvaluationResult, SpanInput, TraceInput, TraceResponse
 
 __all__ = [
     "TraceInput",

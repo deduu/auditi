@@ -30,9 +30,9 @@ and finalize the trace once the stream is fully consumed.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger("auditi.streaming")
 
@@ -40,6 +40,7 @@ logger = logging.getLogger("auditi.streaming")
 # ---------------------------------------------------------------------------
 # Chunk data
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ChunkData:
@@ -55,6 +56,7 @@ class ChunkData:
 # ---------------------------------------------------------------------------
 # Chunk processors (one per provider)
 # ---------------------------------------------------------------------------
+
 
 def _process_openai_chat_chunk(chunk: Any) -> ChunkData:
     """Process an OpenAI Chat Completions stream chunk."""
@@ -169,6 +171,7 @@ def _process_generic_chunk(chunk: Any) -> ChunkData:
 # Stream detection
 # ---------------------------------------------------------------------------
 
+
 def _detect_stream_type(result: Any, span_name: str = "") -> Optional[str]:
     """
     Classify a result as a known stream type, or return ``None``.
@@ -190,7 +193,8 @@ def _detect_stream_type(result: Any, span_name: str = "") -> Optional[str]:
     # --- OpenAI --------------------------------------------------------
     if "openai" in module_name.lower() or type_name in ("Stream", "AsyncStream"):
         try:
-            from openai import Stream as _OaiStream, AsyncStream as _OaiAsyncStream
+            from openai import AsyncStream as _OaiAsyncStream
+            from openai import Stream as _OaiStream
 
             if isinstance(result, _OaiAsyncStream):
                 if _is_responses_stream(span_name):
@@ -238,6 +242,7 @@ def _is_responses_stream(span_name: str) -> bool:
 # Sync stream wrapper
 # ---------------------------------------------------------------------------
 
+
 class SyncStreamWrapper:
     """
     Wraps a synchronous stream to transparently capture content, model, and
@@ -262,7 +267,7 @@ class SyncStreamWrapper:
         self._chunk_processor = chunk_processor
         self._is_standalone = is_standalone
 
-        self._accumulated_text: List[str] = []
+        self._accumulated_text: list[str] = []
         self._model: Optional[str] = None
         self._input_tokens: Optional[int] = None
         self._output_tokens: Optional[int] = None
@@ -386,6 +391,7 @@ class SyncStreamWrapper:
 # Async stream wrapper
 # ---------------------------------------------------------------------------
 
+
 class AsyncStreamWrapper:
     """
     Wraps an asynchronous stream to transparently capture content, model, and
@@ -410,7 +416,7 @@ class AsyncStreamWrapper:
         self._chunk_processor = chunk_processor
         self._is_standalone = is_standalone
 
-        self._accumulated_text: List[str] = []
+        self._accumulated_text: list[str] = []
         self._model: Optional[str] = None
         self._input_tokens: Optional[int] = None
         self._output_tokens: Optional[int] = None
@@ -532,6 +538,7 @@ class AsyncStreamWrapper:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def wrap_stream_if_needed(
     result: Any,
     span: Any,
@@ -539,7 +546,7 @@ def wrap_stream_if_needed(
     client: Any,
     start_time: "datetime",
     is_standalone: bool,
-) -> Tuple[Any, bool]:
+) -> tuple[Any, bool]:
     """
     If *result* is a recognised LLM stream, wrap it and return
     ``(wrapped_stream, True)``.  Otherwise return ``(result, False)``.
@@ -584,6 +591,7 @@ def wrap_stream_if_needed(
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _safe_int(value: Any) -> Optional[int]:
     if value is None:
         return None
@@ -610,7 +618,7 @@ def _apply_usage(
     try:
         from .decorators import _apply_usage_to_span
 
-        usage_dict: dict = {}
+        usage_dict: dict[str, Any] = {}
         if input_tokens is not None:
             usage_dict["prompt_tokens"] = input_tokens
             usage_dict["input_tokens"] = input_tokens
