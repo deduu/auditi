@@ -30,7 +30,7 @@ jobs:
         run: pytest tests/ -v
 
   backend:
-    name: Backend Lint
+    name: Backend Lint & Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -44,9 +44,11 @@ jobs:
         run: pip install -r requirements.txt
       - name: Check for syntax errors
         run: python -m py_compile app/main.py
+      - name: Run tests
+        run: pytest tests/ -v
 
   frontend:
-    name: Frontend Build & Lint
+    name: Frontend Build, Lint & Tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -60,5 +62,7 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Run tests
+        run: npx vitest run
       - name: Build
         run: npm run build

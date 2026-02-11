@@ -14,6 +14,7 @@ Auditi is a comprehensive platform for evaluating, monitoring, and improving AI 
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.104+-green.svg" alt="FastAPI"></a>
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-blue.svg" alt="React"></a>
   <a href="https://github.com/deduu/auditi/discussions"><img src="https://img.shields.io/badge/discussions-join%20us-blue?logo=github" alt="Discussions"></a>
+  <a href="https://github.com/deduu/auditi/actions/workflows/ci.yml"><img src="https://github.com/deduu/auditi/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 ## Demo
@@ -112,6 +113,16 @@ print(response.choices[0].message.content)
 ```
 
 For more integration patterns (decorators, agents with tools, RAG pipelines, mixed mode), see [SDK Integration Patterns](docs/guides/sdk-integration.md).
+
+## Examples
+
+Explore the [SDK examples](sdk/examples/) for complete integration patterns:
+
+- [Basic Integration](sdk/examples/01_basic_integration.py) — Decorators for agents, tools, and LLM calls
+- [FastAPI Integration](sdk/examples/02_fastapi_integration.py) — Production agent with FastAPI
+- [LangChain Integration](sdk/examples/03_langchain_integration.py) — RAG pipeline tracing
+- [LLM Traces](sdk/examples/04_simple_llm_traces.py) — Multi-provider LLM tracing
+- [Embedding Traces](sdk/examples/05_embedding_traces.py) — Vector search and embedding tracing
 
 ## Architecture
 
