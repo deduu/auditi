@@ -14,7 +14,9 @@ export const getTraces = async (filters = {}, options = {}) => {
   if (filters.model && filters.model !== 'all') params.model = filters.model;
   if (filters.name) params.name = filters.name;
   if (filters.standalone_only !== undefined) params.standalone_only = filters.standalone_only;
-  
+  if (filters.date_from) params.date_from = filters.date_from;
+  if (filters.date_to) params.date_to = filters.date_to;
+
   // Pagination
   if (filters.skip) params.skip = filters.skip;
   if (filters.limit) params.limit = filters.limit;

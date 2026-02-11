@@ -147,7 +147,7 @@ export const ToolCallsPage = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                     {/* Span Type Filter */}
-                    <div className="flex gap-1 bg-slate-900/80 border border-slate-800 rounded-lg p-1">
+                    <div className="flex gap-2">
                         {[
                             { value: null, label: 'All', icon: Layers },
                             { value: 'tool', label: 'Tools', icon: Wrench },
@@ -157,9 +157,9 @@ export const ToolCallsPage = () => {
                             <button
                                 key={filter.label}
                                 onClick={() => setSpanTypeFilter(filter.value)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center space-x-1.5 ${spanTypeFilter === filter.value
-                                    ? "bg-purple-600 text-white shadow-lg"
-                                    : "text-slate-400 hover:text-white"
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer border ${spanTypeFilter === filter.value
+                                    ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/25"
+                                    : "bg-slate-800/80 text-slate-300 border-slate-600 hover:text-white hover:border-slate-400 hover:bg-slate-700"
                                     }`}
                             >
                                 <filter.icon className="w-3.5 h-3.5" />

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
     LineChart,
     Line,
@@ -32,13 +32,21 @@ import {
     GitBranch,
     Lightbulb,
     ArrowRight,
+    ArrowLeft,
     Zap,
     AlertCircle,
-    BarChart3
+    BarChart3,
+    CheckCircle,
+    Info,
+    Eye,
+    EyeOff,
+    X
 } from "lucide-react";
 import api from "../api";
 import { Card } from "../components/ui/Card";
 import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
+import { SlidePanel } from "../components/ui/SlidePanel";
+import { TraceDetailPage } from "./TraceDetailPage";
 
 const CORRELATION_COLORS = {
     strong_positive: '#10b981',
@@ -49,6 +57,15 @@ const CORRELATION_COLORS = {
     moderate_negative: '#f97316',
     strong_negative: '#ef4444',
 };
+
+const INSIGHT_STYLES = {
+    danger: { bg: 'bg-red-500/5', border: 'border-red-500/20', icon: AlertCircle, iconColor: 'text-red-400', label: 'Critical' },
+    warning: { bg: 'bg-amber-500/5', border: 'border-amber-500/20', icon: AlertTriangle, iconColor: 'text-amber-400', label: 'Warning' },
+    info: { bg: 'bg-blue-500/5', border: 'border-blue-500/20', icon: Info, iconColor: 'text-blue-400', label: 'Info' },
+    success: { bg: 'bg-emerald-500/5', border: 'border-emerald-500/20', icon: CheckCircle, iconColor: 'text-emerald-400', label: 'Good' },
+};
+
+const SEVERITY_ORDER = { danger: 0, warning: 1, info: 2, success: 3 };
 
 const TrendIndicator = ({ value, invertColors = false }) => {
     if (value === 0) {
@@ -100,11 +117,18 @@ const MetricCard = ({ title, value, unit, change, icon: Icon, color, invertTrend
     );
 };
 
-const ChartCard = ({ title, subtitle, children, className = "" }) => (
+const ChartCard = ({ title, subtitle, badge, children, className = "" }) => (
     <Card className={`bg-slate-900/50 border-slate-800 p-0 overflow-hidden ${className}`}>
-        <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50">
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+        <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+            <div>
+                <h2 className="text-lg font-semibold text-white">{title}</h2>
+                {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+            </div>
+            {badge !== undefined && badge > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400">
+                    {badge} anomal{badge === 1 ? 'y' : 'ies'}
+                </span>
+            )}
         </div>
         <div className="p-6">
             {children}
@@ -136,6 +160,7 @@ const ScatterTooltip = ({ active, payload }) => {
                 <p className="text-white font-medium text-sm mb-1">{data.label || 'Trace'}</p>
                 <p className="text-xs text-slate-400">X: {data.x?.toFixed(3)}</p>
                 <p className="text-xs text-slate-400">Y: {data.y?.toFixed(1)}%</p>
+                <p className="text-xs text-purple-400 mt-1">Click to view trace</p>
             </div>
         );
     }
@@ -160,40 +185,488 @@ const CorrelationBadge = ({ interpretation, correlation }) => {
     );
 };
 
+// --- Helpers ---
+
+/**
+ * Compute ISO date range for a chart bucket based on the time range granularity.
+ * - 24h timeRange → 1-hour buckets (date format "YYYY-MM-DD HH:00")
+ * - 7d/30d → 1-day buckets (date format "YYYY-MM-DD")
+ * - 90d → 1-week buckets (date format "YYYY-Www")
+ */
+const getBucketDateRange = (dateStr, timeRange) => {
+    if (!dateStr) return { date_from: null, date_to: null };
+
+    // Hourly bucket: "2026-02-05 14:00"
+    if (dateStr.includes(' ')) {
+        const from = new Date(dateStr.replace(' ', 'T') + ':00Z');
+        const to = new Date(from.getTime() + 60 * 60 * 1000);
+        return { date_from: from.toISOString(), date_to: to.toISOString() };
+    }
+
+    // Weekly bucket: "2026-W06"
+    if (dateStr.includes('-W')) {
+        const [yearStr, weekStr] = dateStr.split('-W');
+        const year = parseInt(yearStr);
+        const week = parseInt(weekStr);
+        // ISO week: Jan 4 is always in week 1
+        const jan4 = new Date(Date.UTC(year, 0, 4));
+        const dayOfWeek = jan4.getUTCDay() || 7; // Mon=1 ... Sun=7
+        const monday = new Date(jan4.getTime() + ((week - 1) * 7 - (dayOfWeek - 1)) * 86400000);
+        const nextMonday = new Date(monday.getTime() + 7 * 86400000);
+        return { date_from: monday.toISOString(), date_to: nextMonday.toISOString() };
+    }
+
+    // Daily bucket: "2026-02-05"
+    const from = new Date(dateStr + 'T00:00:00Z');
+    const to = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+    return { date_from: from.toISOString(), date_to: to.toISOString() };
+};
+
+// --- Inline sub-components ---
+
+const InsightsPanel = ({ insights }) => {
+    if (!insights?.insights?.length) return null;
+
+    const sorted = [...insights.insights].sort(
+        (a, b) => (SEVERITY_ORDER[a.type] ?? 3) - (SEVERITY_ORDER[b.type] ?? 3)
+    );
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+                <Lightbulb className="w-5 h-5 text-amber-400" />
+                <h2 className="text-lg font-semibold text-white">Actionable Insights</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sorted.map((insight, i) => {
+                    const style = INSIGHT_STYLES[insight.type] || INSIGHT_STYLES.info;
+                    const IconComp = style.icon;
+                    return (
+                        <Card key={i} className={`${style.bg} ${style.border} p-4`}>
+                            <div className="flex items-start space-x-3">
+                                <IconComp className={`w-5 h-5 ${style.iconColor} mt-0.5 shrink-0`} />
+                                <div className="min-w-0">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${style.bg} ${style.iconColor}`}>
+                                            {style.label}
+                                        </span>
+                                        <h3 className="text-sm font-medium text-white truncate">{insight.title}</h3>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mb-2">{insight.description}</p>
+                                    {insight.metric_value !== undefined && (
+                                        <p className="text-xs text-slate-500">
+                                            Metric: <span className="text-white font-mono">{typeof insight.metric_value === 'number' ? insight.metric_value.toFixed(2) : insight.metric_value}</span>
+                                        </p>
+                                    )}
+                                    {insight.recommendation && (
+                                        <div className="mt-2 flex items-start space-x-1.5">
+                                            <ArrowRight className="w-3 h-3 text-slate-500 mt-0.5 shrink-0" />
+                                            <p className="text-xs text-slate-500">{insight.recommendation}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const DrillDownTraceList = ({ traces, loading, metric, date, onSelectTrace }) => {
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-48">
+                <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+            </div>
+        );
+    }
+
+    if (!traces?.length) {
+        return (
+            <div className="text-center py-12 text-slate-500">
+                No traces found for this time bucket.
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-3 p-4">
+            <div className="mb-4">
+                <p className="text-sm text-slate-400">
+                    {traces.length} trace{traces.length !== 1 ? 's' : ''} for <span className="text-white font-medium">{date}</span>
+                    {metric && <> &middot; <span className="text-slate-300 capitalize">{metric}</span></>}
+                </p>
+            </div>
+            {traces.map((trace) => (
+                <button
+                    key={trace.id}
+                    onClick={() => onSelectTrace(trace.id)}
+                    className="w-full text-left p-3 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-700/50 transition-colors"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-white truncate">{trace.name || 'Unnamed trace'}</p>
+                            <p className="text-xs text-slate-400 mt-0.5 truncate">{trace.userInputPreview}</p>
+                        </div>
+                        <div className="flex items-center space-x-3 ml-3 shrink-0">
+                            {trace.score !== null && trace.score !== undefined && (
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    trace.score >= 70 ? 'bg-emerald-500/20 text-emerald-400' :
+                                    trace.score >= 40 ? 'bg-amber-500/20 text-amber-400' :
+                                    'bg-red-500/20 text-red-400'
+                                }`}>
+                                    {trace.score.toFixed(0)}%
+                                </span>
+                            )}
+                            {trace.latencyMs !== undefined && (
+                                <span className="text-xs text-slate-500">{(trace.latencyMs / 1000).toFixed(2)}s</span>
+                            )}
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                                trace.status === 'pass' ? 'bg-emerald-500/20 text-emerald-400' :
+                                trace.status === 'fail' ? 'bg-red-500/20 text-red-400' :
+                                'bg-slate-500/20 text-slate-400'
+                            }`}>
+                                {trace.status}
+                            </span>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+                        </div>
+                    </div>
+                </button>
+            ))}
+        </div>
+    );
+};
+
+/**
+ * TrendChartWithAnomalies - Renders a trend chart with optional anomaly overlay.
+ * Merges trend data with anomaly metric data by matching date strings.
+ */
+const TrendChartWithAnomalies = ({
+    metricKey, trendData, anomalyMetric, showAnomalies, onChartClick,
+    chartType, stroke, fill, gradientId, yDomain, yFormatter, name
+}) => {
+    const mergedData = useMemo(() => {
+        if (!trendData) return [];
+        if (!showAnomalies || !anomalyMetric?.data_points) return trendData;
+
+        const anomalyMap = {};
+        for (const pt of anomalyMetric.data_points) {
+            anomalyMap[pt.date] = pt;
+        }
+        return trendData.map(d => {
+            const anomaly = anomalyMap[d.date];
+            return {
+                ...d,
+                isAnomaly: anomaly?.is_anomaly || false,
+                z_score: anomaly?.z_score,
+                anomaly_type: anomaly?.anomaly_type,
+            };
+        });
+    }, [trendData, anomalyMetric, showAnomalies]);
+
+    const anomalyCount = showAnomalies
+        ? mergedData.filter(d => d.isAnomaly).length
+        : (anomalyMetric?.anomaly_count || 0);
+
+    const handleClick = useCallback((state) => {
+        if (state?.activePayload?.[0]?.payload) {
+            const point = state.activePayload[0].payload;
+            onChartClick(point.date, metricKey);
+        }
+    }, [onChartClick, metricKey]);
+
+    const renderDot = useCallback((props) => {
+        if (!showAnomalies || !props.payload?.isAnomaly) return null;
+        return (
+            <circle
+                key={`anomaly-${props.index}`}
+                cx={props.cx}
+                cy={props.cy}
+                r={6}
+                fill="#ef4444"
+                stroke="#fff"
+                strokeWidth={2}
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onChartClick(props.payload.date, metricKey);
+                }}
+            />
+        );
+    }, [showAnomalies, onChartClick, metricKey]);
+
+    const tooltipContent = useCallback(({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            const data = payload[0].payload;
+            return (
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
+                    <p className="text-slate-400 text-xs mb-2">{label}</p>
+                    <p className="text-sm" style={{ color: stroke }}>
+                        {name}: {typeof data.value === 'number' ? data.value.toFixed(2) : data.value}
+                    </p>
+                    {showAnomalies && data.isAnomaly && (
+                        <>
+                            <p className="text-xs text-slate-400 mt-1">Z-Score: {data.z_score?.toFixed(2)}</p>
+                            <p className="text-sm text-red-400 font-medium">Anomaly: {data.anomaly_type}</p>
+                        </>
+                    )}
+                    <p className="text-xs text-purple-400 mt-1">Click to view traces</p>
+                </div>
+            );
+        }
+        return null;
+    }, [showAnomalies, stroke, name]);
+
+    const isBar = chartType === 'bar';
+    const isLine = chartType === 'line';
+
+    return (
+        <ChartCard title={`${name} Over Time`} badge={showAnomalies ? anomalyCount : undefined}>
+            <div className={metricKey === 'score' ? "h-72 min-w-0" : "h-64 min-w-0"}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    {isBar ? (
+                        <BarChart data={mergedData} onClick={handleClick} style={{ cursor: 'pointer' }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="date" tickFormatter={formatDateHelper} stroke="#64748b" fontSize={12} />
+                            <YAxis stroke="#64748b" fontSize={12} domain={yDomain} tickFormatter={yFormatter} />
+                            <Tooltip content={tooltipContent} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                            {showAnomalies && anomalyMetric && (
+                                <>
+                                    <ReferenceLine y={anomalyMetric.mean} stroke="#64748b" strokeDasharray="3 3"
+                                        label={{ value: 'Mean', position: 'right', fill: '#64748b', fontSize: 10 }} />
+                                    <ReferenceLine y={anomalyMetric.mean + 2 * anomalyMetric.std_dev} stroke="#f59e0b" strokeDasharray="3 3"
+                                        label={{ value: '+2\u03c3', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                                    <ReferenceLine y={anomalyMetric.mean - 2 * anomalyMetric.std_dev} stroke="#f59e0b" strokeDasharray="3 3"
+                                        label={{ value: '-2\u03c3', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                                </>
+                            )}
+                            <Bar dataKey="value" name={name} fill={stroke} radius={[4, 4, 0, 0]}>
+                                {showAnomalies && mergedData.map((entry, idx) => (
+                                    <Cell key={idx} fill={entry.isAnomaly ? '#ef4444' : stroke} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    ) : isLine ? (
+                        <LineChart data={mergedData} onClick={handleClick} style={{ cursor: 'pointer' }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="date" tickFormatter={formatDateHelper} stroke="#64748b" fontSize={12} />
+                            <YAxis stroke="#64748b" fontSize={12} domain={yDomain} tickFormatter={yFormatter} />
+                            <Tooltip content={tooltipContent} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
+                            {showAnomalies && anomalyMetric && (
+                                <>
+                                    <ReferenceLine y={anomalyMetric.mean} stroke="#64748b" strokeDasharray="3 3"
+                                        label={{ value: 'Mean', position: 'right', fill: '#64748b', fontSize: 10 }} />
+                                    <ReferenceLine y={anomalyMetric.mean + 2 * anomalyMetric.std_dev} stroke="#f59e0b" strokeDasharray="3 3"
+                                        label={{ value: '+2\u03c3', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                                    <ReferenceLine y={anomalyMetric.mean - 2 * anomalyMetric.std_dev} stroke="#f59e0b" strokeDasharray="3 3"
+                                        label={{ value: '-2\u03c3', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                                </>
+                            )}
+                            <Line type="monotone" dataKey="value" name={name} stroke={stroke} strokeWidth={2}
+                                dot={showAnomalies ? renderDot : false} activeDot={{ r: 4, cursor: 'pointer' }} />
+                        </LineChart>
+                    ) : (
+                        <AreaChart data={mergedData} onClick={handleClick} style={{ cursor: 'pointer' }}>
+                            <defs>
+                                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={stroke} stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor={stroke} stopOpacity={0} />
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="date" tickFormatter={formatDateHelper} stroke="#64748b" fontSize={12} />
+                            <YAxis stroke="#64748b" fontSize={12} domain={yDomain} tickFormatter={yFormatter} />
+                            <Tooltip content={tooltipContent} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
+                            {showAnomalies && anomalyMetric && (
+                                <>
+                                    <ReferenceLine y={anomalyMetric.mean} stroke="#64748b" strokeDasharray="3 3"
+                                        label={{ value: 'Mean', position: 'right', fill: '#64748b', fontSize: 10 }} />
+                                    <ReferenceLine y={anomalyMetric.mean + 2 * anomalyMetric.std_dev} stroke="#f59e0b" strokeDasharray="3 3"
+                                        label={{ value: '+2\u03c3', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                                    <ReferenceLine y={anomalyMetric.mean - 2 * anomalyMetric.std_dev} stroke="#f59e0b" strokeDasharray="3 3"
+                                        label={{ value: '-2\u03c3', position: 'right', fill: '#f59e0b', fontSize: 10 }} />
+                                </>
+                            )}
+                            <Area type="monotone" dataKey="value" name={name} stroke={stroke}
+                                fill={`url(#${gradientId})`} strokeWidth={2}
+                                dot={showAnomalies ? renderDot : false} activeDot={{ r: 4, cursor: 'pointer' }} />
+                        </AreaChart>
+                    )}
+                </ResponsiveContainer>
+            </div>
+        </ChartCard>
+    );
+};
+
+// Module-level helper to avoid recreating inside component
+const formatDateHelper = (dateStr) => {
+    if (!dateStr) return '';
+    if (dateStr.includes(' ')) return dateStr.split(' ')[1];
+    if (dateStr.includes('-W')) return `W${dateStr.split('-W')[1]}`;
+    const parts = dateStr.split('-');
+    return `${parts[1]}/${parts[2]}`;
+};
+
+// --- Main component ---
+
 export const TrendsPage = () => {
+    // Per-tab data
     const [trends, setTrends] = useState(null);
+    const [anomalies, setAnomalies] = useState(null);
+    const [insights, setInsights] = useState(null);
     const [correlations, setCorrelations] = useState(null);
     const [costForecast, setCostForecast] = useState(null);
-    const [anomalies, setAnomalies] = useState(null);
-    const [loading, setLoading] = useState(true);
+
+    // Per-tab loaded flags
+    const [overviewLoaded, setOverviewLoaded] = useState(false);
+    const [correlationsLoaded, setCorrelationsLoaded] = useState(false);
+    const [forecastLoaded, setForecastLoaded] = useState(false);
+
+    // Loading per tab
+    const [overviewLoading, setOverviewLoading] = useState(false);
+    const [correlationsLoading, setCorrelationsLoading] = useState(false);
+    const [forecastLoading, setForecastLoading] = useState(false);
+
     const [error, setError] = useState(null);
     const [timeRange, setTimeRange] = useState("7d");
-    const [activeTab, setActiveTab] = useState("trends");
+    const [activeTab, setActiveTab] = useState("overview");
 
+    // Anomaly overlay toggle
+    const [showAnomalies, setShowAnomalies] = useState(false);
+
+    // Drill-down state
+    const [drillDownDate, setDrillDownDate] = useState(null);
+    const [drillDownMetric, setDrillDownMetric] = useState(null);
+    const [drillDownTraces, setDrillDownTraces] = useState([]);
+    const [drillDownLoading, setDrillDownLoading] = useState(false);
+    const [selectedTraceId, setSelectedTraceId] = useState(null);
+
+    // Build anomaly lookup by metric key
+    const anomalyByMetric = useMemo(() => {
+        if (!anomalies?.metrics) return {};
+        const map = {};
+        for (const m of anomalies.metrics) {
+            map[m.metric] = m;
+        }
+        return map;
+    }, [anomalies]);
+
+    // --- Per-tab fetch functions ---
+
+    const fetchOverview = useCallback(async (tr) => {
+        setOverviewLoading(true);
+        try {
+            const [trendsData, anomaliesData, insightsData] = await Promise.all([
+                api.getTrends(tr),
+                api.getAnomalies({ timeRange: tr }),
+                api.getInsights(tr)
+            ]);
+            setTrends(trendsData);
+            setAnomalies(anomaliesData);
+            setInsights(insightsData);
+            setOverviewLoaded(true);
+        } catch (err) {
+            console.error("Failed to fetch overview data:", err);
+            setError("Failed to load overview data");
+        } finally {
+            setOverviewLoading(false);
+        }
+    }, []);
+
+    const fetchCorrelations = useCallback(async (tr) => {
+        setCorrelationsLoading(true);
+        try {
+            const data = await api.getCorrelations(tr);
+            setCorrelations(data);
+            setCorrelationsLoaded(true);
+        } catch (err) {
+            console.error("Failed to fetch correlations:", err);
+            setError("Failed to load correlations data");
+        } finally {
+            setCorrelationsLoading(false);
+        }
+    }, []);
+
+    const fetchForecast = useCallback(async (tr) => {
+        setForecastLoading(true);
+        try {
+            const data = await api.getCostForecast({ timeRange: tr, forecastDays: 7 });
+            setCostForecast(data);
+            setForecastLoaded(true);
+        } catch (err) {
+            console.error("Failed to fetch forecast:", err);
+            setError("Failed to load forecast data");
+        } finally {
+            setForecastLoading(false);
+        }
+    }, []);
+
+    // Fetch active tab on mount and when tab changes
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const [trendsData, correlationsData, forecastData, anomaliesData] = await Promise.all([
-                    api.getTrends(timeRange),
-                    api.getCorrelations(timeRange),
-                    api.getCostForecast({ timeRange, forecastDays: 7 }),
-                    api.getAnomalies({ timeRange })
-                ]);
-                setTrends(trendsData);
-                setCorrelations(correlationsData);
-                setCostForecast(forecastData);
-                setAnomalies(anomaliesData);
-            } catch (err) {
-                console.error("Failed to fetch data:", err);
-                setError("Failed to load data");
-            } finally {
-                setLoading(false);
-            }
-        };
+        if (activeTab === "overview" && !overviewLoaded) {
+            fetchOverview(timeRange);
+        } else if (activeTab === "correlations" && !correlationsLoaded) {
+            fetchCorrelations(timeRange);
+        } else if (activeTab === "forecast" && !forecastLoaded) {
+            fetchForecast(timeRange);
+        }
+    }, [activeTab, overviewLoaded, correlationsLoaded, forecastLoaded, timeRange, fetchOverview, fetchCorrelations, fetchForecast]);
 
-        fetchData();
+    // Reset all flags when timeRange changes and reload active tab
+    const handleTimeRangeChange = useCallback((newRange) => {
+        setTimeRange(newRange);
+        setOverviewLoaded(false);
+        setCorrelationsLoaded(false);
+        setForecastLoaded(false);
+        setError(null);
+        // Close any open drill-down
+        setDrillDownDate(null);
+        setSelectedTraceId(null);
+    }, []);
+
+    // --- Drill-down handlers ---
+
+    const handleChartClick = useCallback(async (dateStr, metric) => {
+        const { date_from, date_to } = getBucketDateRange(dateStr, timeRange);
+        if (!date_from) return;
+
+        setDrillDownDate(dateStr);
+        setDrillDownMetric(metric);
+        setSelectedTraceId(null);
+        setDrillDownLoading(true);
+        setDrillDownTraces([]);
+
+        try {
+            const traces = await api.getTraces({ date_from, date_to, limit: 20 });
+            setDrillDownTraces(traces || []);
+        } catch (err) {
+            console.error("Failed to fetch drill-down traces:", err);
+            setDrillDownTraces([]);
+        } finally {
+            setDrillDownLoading(false);
+        }
     }, [timeRange]);
+
+    const handleCloseDrillDown = useCallback(() => {
+        setDrillDownDate(null);
+        setDrillDownMetric(null);
+        setSelectedTraceId(null);
+        setDrillDownTraces([]);
+    }, []);
+
+    const handleBackFromDetail = useCallback(() => {
+        // If opened from trace list, go back to list; if from scatter, close entirely
+        if (drillDownDate) {
+            setSelectedTraceId(null);
+        } else {
+            handleCloseDrillDown();
+        }
+    }, [drillDownDate, handleCloseDrillDown]);
+
+    // Determine if SlidePanel is open
+    const isPanelOpen = !!(drillDownDate || selectedTraceId);
 
     if (error) {
         return (
@@ -202,18 +675,6 @@ export const TrendsPage = () => {
             </div>
         );
     }
-
-    const formatDate = (dateStr) => {
-        if (!dateStr) return '';
-        if (dateStr.includes(' ')) {
-            return dateStr.split(' ')[1];
-        }
-        if (dateStr.includes('-W')) {
-            return `W${dateStr.split('-W')[1]}`;
-        }
-        const parts = dateStr.split('-');
-        return `${parts[1]}/${parts[2]}`;
-    };
 
     // Combine historical and forecast data for the chart
     const combinedCostData = costForecast ? [
@@ -233,6 +694,15 @@ export const TrendsPage = () => {
         }))
     ] : [];
 
+    // Total anomaly count for tab badge
+    const totalAnomalies = anomalies?.total_anomalies || 0;
+
+    // Current loading state
+    const isLoading =
+        (activeTab === "overview" && overviewLoading) ||
+        (activeTab === "correlations" && correlationsLoading) ||
+        (activeTab === "forecast" && forecastLoading);
+
     return (
         <div className="space-y-8">
             {/* Page Header */}
@@ -243,19 +713,18 @@ export const TrendsPage = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                     {/* Tab Selector */}
-                    <div className="flex gap-1 bg-slate-900/80 border border-slate-800 rounded-lg p-1">
+                    <div className="flex gap-2">
                         {[
-                            { id: 'trends', label: 'Trends', icon: TrendingUp },
-                            { id: 'anomalies', label: 'Anomalies', icon: Zap, badge: anomalies?.total_anomalies || 0 },
+                            { id: 'overview', label: 'Overview', icon: TrendingUp, badge: totalAnomalies },
                             { id: 'correlations', label: 'Correlations', icon: GitBranch },
                             { id: 'forecast', label: 'Forecast', icon: BarChart3 }
                         ].map((tab) => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center space-x-1.5 ${activeTab === tab.id
-                                    ? "bg-purple-600 text-white shadow-lg"
-                                    : "text-slate-400 hover:text-white"
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center space-x-1.5 border ${activeTab === tab.id
+                                    ? "bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/25"
+                                    : "bg-slate-800/80 text-slate-300 border-slate-600 hover:text-white hover:border-slate-400 hover:bg-slate-700"
                                     }`}
                             >
                                 <tab.icon className="w-3.5 h-3.5" />
@@ -273,18 +742,18 @@ export const TrendsPage = () => {
                     </div>
 
                     {/* Time Range */}
-                    <TimeRangeFilter value={timeRange} onChange={setTimeRange} />
+                    <TimeRangeFilter value={timeRange} onChange={handleTimeRangeChange} />
                 </div>
             </div>
 
-            {loading ? (
+            {isLoading ? (
                 <div className="flex items-center justify-center h-96">
                     <div className="text-slate-500">Loading data...</div>
                 </div>
             ) : (
                 <>
-                    {/* Trends Tab */}
-                    {activeTab === "trends" && trends && (
+                    {/* Overview Tab (merged Trends + Anomalies + Insights) */}
+                    {activeTab === "overview" && trends && (
                         <>
                             {/* Summary Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -333,276 +802,100 @@ export const TrendsPage = () => {
                                 />
                             </div>
 
+                            {/* Anomaly toggle */}
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm text-slate-400">Click any chart data point to drill down into traces</p>
+                                <button
+                                    onClick={() => setShowAnomalies(prev => !prev)}
+                                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                                        showAnomalies
+                                            ? 'bg-red-500/10 border-red-500/30 text-red-400'
+                                            : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    {showAnomalies ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                                    <span>Show Anomalies: {showAnomalies ? 'ON' : 'OFF'}</span>
+                                    {totalAnomalies > 0 && (
+                                        <span className="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                                            {totalAnomalies}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+
                             {/* Score Over Time */}
-                            <ChartCard title="Score Over Time" subtitle="Average evaluation score trend">
-                                <div className="h-72 min-w-0">
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                        <AreaChart data={trends.score?.data || []}>
-                                            <defs>
-                                                <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                            <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
-                                            <YAxis domain={[0, 100]} stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                            <Area type="monotone" dataKey="value" name="Score" stroke="#3b82f6" fill="url(#scoreGradient)" strokeWidth={2} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </ChartCard>
+                            <TrendChartWithAnomalies
+                                metricKey="score"
+                                trendData={trends.score?.data || []}
+                                anomalyMetric={anomalyByMetric.score}
+                                showAnomalies={showAnomalies}
+                                onChartClick={handleChartClick}
+                                chartType="area"
+                                stroke="#3b82f6"
+                                gradientId="scoreGradient"
+                                yDomain={[0, 100]}
+                                yFormatter={(v) => `${v}%`}
+                                name="Score"
+                            />
 
                             {/* Two-column charts */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                <ChartCard title="Latency Over Time" subtitle="Average response time (seconds)">
-                                    <div className="h-64 min-w-0">
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                            <LineChart data={trends.latency?.data || []}>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
-                                                <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}s`} />
-                                                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.2)', strokeWidth: 1 }} />
-                                                <Line type="monotone" dataKey="value" name="Latency" stroke="#a855f7" strokeWidth={2} dot={false} />
-                                            </LineChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </ChartCard>
+                                <TrendChartWithAnomalies
+                                    metricKey="latency"
+                                    trendData={trends.latency?.data || []}
+                                    anomalyMetric={anomalyByMetric.latency}
+                                    showAnomalies={showAnomalies}
+                                    onChartClick={handleChartClick}
+                                    chartType="line"
+                                    stroke="#a855f7"
+                                    gradientId="latencyGradient"
+                                    yFormatter={(v) => `${v}s`}
+                                    name="Latency"
+                                />
 
-                                <ChartCard title="Cost Over Time" subtitle="Daily cost ($)">
-                                    <div className="h-64 min-w-0">
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                            <AreaChart data={trends.cost?.data || []}>
-                                                <defs>
-                                                    <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                                                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
-                                                <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => `$${v}`} />
-                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                                <Area type="monotone" dataKey="value" name="Cost" stroke="#f59e0b" fill="url(#costGradient)" strokeWidth={2} />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </ChartCard>
+                                <TrendChartWithAnomalies
+                                    metricKey="cost"
+                                    trendData={trends.cost?.data || []}
+                                    anomalyMetric={anomalyByMetric.cost}
+                                    showAnomalies={showAnomalies}
+                                    onChartClick={handleChartClick}
+                                    chartType="area"
+                                    stroke="#f59e0b"
+                                    gradientId="costGradient"
+                                    yFormatter={(v) => `$${v}`}
+                                    name="Cost"
+                                />
 
-                                <ChartCard title="Error Rate Over Time" subtitle="Percentage of failed evaluations">
-                                    <div className="h-64 min-w-0">
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                            <AreaChart data={trends.error_rate?.data || []}>
-                                                <defs>
-                                                    <linearGradient id="errorGradient" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-                                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
-                                                <YAxis domain={[0, 'auto']} stroke="#64748b" fontSize={12} tickFormatter={(v) => `${v}%`} />
-                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                                <Area type="monotone" dataKey="value" name="Error Rate" stroke="#f43f5e" fill="url(#errorGradient)" strokeWidth={2} />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </ChartCard>
+                                <TrendChartWithAnomalies
+                                    metricKey="error_rate"
+                                    trendData={trends.error_rate?.data || []}
+                                    anomalyMetric={anomalyByMetric.error_rate}
+                                    showAnomalies={showAnomalies}
+                                    onChartClick={handleChartClick}
+                                    chartType="area"
+                                    stroke="#f43f5e"
+                                    gradientId="errorGradient"
+                                    yDomain={[0, 'auto']}
+                                    yFormatter={(v) => `${v}%`}
+                                    name="Error Rate"
+                                />
 
-                                <ChartCard title="Request Volume" subtitle="Number of evaluations">
-                                    <div className="h-64 min-w-0">
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                            <BarChart data={trends.volume?.data || []}>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis dataKey="date" tickFormatter={formatDate} stroke="#64748b" fontSize={12} />
-                                                <YAxis stroke="#64748b" fontSize={12} />
-                                                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />
-                                                <Bar dataKey="value" name="Volume" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                </ChartCard>
+                                <TrendChartWithAnomalies
+                                    metricKey="volume"
+                                    trendData={trends.volume?.data || []}
+                                    anomalyMetric={anomalyByMetric.volume}
+                                    showAnomalies={showAnomalies}
+                                    onChartClick={handleChartClick}
+                                    chartType="bar"
+                                    stroke="#10b981"
+                                    gradientId="volumeGradient"
+                                    name="Volume"
+                                />
                             </div>
+
+                            {/* Insights Panel */}
+                            <InsightsPanel insights={insights} />
                         </>
-                    )}
-
-                    {/* Anomalies Tab */}
-                    {activeTab === "anomalies" && anomalies && (
-                        <div className="space-y-6">
-                            {/* Anomaly Summary */}
-                            <Card className="bg-slate-900/50 border-slate-800 p-6">
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center space-x-3">
-                                        <Zap className="w-5 h-5 text-amber-400" />
-                                        <h2 className="text-lg font-semibold text-white">Anomaly Detection</h2>
-                                    </div>
-                                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${anomalies.total_anomalies === 0
-                                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                                        : anomalies.total_anomalies <= 3
-                                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                                            : "bg-red-500/10 text-red-400 border border-red-500/20"
-                                        }`}>
-                                        {anomalies.total_anomalies} Anomalies Detected
-                                    </div>
-                                </div>
-                                <p className="text-sm text-slate-400">{anomalies.summary}</p>
-                            </Card>
-
-                            {/* Anomaly Charts by Metric */}
-                            {anomalies.metrics?.filter(m => m.data_points?.length > 0).map((metric) => (
-                                <ChartCard
-                                    key={metric.metric}
-                                    title={`${metric.metric.charAt(0).toUpperCase() + metric.metric.slice(1)} Anomalies`}
-                                    subtitle={`Mean: ${metric.mean.toFixed(2)}, Std Dev: ${metric.std_dev.toFixed(2)} | ${metric.anomaly_count} anomalies`}
-                                >
-                                    <div className="h-64">
-                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                            <AreaChart data={metric.data_points}>
-                                                <defs>
-                                                    <linearGradient id={`gradient-${metric.metric}`} x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                                <XAxis
-                                                    dataKey="date"
-                                                    tickFormatter={formatDate}
-                                                    stroke="#64748b"
-                                                    fontSize={12}
-                                                />
-                                                <YAxis stroke="#64748b" fontSize={12} />
-                                                <Tooltip
-                                                    content={({ active, payload, label }) => {
-                                                        if (active && payload && payload.length) {
-                                                            const data = payload[0].payload;
-                                                            return (
-                                                                <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-                                                                    <p className="text-slate-400 text-xs mb-2">{label}</p>
-                                                                    <p className="text-sm text-white">Value: {data.value.toFixed(2)}</p>
-                                                                    <p className="text-sm text-slate-400">Z-Score: {data.z_score.toFixed(2)}</p>
-                                                                    {data.is_anomaly && (
-                                                                        <p className="text-sm text-red-400 font-medium mt-1">
-                                                                            Anomaly: {data.anomaly_type}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        }
-                                                        return null;
-                                                    }}
-                                                    cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
-                                                />
-                                                {/* Reference lines for mean and thresholds */}
-                                                <ReferenceLine
-                                                    y={metric.mean}
-                                                    stroke="#64748b"
-                                                    strokeDasharray="3 3"
-                                                    label={{ value: 'Mean', position: 'right', fill: '#64748b', fontSize: 10 }}
-                                                />
-                                                <ReferenceLine
-                                                    y={metric.mean + 2 * metric.std_dev}
-                                                    stroke="#f59e0b"
-                                                    strokeDasharray="3 3"
-                                                    label={{ value: '+2σ', position: 'right', fill: '#f59e0b', fontSize: 10 }}
-                                                />
-                                                <ReferenceLine
-                                                    y={metric.mean - 2 * metric.std_dev}
-                                                    stroke="#f59e0b"
-                                                    strokeDasharray="3 3"
-                                                    label={{ value: '-2σ', position: 'right', fill: '#f59e0b', fontSize: 10 }}
-                                                />
-                                                <Area
-                                                    type="monotone"
-                                                    dataKey="value"
-                                                    stroke="#3b82f6"
-                                                    fill={`url(#gradient-${metric.metric})`}
-                                                    strokeWidth={2}
-                                                />
-                                                {/* Anomaly points */}
-                                                <Scatter
-                                                    data={metric.data_points.filter(d => d.is_anomaly)}
-                                                    fill="#ef4444"
-                                                    shape={(props) => {
-                                                        const { cx, cy } = props;
-                                                        return (
-                                                            <circle
-                                                                cx={cx}
-                                                                cy={cy}
-                                                                r={6}
-                                                                fill="#ef4444"
-                                                                stroke="#fff"
-                                                                strokeWidth={2}
-                                                            />
-                                                        );
-                                                    }}
-                                                />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
-                                    </div>
-
-                                    {/* Anomaly List for this metric */}
-                                    {metric.anomalies?.length > 0 && (
-                                        <div className="mt-4 border-t border-slate-800 pt-4">
-                                            <h4 className="text-sm font-medium text-slate-300 mb-3">Detected Anomalies</h4>
-                                            <div className="space-y-2">
-                                                {metric.anomalies.map((anomaly, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="flex items-center justify-between p-3 bg-red-500/5 border border-red-500/20 rounded-lg"
-                                                    >
-                                                        <div className="flex items-center space-x-3">
-                                                            <AlertCircle className="w-4 h-4 text-red-400" />
-                                                            <div>
-                                                                <p className="text-sm text-white">{anomaly.date}</p>
-                                                                <p className="text-xs text-slate-400">
-                                                                    Value: {anomaly.value.toFixed(2)} | Z-Score: {anomaly.z_score.toFixed(2)}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <span className={`px-2 py-1 rounded text-xs font-medium ${anomaly.anomaly_type === 'spike' || anomaly.anomaly_type === 'high'
-                                                            ? 'bg-red-500/20 text-red-400'
-                                                            : 'bg-blue-500/20 text-blue-400'
-                                                            }`}>
-                                                            {anomaly.anomaly_type}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </ChartCard>
-                            ))}
-
-                            {/* Anomaly Detection Info */}
-                            <Card className="bg-blue-500/5 border-blue-500/20 p-6">
-                                <div className="flex items-start space-x-3">
-                                    <Lightbulb className="w-5 h-5 text-blue-400 mt-0.5" />
-                                    <div>
-                                        <h3 className="text-sm font-medium text-blue-400 mb-2">About Anomaly Detection</h3>
-                                        <ul className="text-xs text-slate-400 space-y-1">
-                                            <li className="flex items-center">
-                                                <ArrowRight className="w-3 h-3 mr-2 text-blue-400" />
-                                                Anomalies are detected using Z-score analysis (threshold: ±2 standard deviations)
-                                            </li>
-                                            <li className="flex items-center">
-                                                <ArrowRight className="w-3 h-3 mr-2 text-blue-400" />
-                                                <span className="text-red-400">Spikes/High</span> indicate values significantly above normal
-                                            </li>
-                                            <li className="flex items-center">
-                                                <ArrowRight className="w-3 h-3 mr-2 text-blue-400" />
-                                                <span className="text-blue-400">Drops/Low</span> indicate values significantly below normal
-                                            </li>
-                                            <li className="flex items-center">
-                                                <ArrowRight className="w-3 h-3 mr-2 text-blue-400" />
-                                                Review anomalies to identify potential issues or opportunities
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </Card>
-                        </div>
                     )}
 
                     {/* Correlations Tab */}
@@ -614,7 +907,7 @@ export const TrendsPage = () => {
                                     <h2 className="text-lg font-semibold text-white">Metric Correlations</h2>
                                 </div>
                                 <p className="text-sm text-slate-400 mb-6">
-                                    Understanding how different metrics relate to each other can help identify optimization opportunities.
+                                    Understanding how different metrics relate to each other can help identify optimization opportunities. Click any data point to view the trace.
                                 </p>
 
                                 {correlations.correlations?.length > 0 ? (
@@ -658,6 +951,12 @@ export const TrendsPage = () => {
                                                                     data={corr.data_points}
                                                                     fill={CORRELATION_COLORS[corr.interpretation]}
                                                                     fillOpacity={0.6}
+                                                                    cursor="pointer"
+                                                                    onClick={(data) => {
+                                                                        if (data?.payload?.id) {
+                                                                            setSelectedTraceId(data.payload.id);
+                                                                        }
+                                                                    }}
                                                                 />
                                                             </ScatterChart>
                                                         </ResponsiveContainer>
@@ -762,7 +1061,7 @@ export const TrendsPage = () => {
                                             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                                             <XAxis
                                                 dataKey="date"
-                                                tickFormatter={formatDate}
+                                                tickFormatter={formatDateHelper}
                                                 stroke="#64748b"
                                                 fontSize={12}
                                             />
@@ -844,6 +1143,29 @@ export const TrendsPage = () => {
                     )}
                 </>
             )}
+
+            {/* Drill-down SlidePanel */}
+            <SlidePanel
+                isOpen={isPanelOpen}
+                onClose={handleCloseDrillDown}
+                title={selectedTraceId ? "Trace Details" : `Traces for ${drillDownDate || ''}`}
+            >
+                {selectedTraceId ? (
+                    <TraceDetailPage
+                        traceId={selectedTraceId}
+                        onBack={handleBackFromDetail}
+                        inPanel={true}
+                    />
+                ) : drillDownDate ? (
+                    <DrillDownTraceList
+                        traces={drillDownTraces}
+                        loading={drillDownLoading}
+                        metric={drillDownMetric}
+                        date={drillDownDate}
+                        onSelectTrace={(id) => setSelectedTraceId(id)}
+                    />
+                ) : null}
+            </SlidePanel>
         </div>
     );
 };

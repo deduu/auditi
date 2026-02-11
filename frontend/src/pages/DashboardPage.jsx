@@ -25,29 +25,13 @@ import api from "../api";
 import { Card } from "../components/ui/Card";
 import { Modal } from "../components/ui/Modal";
 import { TimeRangeFilter } from "../components/common/TimeRangeFilter";
+import { ChangeIndicator } from "../components/common/ChangeIndicator";
+import { ChartCard } from "../components/common/ChartCard";
+import { CustomTooltip } from "../components/common/CustomTooltip";
+import { EmptyChart } from "../components/common/EmptyChart";
+import { DropdownFilter } from "../components/common/DropdownFilter";
 import { exportToCSV } from "../utils/exportUtils";
-
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
-
-// ============== Reusable Components ==============
-
-const ChangeIndicator = ({ value, invertColor = false }) => {
-    if (value === null || value === undefined || !isFinite(value)) return null;
-    const isPositive = value > 0;
-    const isZero = value === 0;
-    const isGood = invertColor ? !isPositive : isPositive;
-    return (
-        <span className={`inline-flex items-center text-xs font-medium ml-2 ${isZero ? 'text-slate-500' : isGood ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {isPositive ? '↑' : isZero ? '→' : '↓'} {Math.abs(value).toFixed(1)}%
-        </span>
-    );
-};
-
-const EmptyChart = ({ message = "No data" }) => (
-    <div className="h-full flex items-center justify-center border-2 border-dashed border-slate-700 rounded-lg bg-slate-900/30">
-        <span className="text-slate-500 text-sm">{message}</span>
-    </div>
-);
+import { CHART_COLORS as COLORS } from "../utils/constants";
 
 const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAllTraces = false, countsByType, onExpand, isExpanded = false, changePercent }) => {
     const displayData = data && !isExpanded && !showAllTraces ? data.slice(0, 5) : data;
@@ -128,7 +112,12 @@ const TraceListCard = ({ total, data, traceType, onTypeChange, onShowAll, showAl
     );
 };
 
-const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false, changePercent }) => (
+const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false, changePercent, showMore = false, onShowMore }) => {
+    const totalTokens = data ? data.reduce((sum, m) => sum + (m.tokens || 0), 0) : 0;
+    const formatTokens = (t) => t >= 1000000 ? `${(t / 1000000).toFixed(2)}M` : t >= 1000 ? `${(t / 1000).toFixed(2)}K` : t;
+    const displayData = data && !isExpanded && !showMore ? data.slice(0, 5) : data;
+
+    return (
     <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
         <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -156,6 +145,18 @@ const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false, changeP
                     </div>
                 </div>
             </div>
+            <div className="flex items-center space-x-2 mt-1">
+                <span className="text-lg font-semibold text-slate-300">{formatTokens(totalTokens)}</span>
+                <span className="text-sm text-slate-400">Total tokens</span>
+                <div className="group relative inline-block">
+                    <Info className="w-4 h-4 text-slate-500 hover:text-blue-400 cursor-help transition-colors" />
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-xs text-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none">
+                        <div className="font-semibold text-white mb-1">Token Usage</div>
+                        <p className="leading-relaxed">Combined input and output tokens across all LLM models. High token counts with low costs may indicate efficient model selection.</p>
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-slate-600"></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar min-h-[200px]">
@@ -169,8 +170,8 @@ const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false, changeP
                     </tr>
                 </thead>
                 <tbody className="text-slate-300 divide-y divide-slate-800/50">
-                    {data && data.length > 0 ? (
-                        data.map((item, idx) => (
+                    {displayData && displayData.length > 0 ? (
+                        displayData.map((item, idx) => (
                             <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
                                 <td className="py-3 pr-2 font-medium truncate max-w-[140px]" title={item.model}>{item.model}</td>
                                 <td className="py-3 px-2 text-right text-slate-400">
@@ -201,8 +202,19 @@ const ModelCostTableCard = ({ total, data, onExpand, isExpanded = false, changeP
                 </tbody>
             </table>
         </div>
+
+        {!isExpanded && data && data.length > 5 && (
+            <button
+                className="flex items-center justify-center w-full mt-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-md transition-all duration-200 cursor-pointer"
+                onClick={onShowMore}
+            >
+                <ChevronDown className={`w-4 h-4 mr-1 transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`} />
+                {showMore ? 'Show less' : 'Show all'}
+            </button>
+        )}
     </Card>
-);
+    );
+};
 
 const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, isExpanded = false, onNavigate, changePercent }) => (
     <Card className={`bg-slate-900/50 border-slate-800 p-6 flex flex-col ${isExpanded ? '' : 'max-h-96'}`}>
@@ -289,114 +301,81 @@ const ScoreTableCard = ({ total, data, onShowMore, showMore = false, onExpand, i
             </table>
         </div>
 
-        {!isExpanded && (
+        {!isExpanded && data && data.length > 3 && (
             <button
                 className="flex items-center justify-center w-full mt-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-md transition-all duration-200 cursor-pointer"
                 onClick={onShowMore}
             >
                 <ChevronDown className={`w-4 h-4 mr-1 transition-transform duration-200 ${showMore ? 'rotate-180' : ''}`} />
-                {showMore ? 'Show less' : 'Show top 20'}
+                {showMore ? 'Show less' : `Show all ${data.length}`}
             </button>
         )}
     </Card>
 );
 
-const ChartCard = ({ title, subtitle, info, children, tabs, activeTab, onTabChange, rightContent }) => (
-    <Card className="bg-slate-900/50 border-slate-800 p-0 h-full flex flex-col">
-        <div className="px-6 pt-5 pb-0 relative overflow-visible">
-            {/* Header row: Title + Right content (filters) */}
-            <div className="flex items-start justify-between mb-4">
-                <div>
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-semibold text-white">{title}</h2>
-                        {info && (
-                            <div className="group relative inline-block">
-                                <Info className="w-4 h-4 text-slate-500 hover:text-blue-400 cursor-help transition-colors" />
-                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-xs text-slate-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none">
-                                    <p className="leading-relaxed">{info}</p>
-                                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-slate-600"></div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
-                </div>
-                {rightContent && <div className="flex items-center gap-3">{rightContent}</div>}
-            </div>
 
-            {/* Tabs row with underline style */}
-            {tabs && (
-                <div className="flex items-center gap-6 border-b border-slate-700">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => onTabChange(tab.id)}
-                            className={`relative pb-3 text-sm font-medium transition-colors duration-200 whitespace-nowrap
-                                ${activeTab === tab.id
-                                    ? "text-blue-400"
-                                    : "text-slate-400 hover:text-slate-200"
-                                }`}
-                        >
-                            {tab.label}
-                            {activeTab === tab.id && (
-                                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-                            )}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-        <div className="p-6 flex-1 overflow-hidden">{children}</div>
-    </Card>
-);
+const TOP_N_PRESETS = [10, 20, 50, 100];
 
-const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl z-50">
-                <p className="text-slate-400 text-xs mb-2">{label}</p>
-                {payload.map((entry, index) => (
-                    <div key={index} className="flex items-center justify-between space-x-4 text-sm">
-                        <span style={{ color: entry.color }}>{entry.name}:</span>
-                        <span className="font-mono text-slate-200">
-                            {typeof entry.value === 'number' ? entry.value.toLocaleString(undefined, { maximumFractionDigits: 3 }) : entry.value}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        );
-    }
-    return null;
-};
-
-const DropdownFilter = ({ value, options, onChange }) => {
+const TopNSelector = ({ value, onChange }) => {
     const [isOpen, setIsOpen] = React.useState(false);
+    const [customValue, setCustomValue] = React.useState('');
+    const isCustom = !TOP_N_PRESETS.includes(value);
+
+    const handleCustomSubmit = () => {
+        const n = parseInt(customValue, 10);
+        if (n >= 1 && n <= 500) {
+            onChange(n);
+            setIsOpen(false);
+            setCustomValue('');
+        }
+    };
 
     return (
         <div className="relative">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 border border-slate-600 rounded-lg text-sm text-slate-300 hover:border-slate-500 transition-all duration-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-600 rounded-lg text-xs text-slate-300 hover:border-slate-500 transition-all"
             >
-                <span>{value}</span>
-                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                <span>Top {value}</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
                 <>
                     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-                    <div className="absolute right-0 top-full mt-1 w-48 py-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
-                        {options && options.map(opt => (
+                    <div className="absolute right-0 top-full mt-1 w-44 py-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50">
+                        {TOP_N_PRESETS.map(n => (
                             <button
-                                key={opt}
-                                onClick={() => { onChange(opt); setIsOpen(false); }}
-                                className={`block w-full text-left px-4 py-2 text-sm transition-colors ${value === opt
+                                key={n}
+                                onClick={() => { onChange(n); setIsOpen(false); }}
+                                className={`block w-full text-left px-4 py-2 text-sm transition-colors ${value === n && !isCustom
                                     ? 'bg-blue-600/20 text-blue-400'
                                     : 'text-slate-300 hover:bg-slate-700'
                                 }`}
                             >
-                                {opt}
+                                Top {n}
                             </button>
                         ))}
+                        <div className="border-t border-slate-700 mt-1 pt-1 px-3 pb-2">
+                            <label className="text-xs text-slate-500 mb-1 block">Custom (1-500)</label>
+                            <div className="flex gap-1.5">
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="500"
+                                    value={customValue}
+                                    onChange={(e) => setCustomValue(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCustomSubmit()}
+                                    placeholder={isCustom ? String(value) : ''}
+                                    className="w-full px-2 py-1 bg-slate-900 border border-slate-600 rounded text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                                />
+                                <button
+                                    onClick={handleCustomSubmit}
+                                    className="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
+                                >
+                                    Go
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </>
             )}
@@ -425,10 +404,12 @@ export const DashboardPage = ({ onNavigate }) => {
     const [section2LeftTab, setSection2LeftTab] = useState("traces");
     const [section2RightTab, setSection2RightTab] = useState("score");
     const [section3LeftTab, setSection3LeftTab] = useState("token-cost");
+    const [userLimit, setUserLimit] = useState(10);
     const [latencyPercentile, setLatencyPercentile] = useState("99th Percentile");
     const [selectedModel, setSelectedModel] = useState("All models");
     const [showAllTraces, setShowAllTraces] = useState(false);
     const [showMoreScores, setShowMoreScores] = useState(false);
+    const [showMoreModels, setShowMoreModels] = useState(false);
     const [expandedCard, setExpandedCard] = useState(null); // 'traces' | 'models' | 'scores' | null
     const [healthTab, setHealthTab] = useState("cost");
 
@@ -490,7 +471,7 @@ export const DashboardPage = ({ onNavigate }) => {
         const fetchUserConsumption = async () => {
             try {
                 const metric = section3LeftTab === "token-cost" ? "cost" : "count";
-                const data = await api.getUserConsumption({ timeRange, metric, limit: 10 });
+                const data = await api.getUserConsumption({ timeRange, metric, limit: userLimit });
                 setUserConsumptionData(data);
             } catch (err) {
                 console.error("Failed to fetch user consumption:", err);
@@ -498,7 +479,7 @@ export const DashboardPage = ({ onNavigate }) => {
             }
         };
         fetchUserConsumption();
-    }, [timeRange, section3LeftTab]);
+    }, [timeRange, section3LeftTab, userLimit]);
 
     // Fetch per-evaluator score trends
     useEffect(() => {
@@ -681,6 +662,8 @@ export const DashboardPage = ({ onNavigate }) => {
                             data={dashboardKPIs?.model_costs?.by_model}
                             onExpand={() => setExpandedCard('models')}
                             changePercent={trends?.cost?.change_percent}
+                            showMore={showMoreModels}
+                            onShowMore={() => setShowMoreModels(!showMoreModels)}
                         />
                         <ScoreTableCard
                             total={dashboardKPIs?.scores?.total}
@@ -842,7 +825,7 @@ export const DashboardPage = ({ onNavigate }) => {
                         {/* LEFT: User consumption */}
                         <ChartCard
                             title="User consumption"
-                            subtitle={`Showing top 10 users by ${section3LeftTab === "token-cost" ? "token cost" : "trace count"}. Export for full data.`}
+                            subtitle={`Showing top ${userLimit} users by ${section3LeftTab === "token-cost" ? "token cost" : "trace count"}. Export for full data.`}
                             info="Identify which users are driving the most cost or usage. Use this to detect runaway consumers, allocate budgets, or investigate unusual activity."
                             tabs={[
                                 { id: "token-cost", label: "Token cost" },
@@ -851,14 +834,17 @@ export const DashboardPage = ({ onNavigate }) => {
                             activeTab={section3LeftTab}
                             onTabChange={setSection3LeftTab}
                             rightContent={
-                                <button
-                                    onClick={handleExportUserConsumption}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-600 rounded-lg text-xs text-slate-300 hover:border-slate-500 hover:text-white transition-all"
-                                    title="Export all user data as CSV"
-                                >
-                                    <Download className="w-3.5 h-3.5" />
-                                    Export
-                                </button>
+                                <>
+                                    <TopNSelector value={userLimit} onChange={setUserLimit} />
+                                    <button
+                                        onClick={handleExportUserConsumption}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800/50 border border-slate-600 rounded-lg text-xs text-slate-300 hover:border-slate-500 hover:text-white transition-all"
+                                        title="Export all user data as CSV"
+                                    >
+                                        <Download className="w-3.5 h-3.5" />
+                                        Export
+                                    </button>
+                                </>
                             }
                         >
                             <div className="mb-4">
