@@ -18,7 +18,7 @@ Auditi is a comprehensive platform for evaluating, monitoring, and improving AI 
 
 ## Demo
 
-https://github.com/user-attachments/assets/394c46d0-c6a9-4f4c-80bc-818a086a4f78
+<video src="https://github.com/user-attachments/assets/394c46d0-c6a9-4f4c-80bc-818a086a4f78" width="100%"></video>
 
 ## Features
 
