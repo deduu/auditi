@@ -22,6 +22,8 @@ from app.schemas.analytics import (
     TrendDataPoint,
     ModelComparisonResponse,
     ModelComparisonItem,
+    FailureModeCount,
+    TraceNameCount,
     ToolAnalyticsResponse,
     ToolAnalyticsSummary,
     ToolAnalyticsItem,
@@ -552,7 +554,7 @@ def get_model_comparison(
     """Get performance comparison across models."""
     start_date, _, _ = get_date_range(time_range)
 
-    # Query model stats
+    # Query model stats including total_tokens
     model_stats = (
         db.query(
             Trace.model_name,
@@ -561,6 +563,7 @@ def get_model_comparison(
             func.sum(Trace.cost).label("total_cost"),
             func.count(Trace.id).label("volume"),
             func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
+            func.sum(func.coalesce(Trace.total_tokens, 0)).label("total_tokens"),
         )
         .filter(Trace.start_time >= start_date, Trace.model_name != None)
         .group_by(Trace.model_name)
@@ -605,9 +608,62 @@ def get_model_comparison(
         )
 
         error_rate = (row.failures / row.volume * 100) if row.volume else 0
+        failures_count = row.failures or 0
 
         # Scale score to 0-100
         avg_score = (row.avg_score or 0) * 100
+
+        # Derived cost/token fields
+        total_cost = row.total_cost or 0
+        volume = row.volume or 0
+        total_tokens = row.total_tokens or 0
+
+        cost_per_request = (total_cost / volume) if volume else 0
+        tokens_per_request = (total_tokens / volume) if volume else 0
+        cost_per_1k_tokens = ((total_cost / total_tokens) * 1000) if total_tokens else 0
+
+        # Sub-query: top 5 failure modes for this model
+        failure_mode_rows = (
+            db.query(
+                Trace.failure_mode,
+                func.count(Trace.id).label("cnt"),
+            )
+            .filter(
+                Trace.start_time >= start_date,
+                Trace.model_name == row.model_name,
+                Trace.failure_mode != None,
+                Trace.failure_mode != "",
+            )
+            .group_by(Trace.failure_mode)
+            .order_by(desc("cnt"))
+            .limit(5)
+            .all()
+        )
+        failure_modes = [
+            FailureModeCount(mode=fm.failure_mode, count=fm.cnt)
+            for fm in failure_mode_rows
+        ]
+
+        # Sub-query: top 5 trace names using this model
+        trace_name_rows = (
+            db.query(
+                Trace.name,
+                func.count(Trace.id).label("cnt"),
+            )
+            .filter(
+                Trace.start_time >= start_date,
+                Trace.model_name == row.model_name,
+                Trace.name != None,
+            )
+            .group_by(Trace.name)
+            .order_by(desc("cnt"))
+            .limit(5)
+            .all()
+        )
+        trace_names = [
+            TraceNameCount(name=tn.name, count=tn.cnt)
+            for tn in trace_name_rows
+        ]
 
         result.append(
             ModelComparisonItem(
@@ -617,9 +673,16 @@ def get_model_comparison(
                 latency_p90=round(p90, 3),
                 latency_p95=round(p95, 3),
                 latency_p99=round(p99, 3),
-                cost=round(row.total_cost or 0, 4),
-                volume=row.volume,
+                cost=round(total_cost, 4),
+                volume=volume,
                 error_rate=round(error_rate, 1),
+                cost_per_request=round(cost_per_request, 6),
+                total_tokens=total_tokens,
+                tokens_per_request=round(tokens_per_request, 1),
+                cost_per_1k_tokens=round(cost_per_1k_tokens, 6),
+                failure_modes=failure_modes,
+                trace_names=trace_names,
+                error_count=failures_count,
             )
         )
 

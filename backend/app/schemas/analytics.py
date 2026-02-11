@@ -53,6 +53,16 @@ class TrendsResponse(BaseModel):
     volume: TrendMetric
 
 
+class FailureModeCount(BaseModel):
+    mode: str
+    count: int
+
+
+class TraceNameCount(BaseModel):
+    name: str
+    count: int
+
+
 class ModelComparisonItem(BaseModel):
     model: str
     score: float
@@ -63,6 +73,13 @@ class ModelComparisonItem(BaseModel):
     cost: float
     volume: int
     error_rate: float
+    cost_per_request: float
+    total_tokens: int
+    tokens_per_request: float
+    cost_per_1k_tokens: float
+    failure_modes: List[FailureModeCount]
+    trace_names: List[TraceNameCount]
+    error_count: int
 
 
 class ModelComparisonResponse(BaseModel):
