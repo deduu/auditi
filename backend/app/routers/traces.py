@@ -22,6 +22,7 @@
 
 """Trace ingestion API routes."""
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -251,6 +252,8 @@ def get_traces(
     model: Optional[str] = None,
     name: Optional[str] = None,
     standalone_only: bool = False,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     _current_user: User = Depends(get_current_user),
 ):
@@ -284,6 +287,11 @@ def get_traces(
 
     if name:
         query = query.filter(Trace.name == name)
+
+    if date_from:
+        query = query.filter(Trace.start_time >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.filter(Trace.start_time < datetime.fromisoformat(date_to))
 
     # Order by start_time desc
     traces = query.order_by(desc(Trace.start_time)).offset(skip).limit(limit).all()
