@@ -66,6 +66,7 @@ export const useTraceDetail = (traceId) => {
   const [error, setError] = useState(null);
   const [justEvaluated, setJustEvaluated] = useState(false);
   const prevStatusRef = useRef(null);
+  const prevEvalCountRef = useRef(null);
 
   useEffect(() => {
     if (!traceId) return;
@@ -76,6 +77,8 @@ export const useTraceDetail = (traceId) => {
         const data = await api.getTraceDetail(traceId);
         setTrace(data);
         prevStatusRef.current = data?.status || null;
+        prevEvalCountRef.current = data?.evalMetadata?.evaluations
+          ? Object.keys(data.evalMetadata.evaluations).length : null;
         setError(null);
       } catch (err) {
         console.error("Failed to fetch trace detail:", err);
@@ -105,7 +108,17 @@ export const useTraceDetail = (traceId) => {
           setJustEvaluated(true);
           setTimeout(() => setJustEvaluated(false), 5000);
         }
+
+        // Detect multi-evaluator results appearing (re-evaluation)
+        const newEvalCount = data?.evalMetadata?.evaluations
+          ? Object.keys(data.evalMetadata.evaluations).length : null;
+        if (newEvalCount && newEvalCount !== prevEvalCountRef.current) {
+          setJustEvaluated(true);
+          setTimeout(() => setJustEvaluated(false), 5000);
+        }
+
         prevStatusRef.current = data?.status || null;
+        prevEvalCountRef.current = newEvalCount;
       } catch {
         // Silently ignore poll errors
       }

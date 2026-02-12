@@ -16,7 +16,7 @@ export const LLMJudgePage = () => {
     const [loading, setLoading] = useState(true);
     const [currentStep, setCurrentStep] = useState(0);
     const [defaultModel, setDefaultModel] = useState(null);
-    const [selectedEvaluator, setSelectedEvaluator] = useState(null);
+    const [selectedEvaluators, setSelectedEvaluators] = useState([]);
     const [connections, setConnections] = useState([]);
     const [autoEvalEnabled, setAutoEvalEnabled] = useState(false);
     const [togglingAutoEval, setTogglingAutoEval] = useState(false);
@@ -32,8 +32,8 @@ export const LLMJudgePage = () => {
 
     const steps = [
         { id: 0, label: "Set up default model" },
-        { id: 1, label: "Select Evaluator" },
-        { id: 2, label: "Run Evaluator" }
+        { id: 1, label: "Select Evaluators" },
+        { id: 2, label: "Run Evaluators" }
     ];
 
     // Load initial state from backend
@@ -56,8 +56,14 @@ export const LLMJudgePage = () => {
                     });
                 }
 
-                // Fetch setup state
-                const setupState = await evaluatorsApi.getSetupState();
+                // Fetch setup state and evaluator lists for resolving IDs to objects
+                const [setupState, managedEvals, customEvals] = await Promise.all([
+                    evaluatorsApi.getSetupState(),
+                    evaluatorsApi.getManagedEvaluators(),
+                    evaluatorsApi.getCustomEvaluators(),
+                ]);
+                const allEvals = [...(managedEvals || []), ...(customEvals || [])];
+
                 if (setupState) {
                     // Determine step based on state
                     if (setupState.has_default_model) {
@@ -65,8 +71,14 @@ export const LLMJudgePage = () => {
                     } else {
                         setCurrentStep(0);
                     }
-                    if (setupState.selected_evaluator_id) {
-                        setSelectedEvaluator({ id: setupState.selected_evaluator_id });
+                    // Restore selected evaluators from active_evaluator_ids or fallback
+                    const ids = setupState.active_evaluator_ids
+                        || (setupState.selected_evaluator_id ? [setupState.selected_evaluator_id] : []);
+                    if (ids.length > 0) {
+                        const resolved = ids
+                            .map(id => allEvals.find(e => e.id === id))
+                            .filter(Boolean);
+                        setSelectedEvaluators(resolved);
                     }
                     setAutoEvalEnabled(setupState.auto_eval_enabled || false);
                 }
@@ -84,9 +96,11 @@ export const LLMJudgePage = () => {
         setTogglingAutoEval(true);
         try {
             const newValue = !autoEvalEnabled;
+            const ids = newValue ? selectedEvaluators.map(e => e.id) : [];
             await evaluatorsApi.updateSetupState({
                 auto_eval_enabled: newValue,
-                active_evaluator_id: newValue && selectedEvaluator ? selectedEvaluator.id : null
+                active_evaluator_ids: ids,
+                active_evaluator_id: ids[0] || null,
             });
             setAutoEvalEnabled(newValue);
         } catch (error) {
@@ -191,18 +205,20 @@ export const LLMJudgePage = () => {
         }
     };
 
-    const handleEvaluatorSelect = async (evaluator) => {
-        setSelectedEvaluator(evaluator);
+    const handleEvaluatorSelect = async (updatedEvaluators) => {
+        setSelectedEvaluators(updatedEvaluators);
+        const ids = updatedEvaluators.map(e => e.id);
         await evaluatorsApi.updateSetupState({
-            selected_evaluator_id: evaluator.id,
-            active_evaluator_id: autoEvalEnabled ? evaluator.id : null
+            selected_evaluator_id: ids[0] || null,
+            active_evaluator_ids: autoEvalEnabled ? ids : null,
+            active_evaluator_id: autoEvalEnabled ? (ids[0] || null) : null,
         });
     };
 
     const handleCreateEvaluatorSave = async (evaluatorConfig) => {
         try {
             const created = await evaluatorsApi.createEvaluator(evaluatorConfig);
-            setSelectedEvaluator(created);
+            setSelectedEvaluators(prev => [...prev, created]);
             setEvaluatorsRefreshTrigger(prev => prev + 1);
             setShowCreateEvaluatorModal(false);
         } catch (error) {
@@ -211,7 +227,7 @@ export const LLMJudgePage = () => {
     };
 
     const handleProceedToRun = async () => {
-        if (selectedEvaluator) {
+        if (selectedEvaluators.length > 0) {
             setCurrentStep(2);
             await evaluatorsApi.updateSetupState({ current_step: 2 });
         }
@@ -219,7 +235,7 @@ export const LLMJudgePage = () => {
 
     const handleStepClick = async (stepId) => {
         // Allow going back to previous steps or forward if requirements met
-        if (stepId <= currentStep || (stepId === 1 && defaultModel) || (stepId === 2 && selectedEvaluator)) {
+        if (stepId <= currentStep || (stepId === 1 && defaultModel) || (stepId === 2 && selectedEvaluators.length > 0)) {
             setCurrentStep(stepId);
             await evaluatorsApi.updateSetupState({ current_step: stepId });
         }
@@ -234,10 +250,10 @@ export const LLMJudgePage = () => {
         if (!evaluatorToEdit || evaluatorToEdit.evaluator_type === "managed") return;
         try {
             const updated = await evaluatorsApi.updateEvaluator(evaluatorToEdit.id, updates);
-            // Update selected evaluator if it's the same one
-            if (selectedEvaluator?.id === evaluatorToEdit.id) {
-                setSelectedEvaluator(updated);
-            }
+            // Update in selected evaluators if present
+            setSelectedEvaluators(prev =>
+                prev.map(e => e.id === evaluatorToEdit.id ? updated : e)
+            );
             setEvaluatorsRefreshTrigger(prev => prev + 1);
             setShowEditEvaluatorModal(false);
         } catch (error) {
@@ -245,7 +261,7 @@ export const LLMJudgePage = () => {
         }
     };
 
-    const canEnableAutoEval = defaultModel && selectedEvaluator;
+    const canEnableAutoEval = defaultModel && selectedEvaluators.length > 0;
 
     if (loading) {
         return (
@@ -265,9 +281,9 @@ export const LLMJudgePage = () => {
                     {/* Step Indicator */}
                     <div className="mt-6 flex items-center space-x-2 text-sm">
                         {steps.map((step, index) => {
-                            const isCompleted = step.id < currentStep || (step.id === 0 && defaultModel) || (step.id === 1 && selectedEvaluator && currentStep >= 2);
+                            const isCompleted = step.id < currentStep || (step.id === 0 && defaultModel) || (step.id === 1 && selectedEvaluators.length > 0 && currentStep >= 2);
                             const isActive = step.id === currentStep;
-                            const isClickable = step.id <= currentStep || (step.id === 1 && defaultModel) || (step.id === 2 && selectedEvaluator);
+                            const isClickable = step.id <= currentStep || (step.id === 1 && defaultModel) || (step.id === 2 && selectedEvaluators.length > 0);
 
                             return (
                                 <div key={step.id} className="flex items-center">
@@ -362,14 +378,14 @@ export const LLMJudgePage = () => {
                         <SelectEvaluatorStep
                             onSelectEvaluator={handleEvaluatorSelect}
                             onCreateCustomClick={() => setShowCreateEvaluatorModal(true)}
-                            selectedEvaluatorId={selectedEvaluator?.id}
+                            selectedEvaluatorIds={selectedEvaluators.map(e => e.id)}
                             onDoubleClickEvaluator={handleEvaluatorDoubleClick}
                             refreshTrigger={evaluatorsRefreshTrigger}
                         />
-                        {selectedEvaluator && (
+                        {selectedEvaluators.length > 0 && (
                             <div className="flex justify-end mt-6">
                                 <Button onClick={handleProceedToRun}>
-                                    Continue to Run
+                                    Continue to Run ({selectedEvaluators.length})
                                     <ChevronRight className="w-4 h-4 ml-2" />
                                 </Button>
                             </div>
@@ -379,7 +395,7 @@ export const LLMJudgePage = () => {
 
                 {currentStep === 2 && (
                     <RunEvaluatorPage
-                        evaluator={selectedEvaluator}
+                        evaluators={selectedEvaluators}
                         defaultModel={defaultModel}
                         onBack={() => setCurrentStep(1)}
                         onExecute={(job) => {

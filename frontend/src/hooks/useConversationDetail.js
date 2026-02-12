@@ -255,6 +255,16 @@ export const useConversationDetail = (sessionId) => {
   const [error, setError] = useState(null);
   const [justEvaluated, setJustEvaluated] = useState(false);
   const prevStatusRef = useRef(null);
+  const prevEvalSnapshotRef = useRef(null);
+
+  const getEvalSnapshot = (data) => {
+    if (!data?.turns) return null;
+    // Build a snapshot of eval_metadata presence across turns
+    return data.turns.map(t => {
+      const em = t.evalMetadata?.evaluations;
+      return em ? Object.keys(em).length : 0;
+    }).join(",");
+  };
 
   useEffect(() => {
     if (!sessionId) {
@@ -273,6 +283,7 @@ export const useConversationDetail = (sessionId) => {
         if (!abortController.signal.aborted) {
           setDetail(data);
           prevStatusRef.current = data?.overallStatus || null;
+          prevEvalSnapshotRef.current = getEvalSnapshot(data);
           setError(null);
         }
       } catch (err) {
@@ -283,6 +294,7 @@ export const useConversationDetail = (sessionId) => {
         const mockData = mockSessionDetails[sessionId] || mockSessionDetails.session_001;
         setDetail(mockData);
         prevStatusRef.current = mockData?.overallStatus || null;
+        prevEvalSnapshotRef.current = getEvalSnapshot(mockData);
         setError(null);
       } finally {
         if (!abortController.signal.aborted) {
@@ -315,7 +327,16 @@ export const useConversationDetail = (sessionId) => {
           setJustEvaluated(true);
           setTimeout(() => setJustEvaluated(false), 5000);
         }
+
+        // Detect multi-evaluator results appearing
+        const newSnapshot = getEvalSnapshot(data);
+        if (newSnapshot && newSnapshot !== prevEvalSnapshotRef.current) {
+          setJustEvaluated(true);
+          setTimeout(() => setJustEvaluated(false), 5000);
+        }
+
         prevStatusRef.current = data?.overallStatus || null;
+        prevEvalSnapshotRef.current = newSnapshot;
       } catch {
         // Silently ignore poll errors
       }

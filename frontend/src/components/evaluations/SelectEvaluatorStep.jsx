@@ -7,13 +7,13 @@ import * as evaluatorsApi from "../../api/evaluatorsApi";
 export const SelectEvaluatorStep = ({
   onSelectEvaluator,
   onCreateCustomClick,
-  selectedEvaluatorId,
+  selectedEvaluatorIds = [],
   onDoubleClickEvaluator,
   refreshTrigger = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [localSelectedId, setLocalSelectedId] = useState(
-    selectedEvaluatorId || null,
+  const [localSelectedIds, setLocalSelectedIds] = useState(
+    new Set(selectedEvaluatorIds),
   );
   const [managedEvaluators, setManagedEvaluators] = useState([]);
   const [customEvaluators, setCustomEvaluators] = useState([]);
@@ -39,8 +39,8 @@ export const SelectEvaluatorStep = ({
   }, [refreshTrigger]);
 
   useEffect(() => {
-    setLocalSelectedId(selectedEvaluatorId);
-  }, [selectedEvaluatorId]);
+    setLocalSelectedIds(new Set(selectedEvaluatorIds));
+  }, [selectedEvaluatorIds]);
 
   const allEvaluators = [...managedEvaluators, ...customEvaluators];
 
@@ -52,8 +52,16 @@ export const SelectEvaluatorStep = ({
   );
 
   const handleSelect = (evaluator) => {
-    setLocalSelectedId(evaluator.id);
-    onSelectEvaluator?.(evaluator);
+    const newSet = new Set(localSelectedIds);
+    if (newSet.has(evaluator.id)) {
+      newSet.delete(evaluator.id);
+    } else {
+      newSet.add(evaluator.id);
+    }
+    setLocalSelectedIds(newSet);
+    // Resolve IDs to full evaluator objects and notify parent
+    const selectedObjects = allEvaluators.filter(e => newSet.has(e.id));
+    onSelectEvaluator?.(selectedObjects);
   };
 
   if (loading) {
@@ -66,16 +74,23 @@ export const SelectEvaluatorStep = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search evaluators..."
-          className="w-full pl-10 pr-4 py-3 bg-slate-900/50 border border-slate-800 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-        />
+      {/* Search Bar with Selection Counter */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search evaluators..."
+            className="w-full pl-10 pr-4 py-3 bg-slate-900/50 border border-slate-800 rounded-lg text-white text-sm placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+          />
+        </div>
+        {localSelectedIds.size > 0 && (
+          <span className="px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-full text-sm font-medium whitespace-nowrap">
+            {localSelectedIds.size} selected
+          </span>
+        )}
       </div>
 
       {/* Custom Evaluators (if any) */}
@@ -99,7 +114,7 @@ export const SelectEvaluatorStep = ({
                   onClick={() => handleSelect(evaluator)}
                   onDoubleClick={() => onDoubleClickEvaluator?.(evaluator)}
                   className={`p-4 cursor-pointer transition-all duration-200 ${
-                    localSelectedId === evaluator.id
+                    localSelectedIds.has(evaluator.id)
                       ? "bg-blue-600/10 border-blue-500/50 ring-1 ring-blue-500/30"
                       : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
                   }`}
@@ -133,7 +148,7 @@ export const SelectEvaluatorStep = ({
                         Double-click to view/edit
                       </p>
                     </div>
-                    {localSelectedId === evaluator.id && (
+                    {localSelectedIds.has(evaluator.id) && (
                       <CheckCircle className="w-5 h-5 text-blue-400 shrink-0" />
                     )}
                   </div>
@@ -168,7 +183,7 @@ export const SelectEvaluatorStep = ({
                 onClick={() => handleSelect(evaluator)}
                 onDoubleClick={() => onDoubleClickEvaluator?.(evaluator)}
                 className={`p-4 cursor-pointer transition-all duration-200 ${
-                  localSelectedId === evaluator.id
+                  localSelectedIds.has(evaluator.id)
                     ? "bg-blue-600/10 border-blue-500/50 ring-1 ring-blue-500/30"
                     : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
                 }`}
@@ -202,7 +217,7 @@ export const SelectEvaluatorStep = ({
                       Double-click to view prompt
                     </p>
                   </div>
-                  {localSelectedId === evaluator.id && (
+                  {localSelectedIds.has(evaluator.id) && (
                     <CheckCircle className="w-5 h-5 text-blue-400 shrink-0" />
                   )}
                 </div>

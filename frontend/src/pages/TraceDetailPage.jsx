@@ -1,8 +1,8 @@
 /*
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
-import React from "react";
-import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target } from "lucide-react";
+import React, { useState } from "react";
+import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp } from "lucide-react";
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -11,6 +11,80 @@ import ContentRenderer from "../components/ui/ContentRenderer";
 import { formatDateTime } from "@utils/formatters";
 import { EvaluationBadge } from "../components/ui/EvaluationBadge";
 import { SpanItem } from "../components/ui/SpanItem";
+
+const EvalCard = ({ evalId, evalData }) => {
+    const [expanded, setExpanded] = useState(false);
+    const hasLongText = (evalData.reason && evalData.reason.length > 120) ||
+        (evalData.failure_mode && evalData.failure_mode.length > 80);
+
+    return (
+        <Card className="p-4 border-slate-800 bg-slate-900/30">
+            <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-medium text-white">{evalData.name || evalId}</h4>
+                <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        evalData.status === "pass"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : evalData.status === "fail"
+                                ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                    }`}>
+                        {evalData.status === "pass" ? (
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                        ) : evalData.status === "fail" ? (
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                        ) : (
+                            <HelpCircle className="w-3 h-3 mr-1" />
+                        )}
+                        {evalData.status}
+                    </span>
+                    <span className="text-lg font-bold text-white">
+                        {evalData.score != null ? evalData.score.toFixed(2) : "N/A"}
+                    </span>
+                </div>
+            </div>
+            {evalData.reason && (
+                <p className={`text-xs text-slate-400 mb-2 whitespace-pre-line ${!expanded && hasLongText ? "line-clamp-3" : ""}`}>
+                    {evalData.reason}
+                </p>
+            )}
+            {evalData.failure_mode && (
+                <div className={`flex items-start gap-1.5 text-xs text-rose-400 bg-rose-900/10 px-2 py-1 rounded border border-rose-500/10 mb-2 ${!expanded && hasLongText ? "line-clamp-2" : ""}`}>
+                    <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    <span className="whitespace-pre-line">{evalData.failure_mode}</span>
+                </div>
+            )}
+            {hasLongText && (
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors mt-1"
+                >
+                    {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {expanded ? "Show less" : "Show more"}
+                </button>
+            )}
+        </Card>
+    );
+};
+
+const EvalBreakdown = ({ evaluations }) => (
+    <div className="space-y-3">
+        <div className="flex items-center gap-2 px-1">
+            <Shield className="w-4 h-4 text-purple-400" />
+            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                Per-Evaluator Breakdown
+            </h3>
+            <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs font-medium">
+                {Object.keys(evaluations).length}
+            </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Object.entries(evaluations).map(([evalId, evalData]) => (
+                <EvalCard key={evalId} evalId={evalId} evalData={evalData} />
+            ))}
+        </div>
+    </div>
+);
 
 export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
     const { trace, loading, error, justEvaluated } = useTraceDetail(traceId);
@@ -84,6 +158,19 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                     </div>
                 </Card>
 
+                {/* Output Card */}
+                {trace.assistantOutput && (
+                    <Card className="p-0 border-slate-800 overflow-hidden">
+                        <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center gap-2">
+                            <div className="bg-blue-700 rounded-full p-1"><Bot className="w-3 h-3 text-white" /></div>
+                            <span className="font-medium text-slate-300 text-sm">Output</span>
+                        </div>
+                        <div className="p-4 bg-slate-950/30">
+                            <ContentRenderer content={trace.assistantOutput} type="auto" className="text-sm text-slate-200" />
+                        </div>
+                    </Card>
+                )}
+
                 {/* Spans */}
                 {trace.spans && trace.spans.length > 0 && (
                     <div className="bg-slate-900/20 border border-slate-800 rounded-lg overflow-hidden">
@@ -126,7 +213,7 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                         <div className="flex items-start space-x-3">
                             <div className="flex-1">
                                 <p className="text-xs font-medium text-slate-400 mb-1">Reasoning</p>
-                                <p className="text-sm text-slate-300 leading-relaxed">{trace.evalReason || "No evaluation reasoning available."}</p>
+                                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{trace.evalReason || "No evaluation reasoning available."}</p>
                             </div>
                         </div>
 
@@ -141,6 +228,11 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                         )}
                     </div>
                 </Card>
+
+                {/* Per-Evaluator Results (when multi-evaluator data exists) */}
+                {trace.evalMetadata?.evaluations && Object.keys(trace.evalMetadata.evaluations).length > 1 && (
+                    <EvalBreakdown evaluations={trace.evalMetadata.evaluations} />
+                )}
             </div>
 
             {justEvaluated && getNotificationsEnabled() && (

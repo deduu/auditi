@@ -22,7 +22,7 @@ import { getTraceModels, getTraceTags, getTracesPreview, createEvaluationJob, ge
  * Allows users to configure and execute evaluations on existing traces
  */
 export const RunEvaluatorPage = ({
-    evaluator,
+    evaluators = [],
     defaultModel,
     onBack,
     onExecute
@@ -150,7 +150,8 @@ export const RunEvaluatorPage = ({
 
         try {
             const job = await createEvaluationJob({
-                evaluator_id: evaluator.id,
+                evaluator_id: evaluators[0]?.id,
+                evaluator_ids: evaluators.map(e => e.id),
                 target_type: targetType,
                 include_new: includeNew,
                 include_existing: includeExisting,
@@ -239,8 +240,16 @@ export const RunEvaluatorPage = ({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-semibold text-white">
-                        Run Evaluator: <span className="text-blue-400">{evaluator?.name || "Custom"}</span>
+                    <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                        Run Evaluator{evaluators.length > 1 ? "s" : ""}:{" "}
+                        <span className="text-blue-400">
+                            {evaluators.map(e => e.name || "Custom").join(", ")}
+                        </span>
+                        {evaluators.length > 1 && (
+                            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs font-medium">
+                                {evaluators.length}
+                            </span>
+                        )}
                     </h2>
                     <p className="text-sm text-slate-400 mt-1">
                         Configure how evaluations run on your traces

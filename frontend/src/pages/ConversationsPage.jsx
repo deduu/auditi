@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Filter,
   Download,
+  RefreshCw,
   X,
   Calendar,
   Database,
@@ -145,8 +146,6 @@ export const ConversationsPage = ({ onSelectConversation }) => {
   };
 
   const handleExport = () => {
-    // ... exist logic
-    // Basic data cleanup for export
     const exportData = conversations.map((c) => ({
       ID: c.id,
       User: c.userId,
@@ -154,8 +153,8 @@ export const ConversationsPage = ({ onSelectConversation }) => {
       Turns: c.totalTurns,
       Status: c.overallStatus,
       Score: c.avgScore,
-      Latency: c.latency,
-      Cost: c.cost,
+      Latency_ms: c.avgLatencyMs,
+      Cost: c.totalCost,
       Models: c.models.join("; "),
       StartTime: c.startTime,
     }));
@@ -288,6 +287,10 @@ export const ConversationsPage = ({ onSelectConversation }) => {
             </div>
           )}
 
+          <Button variant="secondary" onClick={refetch}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
           <Button variant="primary" onClick={handleExport}>
             <Download className="w-4 h-4 mr-2" />
             Export

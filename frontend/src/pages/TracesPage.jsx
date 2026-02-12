@@ -2,8 +2,8 @@
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
 import React, { useState, useRef, useEffect } from "react";
-import { deleteTraces } from "../api/traces";
-import { Filter, Eye, RefreshCw, Trash2, ChevronDown, ArrowRight, Terminal } from "lucide-react";
+import { deleteTraces, exportTraces } from "../api/traces";
+import { Filter, Eye, RefreshCw, Trash2, ChevronDown, ArrowRight, Terminal, Download } from "lucide-react";
 import { useTraces } from "../hooks/useTraces";
 import { useModels } from "../hooks/useModels";
 import { TraceTable } from "../components/traces/TraceTable";
@@ -11,7 +11,6 @@ import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Toast, getNotificationsEnabled } from "../components/ui/Toast";
-
 import { Modal } from "../components/ui/Modal";
 import { SlidePanel } from "../components/ui/SlidePanel";
 import { TraceDetailPage } from "./TraceDetailPage";
@@ -139,6 +138,10 @@ export const TracesPage = ({ onSelectTrace }) => {
         }
     };
 
+    const handleExport = () => {
+        exportTraces(filters);
+    };
+
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -180,6 +183,10 @@ export const TracesPage = ({ onSelectTrace }) => {
                     <Button variant="secondary" onClick={refetch}>
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Refresh
+                    </Button>
+                    <Button variant="primary" onClick={handleExport}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
                     </Button>
                     <Button
                         variant="secondary"

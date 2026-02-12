@@ -12,11 +12,14 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  AlertCircle,
+  HelpCircle,
   Lightbulb,
   ChevronDown,
   ChevronUp,
   Zap,
   Target,
+  Shield,
 } from "lucide-react";
 import { useConversationDetail } from "../hooks/useConversationDetail";
 import { Button } from "../components/ui/Button";
@@ -31,6 +34,61 @@ import { SpanItem } from "../components/ui/SpanItem";
 
 
 
+
+const ConvEvalCard = ({ evalId, evalData }) => {
+  const [cardExpanded, setCardExpanded] = useState(false);
+  const hasLongText = (evalData.reason && evalData.reason.length > 120) ||
+      (evalData.failure_mode && evalData.failure_mode.length > 80);
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-white">{evalData.name || evalId}</span>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
+            evalData.status === "pass"
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : evalData.status === "fail"
+                ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+          }`}>
+            {evalData.status === "pass" ? (
+              <CheckCircle className="w-3 h-3 mr-1" />
+            ) : evalData.status === "fail" ? (
+              <AlertCircle className="w-3 h-3 mr-1" />
+            ) : (
+              <HelpCircle className="w-3 h-3 mr-1" />
+            )}
+            {evalData.status}
+          </span>
+          <span className="text-sm font-bold text-white">
+            {evalData.score != null ? evalData.score.toFixed(2) : "N/A"}
+          </span>
+        </div>
+      </div>
+      {evalData.reason && (
+        <p className={`text-xs text-slate-400 mb-1 whitespace-pre-line ${!cardExpanded && hasLongText ? "line-clamp-3" : ""}`}>
+          {evalData.reason}
+        </p>
+      )}
+      {evalData.failure_mode && (
+        <div className={`flex items-start gap-1.5 text-xs text-rose-400 bg-rose-900/10 px-2 py-1 rounded border border-rose-500/10 mb-1 ${!cardExpanded && hasLongText ? "line-clamp-2" : ""}`}>
+          <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+          <span className="whitespace-pre-line">{evalData.failure_mode}</span>
+        </div>
+      )}
+      {hasLongText && (
+        <button
+          onClick={() => setCardExpanded(!cardExpanded)}
+          className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors mt-1"
+        >
+          {cardExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {cardExpanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  );
+};
 
 const TurnCard = ({ turn, turnNumber }) => {
   const evaluation = turn?.assistant?.evaluation ?? {};
@@ -174,7 +232,7 @@ const TurnCard = ({ turn, turnNumber }) => {
                 <p className="text-xs font-medium text-slate-400 mb-1">
                   Evaluation Reason
                 </p>
-                <p className="text-sm text-slate-300">{evaluation.reason}</p>
+                <p className="text-sm text-slate-300 whitespace-pre-line">{evaluation.reason}</p>
               </div>
             </div>
 
@@ -209,6 +267,26 @@ const TurnCard = ({ turn, turnNumber }) => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Per-Evaluator Breakdown (multi-evaluator results) */}
+      {expanded && turn.evalMetadata?.evaluations && Object.keys(turn.evalMetadata.evaluations).length > 1 && (
+        <div className="border-t border-slate-800 bg-slate-900/20 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="w-4 h-4 text-purple-400" />
+            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Per-Evaluator Breakdown
+            </h4>
+            <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs font-medium">
+              {Object.keys(turn.evalMetadata.evaluations).length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {Object.entries(turn.evalMetadata.evaluations).map(([evalId, evalData]) => (
+              <ConvEvalCard key={evalId} evalId={evalId} evalData={evalData} />
+            ))}
           </div>
         </div>
       )}
