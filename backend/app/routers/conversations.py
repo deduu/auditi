@@ -152,7 +152,8 @@ def build_conversation_turn(trace: Trace) -> ConversationTurn:
     spans = [build_span_detail(span) for span in sorted_spans]
 
     return ConversationTurn(
-        id=str(trace.id), user=user, assistant=assistant, spans=spans
+        id=str(trace.id), user=user, assistant=assistant, spans=spans,
+        evalMetadata=trace.eval_metadata,
     )
 
 

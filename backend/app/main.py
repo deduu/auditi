@@ -82,6 +82,19 @@ async def lifespan(app: FastAPI):
             Base.metadata.create_all(bind=engine)
             logger.info("Database tables created successfully.")
 
+            # Auto-migrate: add new columns to existing tables
+            from sqlalchemy import inspect, text
+
+            inspector = inspect(engine)
+            if inspector.has_table("evaluator_setup_state"):
+                columns = [c["name"] for c in inspector.get_columns("evaluator_setup_state")]
+                if "active_evaluator_ids" not in columns:
+                    with engine.begin() as conn:
+                        conn.execute(text(
+                            "ALTER TABLE evaluator_setup_state ADD COLUMN active_evaluator_ids JSON"
+                        ))
+                    logger.info("Added active_evaluator_ids column to evaluator_setup_state.")
+
             # Seed default model pricing on first run
             from app.routers.pricing import seed_default_pricing
 

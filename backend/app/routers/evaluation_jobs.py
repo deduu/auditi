@@ -40,6 +40,7 @@ class FilterParams(BaseModel):
 
 class EvaluationJobCreate(BaseModel):
     evaluator_id: str
+    evaluator_ids: Optional[List[str]] = None  # Multi-evaluator support
     target_type: str = "live"
     include_new: bool = True
     include_existing: bool = True
@@ -230,10 +231,12 @@ async def create_evaluation_job(
 ):
     """Create and start a batch evaluation job"""
 
-    # Validate evaluator exists
-    evaluator = db.query(Evaluator).filter(Evaluator.id == data.evaluator_id).first()
-    if not evaluator:
-        raise HTTPException(status_code=404, detail="Evaluator not found")
+    # Validate evaluator(s) exist
+    eval_ids = data.evaluator_ids if data.evaluator_ids else [data.evaluator_id]
+    for eid in eval_ids:
+        evaluator = db.query(Evaluator).filter(Evaluator.id == eid).first()
+        if not evaluator:
+            raise HTTPException(status_code=404, detail=f"Evaluator {eid} not found")
 
     # Check for valid connection
     connection = (
@@ -341,6 +344,7 @@ def get_evaluation_job(job_id: str):
 def run_batch_evaluation(job_id: str):
     """Run batch evaluation - enqueues traces for the eval worker to process"""
     from app.services.eval_worker import enqueue_evaluation
+    from app.database import SessionLocal
 
     logger.info("Starting batch evaluation job: %s", job_id)
 
@@ -353,6 +357,20 @@ def run_batch_evaluation(job_id: str):
     job["status"] = "running"
 
     try:
+        # Reset traces to pending so eval worker processes them (even if previously evaluated)
+        db = SessionLocal()
+        try:
+            for trace_id in job["trace_ids"]:
+                trace = db.query(Trace).filter(Trace.id == trace_id).first()
+                if trace:
+                    trace.status = "pending"
+                    trace.score = None
+                    trace.failure_mode = None
+                    trace.eval_reason = None
+            db.commit()
+        finally:
+            db.close()
+
         # Enqueue each trace for evaluation
         for i, trace_id in enumerate(job["trace_ids"]):
             logger.debug(

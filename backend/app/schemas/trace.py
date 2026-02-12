@@ -126,5 +126,6 @@ class TraceDetail(TraceSummary):
 
     failure_mode: Optional[str] = Field(None, alias="failureMode")
     eval_reason: Optional[str] = Field(None, alias="evalReason")
+    eval_metadata: Optional[Dict[str, Any]] = Field(None, alias="evalMetadata")
 
     spans: List[SpanDetail] = Field(default_factory=list)

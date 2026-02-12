@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, BadRequestError
 
 from .base import BaseBackendEvaluator, EvalResult, SpanEvaluation
 from .schema_validator import validate_and_extract
@@ -267,6 +267,31 @@ class LLMEvaluator(BaseBackendEvaluator):
 
         return client
 
+    @staticmethod
+    def _parse_content_filter_error(error: BadRequestError) -> Optional[Dict[str, Any]]:
+        """
+        Check if a BadRequestError is an Azure content filter rejection.
+
+        Returns a dict with detected categories (e.g. {"jailbreak": True})
+        or None if this is not a content filter error.
+        """
+        body = getattr(error, "body", None)
+        if not isinstance(body, dict):
+            return None
+
+        err = body.get("error", {})
+        if err.get("code") != "content_filter":
+            return None
+
+        inner = err.get("innererror", {})
+        cfr = inner.get("content_filter_result", {})
+        detected = {}
+        for category, info in cfr.items():
+            if isinstance(info, dict) and (info.get("filtered") or info.get("detected")):
+                detected[category] = True
+
+        return detected if detected else {"unknown": True}
+
     def _build_execution_summary(self, execution_steps: List[Dict]) -> str:
         """Build human-readable summary of agent execution."""
         if not execution_steps:
@@ -409,6 +434,29 @@ class LLMEvaluator(BaseBackendEvaluator):
                 "issues": result.get("issues", []),
                 "reasoning": result.get("reasoning", ""),
             }
+        except BadRequestError as e:
+            detected = self._parse_content_filter_error(e)
+            if detected:
+                categories = ", ".join(detected.keys())
+                logger.warning(
+                    f"Content filter triggered for span {step_number} "
+                    f"(detected: {categories}) — treating as harmful content"
+                )
+                return {
+                    "span_id": span_id,
+                    "step_number": step_number,
+                    "step_type": step_type,
+                    "step_name": step_name,
+                    "relevant": True,
+                    "quality_score": 0.0,
+                    "issues": [f"content_filter_{cat}" for cat in detected],
+                    "reasoning": (
+                        f"Content flagged by provider safety filter "
+                        f"(categories: {categories}). "
+                        f"This indicates potentially harmful or injected content."
+                    ),
+                }
+            raise  # Re-raise non-content-filter BadRequestErrors
         except Exception as e:
             logger.error(f"Span evaluation failed for step {step_number}: {e}")
             return {
@@ -635,6 +683,35 @@ class LLMEvaluator(BaseBackendEvaluator):
                 span_evaluations=span_evaluations,
                 metadata=metadata,
             )
+
+        except BadRequestError as e:
+            detected = self._parse_content_filter_error(e)
+            if detected:
+                categories = ", ".join(detected.keys())
+                logger.warning(
+                    f"Content filter triggered during trace evaluation "
+                    f"(detected: {categories}) — returning fail with harmful flag"
+                )
+                return EvalResult(
+                    status="fail",
+                    score=0.0,
+                    failure_mode="harmful",
+                    reason=(
+                        f"Trace content was flagged by the LLM provider's safety filter "
+                        f"(detected: {categories}). This strongly indicates the trace "
+                        f"contains harmful or injected content."
+                    ),
+                    recommended_action=(
+                        "Review the flagged input for prompt injection or harmful content. "
+                        "Consider adding input sanitization before processing."
+                    ),
+                    span_evaluations=span_evaluations,
+                    metadata={
+                        "content_filter_detected": detected,
+                        "evaluated_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+            raise  # Re-raise non-content-filter BadRequestErrors
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM response: {e}")

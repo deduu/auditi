@@ -187,9 +187,14 @@ def ingest_trace(trace_data: TraceIngest, db: Session = Depends(get_db), _api_ke
 # TRACE RETRIEVAL ENDPOINTS
 # ============================================================================
 
+import csv
+import io
+from datetime import datetime as dt_module
+
 from sqlalchemy import desc
 from typing import List, Optional
 from fastapi import HTTPException, Query
+from fastapi.responses import StreamingResponse
 from app.schemas.trace import TraceSummary, TraceDetail
 from app.schemas.span import SpanDetail, SpanEvaluation
 
@@ -239,6 +244,82 @@ def build_span_detail(span: Span) -> SpanDetail:
         status=span.status or "ok",
         error=span.error,
         evaluation=evaluation,
+    )
+
+
+@router.get("/traces/export")
+@router.get("/v1/traces/export")
+def export_traces(
+    status: Optional[str] = None,
+    trace_type: Optional[str] = None,
+    model: Optional[str] = None,
+    standalone_only: bool = False,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+):
+    """Export all matching traces as CSV with full (non-truncated) content."""
+    query = db.query(Trace)
+
+    if standalone_only:
+        query = query.filter(cast(Trace.tags, String).like('%"standalone"%'))
+    if status and status != "all":
+        if status == "pending":
+            query = query.filter((Trace.status == "pending") | (Trace.status.is_(None)))
+        else:
+            query = query.filter(Trace.status == status)
+    if trace_type and trace_type != "all":
+        query = query.filter(Trace.spans.any(Span.span_type == trace_type))
+    if model and model != "all":
+        query = query.filter(Trace.model_name == model)
+    if date_from:
+        query = query.filter(Trace.start_time >= datetime.fromisoformat(date_from))
+    if date_to:
+        query = query.filter(Trace.start_time < datetime.fromisoformat(date_to))
+
+    traces = query.order_by(desc(Trace.start_time)).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Name", "Status", "Score", "Model", "Latency_ms",
+        "Tokens", "Cost", "UserInput", "AssistantOutput",
+        "Tags", "EvalReason", "FailureMode", "StartTime",
+    ])
+
+    for t in traces:
+        latency_ms = 0.0
+        if t.latency:
+            latency_ms = t.latency * 1000
+        elif t.end_time and t.start_time:
+            latency_ms = (t.end_time - t.start_time).total_seconds() * 1000
+
+        writer.writerow([
+            t.id,
+            t.name or "",
+            t.status or "pending",
+            t.score if t.score is not None else "",
+            t.model_name or "",
+            round(latency_ms, 2),
+            t.total_tokens or 0,
+            t.cost or 0.0,
+            t.user_input or "",
+            t.assistant_output or "",
+            "; ".join(t.tags) if t.tags else "",
+            t.eval_reason or "",
+            t.failure_mode or "",
+            t.start_time.isoformat() if t.start_time else "",
+        ])
+
+    output.seek(0)
+    timestamp = datetime.now().strftime("%Y-%m-%d")
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="traces_export_{timestamp}.csv"'
+        },
     )
 
 
@@ -371,6 +452,7 @@ def get_trace_detail(trace_id: str, db: Session = Depends(get_db), _current_user
         assistantOutput=t.assistant_output,
         failureMode=t.failure_mode,
         evalReason=t.eval_reason,
+        evalMetadata=t.eval_metadata,
         spans=spans,
     )
 

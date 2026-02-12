@@ -83,8 +83,11 @@ class EvaluatorSetupState(Base):
     # Auto-evaluation toggle
     auto_eval_enabled = Column(Boolean, default=False)
 
-    # Active evaluator for auto-eval
+    # Active evaluator for auto-eval (single - backward compat)
     active_evaluator_id = Column(String(36), ForeignKey("evaluators.id"), nullable=True)
+
+    # Active evaluators for auto-eval (multi-evaluator support)
+    active_evaluator_ids = Column(JSON, nullable=True)
 
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

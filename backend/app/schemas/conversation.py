@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import Field
 from .base import APIModel
 from .span import SpanDetail
@@ -44,6 +44,7 @@ class ConversationTurn(APIModel):
     user: UserMessage
     assistant: AssistantMessage
     spans: List[SpanDetail] = Field(default_factory=list)
+    eval_metadata: Optional[Dict[str, Any]] = Field(None, alias="evalMetadata")
 
 
 # ============================================================================

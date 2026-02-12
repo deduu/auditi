@@ -11,10 +11,11 @@ UPDATED: Checks auto-eval configuration before processing
 import asyncio
 import logging
 from queue import Queue, Empty
-from typing import Callable, Optional
+from typing import Callable, Optional, List, Dict
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.evaluators import LLMEvaluator
 from app.evaluators.main_factory import get_evaluator
@@ -50,14 +51,14 @@ def check_auto_eval_ready(db: Session) -> dict:
 
     Returns dict with:
         - ready: bool - whether evaluation should proceed
-        - evaluator: Optional[Evaluator] - the active evaluator config
+        - evaluators: List[Evaluator] - the active evaluator configs
         - connection: Optional[LLMConnection] - the default connection
         - reason: str - description of why not ready (if applicable)
     """
     from app.models.evaluator import EvaluatorSetupState, Evaluator
     from app.models.llm_connection import LLMConnection
 
-    result = {"ready": False, "evaluator": None, "connection": None, "reason": ""}
+    result = {"ready": False, "evaluators": [], "connection": None, "reason": ""}
 
     # Check setup state
     state = (
@@ -90,24 +91,32 @@ def check_auto_eval_ready(db: Session) -> dict:
 
     result["connection"] = connection
 
-    # Check for active evaluator
-    if not state.active_evaluator_id:
+    # Check for active evaluators (multi-evaluator support)
+    evaluator_ids = []
+    if state.active_evaluator_ids:
+        evaluator_ids = state.active_evaluator_ids
+    elif state.active_evaluator_id:
+        evaluator_ids = [state.active_evaluator_id]
+
+    if not evaluator_ids:
         result["reason"] = "No active evaluator selected"
         return result
 
-    evaluator = (
-        db.query(Evaluator)
-        .filter(Evaluator.id == state.active_evaluator_id, Evaluator.is_active == True)
-        .first()
-    )
-
-    if not evaluator:
-        result["reason"] = (
-            f"Active evaluator {state.active_evaluator_id} not found or inactive"
+    evaluators = []
+    for eval_id in evaluator_ids:
+        evaluator = (
+            db.query(Evaluator)
+            .filter(Evaluator.id == eval_id, Evaluator.is_active == True)
+            .first()
         )
+        if evaluator:
+            evaluators.append(evaluator)
+
+    if not evaluators:
+        result["reason"] = f"No active evaluators found from IDs: {evaluator_ids}"
         return result
 
-    result["evaluator"] = evaluator
+    result["evaluators"] = evaluators
     result["ready"] = True
     return result
 
@@ -118,15 +127,15 @@ def get_evaluator_config(db: Session) -> dict:
     Used by manual batch evaluation that explicitly triggers evaluation.
 
     Returns dict with:
-        - ready: bool - whether we have a valid evaluator and connection
-        - evaluator: Optional[Evaluator] - the active evaluator config
+        - ready: bool - whether we have valid evaluators and connection
+        - evaluators: List[Evaluator] - the active evaluator configs
         - connection: Optional[LLMConnection] - the default connection
         - reason: str - description of why not ready (if applicable)
     """
     from app.models.evaluator import EvaluatorSetupState, Evaluator
     from app.models.llm_connection import LLMConnection
 
-    result = {"ready": False, "evaluator": None, "connection": None, "reason": ""}
+    result = {"ready": False, "evaluators": [], "connection": None, "reason": ""}
 
     # Check for valid default connection with API key
     connection = (
@@ -144,7 +153,7 @@ def get_evaluator_config(db: Session) -> dict:
 
     result["connection"] = connection
 
-    # Check setup state for active evaluator
+    # Check setup state for active evaluators
     state = (
         db.query(EvaluatorSetupState)
         .filter(EvaluatorSetupState.id == "default")
@@ -155,24 +164,34 @@ def get_evaluator_config(db: Session) -> dict:
         result["reason"] = "No setup state found"
         return result
 
-    # Use active evaluator (auto-eval) OR selected evaluator (manual/pending config)
-    target_evaluator_id = state.active_evaluator_id or state.selected_evaluator_id
+    # Determine evaluator IDs: multi first, then single, then selected
+    evaluator_ids = []
+    if state.active_evaluator_ids:
+        evaluator_ids = state.active_evaluator_ids
+    elif state.active_evaluator_id:
+        evaluator_ids = [state.active_evaluator_id]
+    elif state.selected_evaluator_id:
+        evaluator_ids = [state.selected_evaluator_id]
 
-    if not target_evaluator_id:
+    if not evaluator_ids:
         result["reason"] = "No evaluator selected"
         return result
 
-    evaluator = (
-        db.query(Evaluator)
-        .filter(Evaluator.id == target_evaluator_id, Evaluator.is_active == True)
-        .first()
-    )
+    evaluators = []
+    for eval_id in evaluator_ids:
+        evaluator = (
+            db.query(Evaluator)
+            .filter(Evaluator.id == eval_id, Evaluator.is_active == True)
+            .first()
+        )
+        if evaluator:
+            evaluators.append(evaluator)
 
-    if not evaluator:
-        result["reason"] = f"Evaluator {target_evaluator_id} not found or inactive"
+    if not evaluators:
+        result["reason"] = f"No active evaluators found from IDs: {evaluator_ids}"
         return result
 
-    result["evaluator"] = evaluator
+    result["evaluators"] = evaluators
     result["ready"] = True
     return result
 
@@ -203,16 +222,55 @@ def create_evaluator_from_config(evaluator_config, connection) -> LLMEvaluator:
     )
 
 
+def aggregate_eval_results(
+    results: Dict[str, EvalResult],
+    evaluator_names: Dict[str, str],
+) -> dict:
+    """
+    Aggregate multiple evaluator results into a single trace-level result.
+
+    Strategy: Conservative
+    - status: worst (fail > review > pass)
+    - score: minimum
+    - failure_mode: comma-joined from failing evaluators
+    """
+    STATUS_PRIORITY = {"fail": 0, "review": 1, "pass": 2}
+
+    worst_status = "pass"
+    min_score = 1.0
+    failure_modes = []
+    reasons = []
+
+    for eval_id, result in results.items():
+        name = evaluator_names.get(eval_id, eval_id)
+        if STATUS_PRIORITY.get(result.status, 2) < STATUS_PRIORITY.get(worst_status, 2):
+            worst_status = result.status
+        if result.score < min_score:
+            min_score = result.score
+        if result.failure_mode:
+            failure_modes.append(result.failure_mode)
+        if result.reason:
+            reasons.append(f"[{name}] {result.reason}")
+
+    return {
+        "status": worst_status,
+        "score": min_score,
+        "failure_mode": ", ".join(failure_modes) if failure_modes else None,
+        "reason": "\n\n".join(reasons) if reasons else None,
+    }
+
+
 async def process_evaluation(
     job: EvalJob,
     db_session_factory: Callable[[], Session],
-    evaluator: BaseBackendEvaluator,
+    evaluators: Dict[str, "BaseBackendEvaluator"],
+    evaluator_names: Dict[str, str],
 ) -> None:
     """
-    Process a single trace evaluation.
+    Process a single trace evaluation with one or more evaluators.
 
-    FIXED: Now properly handles traces with multiple spans
-    ENHANCED: Detailed logging of what context is being evaluated
+    Evaluators run sequentially per trace to avoid rate limits.
+    Results are stored per-evaluator in eval_metadata and aggregated to trace columns.
     """
     db: Session = db_session_factory()
     try:
@@ -233,12 +291,15 @@ async def process_evaluation(
             )
             return
 
-        logger.info(f"Processing trace {job.trace_id}")
+        logger.info(f"Processing trace {job.trace_id} with {len(evaluators)} evaluator(s)")
 
         # ============================================
         # Step 2: Extract objective for conversation (if not set)
         # ============================================
         from app.models import Conversation
+
+        # Use the first evaluator for objective extraction
+        first_evaluator = next(iter(evaluators.values()))
 
         if trace.conversation_id:
             conversation = (
@@ -263,9 +324,9 @@ async def process_evaluation(
                     try:
                         llm_provider = get_llm_provider(
                             "openai",
-                            api_key=getattr(evaluator, "api_key", None),
-                            base_url=getattr(evaluator, "base_url", None),
-                            model=getattr(evaluator, "model", None) or "gpt-4o",
+                            api_key=getattr(first_evaluator, "api_key", None),
+                            base_url=getattr(first_evaluator, "base_url", None),
+                            model=getattr(first_evaluator, "model", None) or "gpt-4o",
                         )
                         objective = await extract_objective(
                             trace.user_input, llm_provider
@@ -386,70 +447,115 @@ async def process_evaluation(
         )
 
         # ============================================
-        # Step 6: Perform evaluation
+        # Step 6: Run all evaluators sequentially
         # ============================================
-        logger.debug("Calling LLM evaluator")
+        eval_results: Dict[str, EvalResult] = {}
+        per_evaluator_data = {}
 
-        result: EvalResult = await evaluator.evaluate(
-            user_input=user_input, assistant_output=assistant_output, context=context
-        )
+        for eval_id, evaluator in evaluators.items():
+            eval_name = evaluator_names.get(eval_id, eval_id)
+            logger.debug(f"Running evaluator: {eval_name} ({eval_id})")
 
-        # ============================================
-        # Step 7: Update trace with results
-        # ============================================
-        if result.span_evaluations:
-            logger.debug(
-                f"Saving {len(result.span_evaluations)} span evaluations"
-            )
+            try:
+                result: EvalResult = await evaluator.evaluate(
+                    user_input=user_input,
+                    assistant_output=assistant_output,
+                    context=context,
+                )
+                eval_results[eval_id] = result
 
-            for span_eval in result.span_evaluations:
-                span_id = span_eval.span_id
-
-                # Find the span in database
-                span = db.query(Span).filter(Span.id == span_id).first()
-                if not span:
-                    logger.warning(f"Span {span_id} not found, skipping")
-                    continue
-
-                # Update span with evaluation results
-                span.eval_relevant = span_eval.relevant
-                span.eval_quality_score = span_eval.quality_score
-                span.eval_issues = span_eval.issues
-                span.eval_reasoning = span_eval.reasoning
+                # Store per-evaluator data for eval_metadata
+                per_evaluator_data[eval_id] = {
+                    "name": eval_name,
+                    "status": result.status,
+                    "score": result.score,
+                    "failure_mode": result.failure_mode,
+                    "reason": result.reason,
+                    "recommended_action": result.recommended_action,
+                }
 
                 logger.debug(
-                    f"Saved eval for span {span.name}: "
-                    f"relevant={span.eval_relevant}, quality={span.eval_quality_score:.2f}"
+                    f"Evaluator {eval_name}: status={result.status}, "
+                    f"score={result.score:.2f}, failure_mode={result.failure_mode or 'None'}"
                 )
 
-        # Update trace with overall evaluation
-        logger.debug(
-            f"Overall evaluation result: status={result.status}, "
-            f"score={result.score:.2f}, failure_mode={result.failure_mode or 'None'}"
-        )
+                # Handle span evaluations from this evaluator
+                if result.span_evaluations:
+                    logger.debug(
+                        f"Saving {len(result.span_evaluations)} span evaluations "
+                        f"from {eval_name}"
+                    )
+                    for span_eval in result.span_evaluations:
+                        span = db.query(Span).filter(Span.id == span_eval.span_id).first()
+                        if not span:
+                            logger.warning(f"Span {span_eval.span_id} not found, skipping")
+                            continue
+                        # Last evaluator's span results win (or we could merge)
+                        span.eval_relevant = span_eval.relevant
+                        span.eval_quality_score = span_eval.quality_score
+                        span.eval_issues = span_eval.issues
+                        span.eval_reasoning = span_eval.reasoning
 
-        trace.status = result.status
-        trace.score = result.score
-        trace.failure_mode = result.failure_mode
-        trace.eval_reason = result.reason
-        trace.recommended_action = result.recommended_action
+            except Exception as eval_error:
+                logger.warning(
+                    f"Evaluator {eval_name} failed for trace {job.trace_id}: {eval_error}"
+                )
+                per_evaluator_data[eval_id] = {
+                    "name": eval_name,
+                    "status": "review",
+                    "score": 0.0,
+                    "failure_mode": "evaluator_error",
+                    "reason": f"Evaluation failed: {str(eval_error)}",
+                    "recommended_action": None,
+                }
 
-        # Store flexible evaluation metadata (custom fields, warnings, etc.)
-        if result.metadata:
-            trace.eval_metadata = result.metadata
-            custom_fields = result.metadata.get("custom_fields", {})
-            schema_warnings = result.metadata.get("schema_warnings", [])
-            if custom_fields:
-                logger.debug(f"Custom fields: {list(custom_fields.keys())}")
-            if schema_warnings:
-                logger.debug(f"Schema warnings: {len(schema_warnings)}")
+        # ============================================
+        # Step 7: Aggregate and update trace
+        # ============================================
+        if eval_results:
+            aggregated = aggregate_eval_results(eval_results, evaluator_names)
+        else:
+            # All evaluators failed
+            aggregated = {
+                "status": "review",
+                "score": 0.0,
+                "failure_mode": "all_evaluators_failed",
+                "reason": "All evaluators failed to produce results",
+            }
+
+        trace.status = aggregated["status"]
+        trace.score = aggregated["score"]
+        trace.failure_mode = aggregated["failure_mode"]
+        trace.eval_reason = aggregated["reason"]
+
+        # Set recommended_action from first result that has one
+        for result in eval_results.values():
+            if result.recommended_action:
+                trace.recommended_action = result.recommended_action
+                break
+
+        # Build eval_metadata with per-evaluator results
+        existing_metadata = trace.eval_metadata or {}
+        existing_metadata["evaluations"] = per_evaluator_data
+        # Merge custom fields/warnings from all evaluators
+        for result in eval_results.values():
+            if result.metadata:
+                custom_fields = result.metadata.get("custom_fields", {})
+                if custom_fields:
+                    existing_metadata.setdefault("custom_fields", {}).update(custom_fields)
+                schema_warnings = result.metadata.get("schema_warnings", [])
+                if schema_warnings:
+                    existing_metadata.setdefault("schema_warnings", []).extend(schema_warnings)
+
+        trace.eval_metadata = existing_metadata
+        flag_modified(trace, "eval_metadata")
 
         db.commit()
 
         logger.info(
-            f"Trace {job.trace_id} evaluated: "
-            f"status={result.status}, "
-            f"score={result.score:.2f}, "
+            f"Trace {job.trace_id} evaluated by {len(evaluators)} evaluator(s): "
+            f"status={aggregated['status']}, "
+            f"score={aggregated['score']:.2f}, "
             f"spans={len(all_spans)}"
         )
 
@@ -463,7 +569,7 @@ async def process_evaluation(
             trace = db.query(Trace).filter(Trace.id == job.trace_id).first()
             if trace:
                 trace.status = "review"
-                trace.eval_reason = f"Auto-evaluation failed: {str(e)[:200]}"
+                trace.eval_reason = f"Auto-evaluation failed: {str(e)}"
                 db.commit()
                 logger.info(
                     f"Marked trace {job.trace_id} as 'review' due to error"
@@ -482,7 +588,9 @@ async def run_eval_worker(
     """
     Background worker loop that processes the evaluation queue.
 
-    Now checks database configuration for auto-eval settings.
+    Supports multiple active evaluators. Each trace is evaluated by all
+    configured evaluators sequentially, while traces in a batch are
+    processed concurrently.
 
     Args:
         db_session_factory: Factory function to create DB sessions
@@ -495,9 +603,10 @@ async def run_eval_worker(
     last_config_check = 0
     config_check_interval = 2  # Re-check config every 2 seconds
 
-    # Cached evaluator (invalidated when evaluator OR connection changes)
-    cached_evaluator = None
-    cached_evaluator_id = None
+    # Cached evaluators dict keyed by evaluator ID
+    cached_evaluators: Dict[str, BaseBackendEvaluator] = {}
+    cached_evaluator_names: Dict[str, str] = {}
+    cached_evaluator_ids: List[str] = []
     cached_connection_id = None
     cached_connection_updated = None
 
@@ -520,31 +629,38 @@ async def run_eval_worker(
                         logger.debug(
                             f"No evaluator config ready: {eval_config['reason']}"
                         )
-                        cached_evaluator = None
-                        cached_evaluator_id = None
+                        cached_evaluators = {}
+                        cached_evaluator_names = {}
+                        cached_evaluator_ids = []
                         cached_connection_id = None
                         cached_connection_updated = None
                     else:
-                        # Recreate evaluator if config changed
-                        evaluator_config = eval_config["evaluator"]
+                        evaluator_configs = eval_config["evaluators"]
                         connection = eval_config["connection"]
 
                         connection_changed = (
                             connection.id != cached_connection_id
                             or connection.updated_at != cached_connection_updated
                         )
-                        if (
-                            evaluator_config.id != cached_evaluator_id
-                            or connection_changed
-                        ):
-                            cached_evaluator = create_evaluator_from_config(
-                                evaluator_config, connection
-                            )
-                            cached_evaluator_id = evaluator_config.id
+                        new_ids = [e.id for e in evaluator_configs]
+                        ids_changed = set(new_ids) != set(cached_evaluator_ids)
+
+                        if connection_changed or ids_changed:
+                            # Rebuild all evaluator instances
+                            cached_evaluators = {}
+                            cached_evaluator_names = {}
+                            for ec in evaluator_configs:
+                                cached_evaluators[ec.id] = create_evaluator_from_config(
+                                    ec, connection
+                                )
+                                cached_evaluator_names[ec.id] = ec.name
+                            cached_evaluator_ids = new_ids
                             cached_connection_id = connection.id
                             cached_connection_updated = connection.updated_at
+                            names = [ec.name for ec in evaluator_configs]
                             logger.info(
-                                f"Loaded evaluator: {evaluator_config.name} "
+                                f"Loaded {len(evaluator_configs)} evaluator(s): "
+                                f"{', '.join(names)} "
                                 f"(model: {connection.default_model})"
                             )
 
@@ -552,7 +668,7 @@ async def run_eval_worker(
                 finally:
                     db.close()
 
-            # Check for jobs in queue - process them if we have an evaluator
+            # Check for jobs in queue - process them if we have evaluators
             # This works for both auto-triggered and manual batch evaluations
 
             # Process up to batch_size items concurrently
@@ -565,8 +681,8 @@ async def run_eval_worker(
                     break
 
             if jobs_to_process:
-                # Check if we have an evaluator ready
-                if not cached_evaluator:
+                # Check if we have evaluators ready
+                if not cached_evaluators:
                     logger.warning(
                         f"{len(jobs_to_process)} jobs in queue but no evaluator configured. "
                         "Please select an evaluator in LLM-as-a-Judge settings."
@@ -578,12 +694,16 @@ async def run_eval_worker(
                     continue
 
                 logger.info(
-                    f"Processing batch of {len(jobs_to_process)} traces"
+                    f"Processing batch of {len(jobs_to_process)} traces "
+                    f"with {len(cached_evaluators)} evaluator(s)"
                 )
 
-                # Process batch concurrently
+                # Process batch concurrently (each trace runs evaluators sequentially)
                 tasks = [
-                    process_evaluation(job, db_session_factory, cached_evaluator)
+                    process_evaluation(
+                        job, db_session_factory,
+                        cached_evaluators, cached_evaluator_names,
+                    )
                     for job in jobs_to_process
                 ]
                 await asyncio.gather(*tasks, return_exceptions=True)

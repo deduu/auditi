@@ -123,6 +123,7 @@ class SetupStateResponse(BaseModel):
     selected_evaluator_id: Optional[str] = None
     auto_eval_enabled: bool = False
     active_evaluator_id: Optional[str] = None
+    active_evaluator_ids: Optional[List[str]] = None
 
 
 class SetupStateUpdate(BaseModel):
@@ -132,6 +133,7 @@ class SetupStateUpdate(BaseModel):
     selected_evaluator_id: Optional[str] = None
     auto_eval_enabled: Optional[bool] = None
     active_evaluator_id: Optional[str] = None
+    active_evaluator_ids: Optional[List[str]] = None
 
 
 class AutoEvalConfigResponse(BaseModel):
@@ -144,3 +146,5 @@ class AutoEvalConfigResponse(BaseModel):
     connection_provider: Optional[str] = None
     connection_model: Optional[str] = None
     evaluator_name: Optional[str] = None
+    active_evaluator_ids: Optional[List[str]] = None
+    evaluator_names: Optional[List[str]] = None
