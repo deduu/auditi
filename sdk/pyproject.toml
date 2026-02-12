@@ -74,6 +74,7 @@ addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
+    "--ignore=tests/test_integration_openai.py",
 ]
 
 [tool.black]
