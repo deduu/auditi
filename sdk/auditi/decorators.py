@@ -56,6 +56,34 @@ logger = logging.getLogger(__name__)
 DEBUG = os.getenv("AUDITI_DEBUG", "false").lower() in ("true", "1", "yes")
 
 
+def _is_likely_stream(obj: Any) -> bool:
+    """
+    Check if object is likely a stream/iterator that shouldn't be stringified.
+    Returns True if the object appears to be an unconsumed stream.
+    """
+    if obj is None or isinstance(obj, (str, bytes, dict, list, int, float, bool)):
+        return False
+
+    type_name = type(obj).__name__
+    module_name = getattr(type(obj), "__module__", "") or ""
+
+    # Check for "stream" in type name — the most reliable indicator
+    if "stream" in type_name.lower():
+        return True
+
+    # Check for known LLM provider modules with iteration protocol
+    if any(
+        provider in module_name.lower()
+        for provider in ["openai", "anthropic", "google.generativeai"]
+    ):
+        if hasattr(obj, "__aiter__") or hasattr(obj, "__anext__"):
+            return True
+        if hasattr(obj, "__next__"):
+            return True
+
+    return False
+
+
 def _debug_log(message: str, data: Any = None) -> None:
     """Helper function to conditionally log debug information."""
     if DEBUG:
@@ -267,14 +295,20 @@ def _execute_as_standalone_trace(
         # Check for streaming response BEFORE extraction
         from .stream_wrappers import wrap_stream_if_needed
 
-        wrapped_result, is_stream = wrap_stream_if_needed(
-            result=result,
-            span=span,
-            trace=trace,
-            client=client,
-            start_time=start_time,
-            is_standalone=True,
-        )
+        try:
+            wrapped_result, is_stream = wrap_stream_if_needed(
+                result=result,
+                span=span,
+                trace=trace,
+                client=client,
+                start_time=start_time,
+                is_standalone=True,
+            )
+        except Exception as wrap_err:
+            logger.error("Error wrapping stream: %s. Treating as non-stream.", wrap_err)
+            wrapped_result = result
+            is_stream = False
+
         if is_stream:
             stream_returned = True
             pop_span()
@@ -360,8 +394,17 @@ def _execute_as_standalone_trace(
                 _apply_usage_to_span(span, result.usage, response=result)
 
         else:
-            trace.assistant_output = str(result) if result else ""
-            span.outputs = str(result) if result else ""
+            if _is_likely_stream(result):
+                trace.assistant_output = "[Stream object not consumed - possible detection failure]"
+                span.outputs = "[Stream object not consumed]"
+                logger.warning(
+                    "Detected unconsumed stream object in standalone trace. "
+                    "Stream detection may have failed. Type: %s",
+                    type(result).__name__,
+                )
+            else:
+                trace.assistant_output = str(result) if result else ""
+                span.outputs = str(result) if result else ""
 
         span.status = "ok"
 
@@ -479,14 +522,20 @@ async def _execute_as_standalone_trace_async(
         # Check for streaming response BEFORE extraction
         from .stream_wrappers import wrap_stream_if_needed
 
-        wrapped_result, is_stream = wrap_stream_if_needed(
-            result=result,
-            span=span,
-            trace=trace,
-            client=client,
-            start_time=start_time,
-            is_standalone=True,
-        )
+        try:
+            wrapped_result, is_stream = wrap_stream_if_needed(
+                result=result,
+                span=span,
+                trace=trace,
+                client=client,
+                start_time=start_time,
+                is_standalone=True,
+            )
+        except Exception as wrap_err:
+            logger.error("Error wrapping stream: %s. Treating as non-stream.", wrap_err)
+            wrapped_result = result
+            is_stream = False
+
         if is_stream:
             stream_returned = True
             pop_span()
@@ -561,8 +610,17 @@ async def _execute_as_standalone_trace_async(
             if hasattr(result, "usage"):
                 _apply_usage_to_span(span, result.usage, response=result)
         else:
-            trace.assistant_output = str(result) if result else ""
-            span.outputs = str(result) if result else ""
+            if _is_likely_stream(result):
+                trace.assistant_output = "[Stream object not consumed - possible detection failure]"
+                span.outputs = "[Stream object not consumed]"
+                logger.warning(
+                    "Detected unconsumed stream object in async standalone trace. "
+                    "Stream detection may have failed. Type: %s",
+                    type(result).__name__,
+                )
+            else:
+                trace.assistant_output = str(result) if result else ""
+                span.outputs = str(result) if result else ""
 
         span.status = "ok"
 
@@ -739,7 +797,16 @@ def trace_agent(
                                 _debug_log(f"Failed to extract usage from result object: {e}")
 
                     else:
-                        trace.assistant_output = str(result) if result else ""
+                        if _is_likely_stream(result):
+                            trace.assistant_output = (
+                                "[Stream object not consumed - possible detection failure]"
+                            )
+                            logger.warning(
+                                "Detected unconsumed stream in trace_agent async. Type: %s",
+                                type(result).__name__,
+                            )
+                        else:
+                            trace.assistant_output = str(result) if result else ""
 
                         # Try to extract model and usage
                         model = getattr(result, "model", None)
@@ -1129,7 +1196,16 @@ def trace_agent(
                                 _debug_log(f"Failed to extract usage from result object: {e}")
 
                     else:
-                        trace.assistant_output = str(result) if result else ""
+                        if _is_likely_stream(result):
+                            trace.assistant_output = (
+                                "[Stream object not consumed - possible detection failure]"
+                            )
+                            logger.warning(
+                                "Detected unconsumed stream in trace_agent sync. Type: %s",
+                                type(result).__name__,
+                            )
+                        else:
+                            trace.assistant_output = str(result) if result else ""
 
                         # Try to extract model and usage
                         model = getattr(result, "model", None)
@@ -1450,14 +1526,22 @@ def _trace_span(
                     # Check for streaming response BEFORE extraction
                     from .stream_wrappers import wrap_stream_if_needed
 
-                    wrapped_result, is_stream = wrap_stream_if_needed(
-                        result=result,
-                        span=span,
-                        trace=trace,
-                        client=None,
-                        start_time=start_time,
-                        is_standalone=False,
-                    )
+                    try:
+                        wrapped_result, is_stream = wrap_stream_if_needed(
+                            result=result,
+                            span=span,
+                            trace=trace,
+                            client=None,
+                            start_time=start_time,
+                            is_standalone=False,
+                        )
+                    except Exception as wrap_err:
+                        logger.error(
+                            "Error wrapping stream: %s. Treating as non-stream.", wrap_err
+                        )
+                        wrapped_result = result
+                        is_stream = False
+
                     if is_stream:
                         stream_returned = True
                         pop_span()
@@ -1469,7 +1553,15 @@ def _trace_span(
                     elif hasattr(result, "content"):
                         span.outputs = str(result.content)
                     else:
-                        span.outputs = str(result)
+                        if _is_likely_stream(result):
+                            span.outputs = "[Stream object not consumed]"
+                            logger.warning(
+                                "Detected unconsumed stream in async span '%s'. Type: %s",
+                                span.name,
+                                type(result).__name__,
+                            )
+                        else:
+                            span.outputs = str(result)
 
                     span.status = "ok"
                     return result
@@ -1599,14 +1691,22 @@ def _trace_span(
                 # Check for streaming response BEFORE extraction
                 from .stream_wrappers import wrap_stream_if_needed
 
-                wrapped_result, is_stream = wrap_stream_if_needed(
-                    result=result,
-                    span=span,
-                    trace=trace,
-                    client=None,
-                    start_time=start_time,
-                    is_standalone=False,
-                )
+                try:
+                    wrapped_result, is_stream = wrap_stream_if_needed(
+                        result=result,
+                        span=span,
+                        trace=trace,
+                        client=None,
+                        start_time=start_time,
+                        is_standalone=False,
+                    )
+                except Exception as wrap_err:
+                    logger.error(
+                        "Error wrapping stream: %s. Treating as non-stream.", wrap_err
+                    )
+                    wrapped_result = result
+                    is_stream = False
+
                 if is_stream:
                     stream_returned = True
                     pop_span()
@@ -1674,7 +1774,15 @@ def _trace_span(
 
                 # Fallback for unknown types
                 else:
-                    span.outputs = str(result)
+                    if _is_likely_stream(result):
+                        span.outputs = "[Stream object not consumed]"
+                        logger.warning(
+                            "Detected unconsumed stream in sync span '%s'. Type: %s",
+                            span_name,
+                            type(result).__name__,
+                        )
+                    else:
+                        span.outputs = str(result)
 
                     # Try to extract usage
                     if hasattr(result, "usage"):

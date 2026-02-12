@@ -204,8 +204,8 @@ def _detect_stream_type(result: Any, span_name: str = "") -> Optional[str]:
                 if _is_responses_stream(span_name):
                     return "openai_responses"
                 return "openai_chat"
-        except ImportError:
-            pass
+        except (ImportError, TypeError) as e:
+            logger.debug("OpenAI stream type check failed: %s", e)
 
         # Fallback: check by name when import fails
         if "Async" in type_name:
@@ -213,6 +213,16 @@ def _detect_stream_type(result: Any, span_name: str = "") -> Optional[str]:
                 return "openai_responses_async"
             return "openai_chat_async"
         if "Stream" in type_name:
+            if _is_responses_stream(span_name):
+                return "openai_responses"
+            return "openai_chat"
+
+        # Fallback: check for iteration protocol on openai module objects
+        if hasattr(result, "__aiter__") and hasattr(result, "__anext__"):
+            if _is_responses_stream(span_name):
+                return "openai_responses_async"
+            return "openai_chat_async"
+        if hasattr(result, "__iter__") and hasattr(result, "__next__"):
             if _is_responses_stream(span_name):
                 return "openai_responses"
             return "openai_chat"
@@ -229,6 +239,17 @@ def _detect_stream_type(result: Any, span_name: str = "") -> Optional[str]:
             return "google_async"
         if hasattr(result, "__iter__"):
             return "google"
+
+    # --- Catch-all: warn about unrecognised objects with iteration protocol ---
+    if hasattr(result, "__aiter__") or (
+        hasattr(result, "__iter__") and hasattr(result, "__next__")
+    ):
+        logger.warning(
+            "Object with iteration protocol not recognized as stream. "
+            "Type: %s, Module: %s. Add detection logic if this is a stream.",
+            type_name,
+            module_name,
+        )
 
     return None
 
