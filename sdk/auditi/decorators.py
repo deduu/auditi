@@ -681,6 +681,9 @@ def trace_agent(
                 _debug_log("Captured user input:", {"user_input": user_input[:200]})
 
                 # Create Trace
+                user_tags = kwargs.get("tags") or []
+                if not session_id and "standalone" not in user_tags:
+                    user_tags = user_tags + ["standalone"]
                 trace = TraceInput(
                     id=trace_id,
                     user_id=resolved_user_id,
@@ -688,7 +691,7 @@ def trace_agent(
                     start_time=start_time,
                     user_input=user_input,
                     name=trace_name,
-                    tags=kwargs.get("tags", []),
+                    tags=user_tags,
                 )
                 set_current_trace(trace)
 
@@ -1069,6 +1072,9 @@ def trace_agent(
                 _debug_log("Captured user input:", {"user_input": user_input[:200]})
 
                 # Create Trace
+                user_tags = kwargs.get("tags") or []
+                if not session_id and "standalone" not in user_tags:
+                    user_tags = user_tags + ["standalone"]
                 trace = TraceInput(
                     id=trace_id,
                     user_id=resolved_user_id,
@@ -1076,7 +1082,7 @@ def trace_agent(
                     start_time=start_time,
                     user_input=user_input,
                     name=trace_name,
-                    tags=kwargs.get("tags", []),
+                    tags=user_tags,
                 )
                 set_current_trace(trace)
 
