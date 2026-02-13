@@ -47,7 +47,7 @@ export const Modal = ({
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={handleBackdropClick}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'var(--modal-overlay-bg, rgba(0, 0, 0, 0.7))', backdropFilter: 'blur(var(--modal-overlay-blur, 4px))' }} onClick={handleBackdropClick}>
             <div
                 ref={modalRef}
                 className={`w-full ${sizeClasses[size]} bg-slate-900 border border-slate-800 rounded-xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200`}

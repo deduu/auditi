@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
 import { useState, useEffect, useCallback } from "react";
-import { Bell, Shield, Database, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Bell, Shield, Database, Loader2, AlertCircle, CheckCircle, Palette } from "lucide-react";
 import { SettingSection, ToggleSetting } from "../components/settings/SettingsComponents";
 import { ApiKeySettings } from "../components/settings/ApiKeySettings";
+import { ThemeSettings } from "../components/settings/ThemeSettings";
 import { settingsApi } from "../api";
 import { getNotificationsEnabled, setNotificationsEnabled } from "../components/ui/Toast";
 
@@ -111,6 +112,17 @@ export const SettingsPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Appearance / Theme */}
+        <div className="lg:col-span-2">
+          <SettingSection
+            icon={Palette}
+            title="Appearance"
+            description="Choose a theme for the interface"
+          >
+            <ThemeSettings />
+          </SettingSection>
+        </div>
+
         {/* Notifications */}
         <SettingSection
           icon={Bell}

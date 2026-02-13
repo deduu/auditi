@@ -87,7 +87,7 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
                     customStyle={{
                         margin: 0,
                         padding: '1rem',
-                        background: 'rgba(2, 6, 23, 0.5)',
+                        background: '#0d1117',
                         fontSize: '0.875rem',
                         lineHeight: '1.5',
                         whiteSpace: 'pre-wrap',
@@ -134,7 +134,7 @@ const ContentRenderer = ({ content, type = 'auto', className = '' }) => {
                                     customStyle={{
                                         margin: 0,
                                         padding: '1rem',
-                                        background: 'rgba(2, 6, 23, 0.5)',
+                                        background: '#0d1117',
                                         fontSize: '0.875rem',
                                         whiteSpace: 'pre-wrap',
                                         wordBreak: 'break-all',

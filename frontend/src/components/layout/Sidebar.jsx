@@ -109,7 +109,7 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
           >
             {/* Logo */}
             <div className={`w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0 transition-opacity duration-200 ${isCollapsed && logoHovered ? 'opacity-0' : 'opacity-100'}`}>
-              <Zap className="w-5 h-5 text-white" />
+              <Zap className="w-5 h-5 text-fixed-white" />
             </div>
 
             {/* Toggle button overlay - appears on hover when collapsed */}
@@ -125,7 +125,7 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
           </div>
 
           {!isCollapsed && (
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 whitespace-nowrap">
+            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-50 to-slate-400 whitespace-nowrap">
               Auditi
             </h1>
           )}
@@ -221,7 +221,7 @@ export const Sidebar = ({ activeTab, onTabChange }) => {
           onClick={() => setShowUserMenu(!showUserMenu)}
           className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3 px-3'} py-2 rounded-lg hover:bg-slate-800/50 transition-colors focus:outline-none`}
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-lg shadow-purple-500/20">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-xs font-bold text-fixed-white shrink-0 shadow-lg shadow-purple-500/20">
             {userInitials}
           </div>
           {!isCollapsed && (

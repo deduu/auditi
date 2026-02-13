@@ -150,7 +150,7 @@ export function ApiKeySettings() {
 
             {/* Create / Show Key Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={closeCreateModal}>
+                <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'var(--modal-overlay-bg, rgba(0, 0, 0, 0.5))', backdropFilter: 'blur(var(--modal-overlay-blur, 4px))' }} onClick={closeCreateModal}>
                     <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
                         {createdKey ? (
                             <div className="space-y-4">

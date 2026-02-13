@@ -45,6 +45,7 @@ import { SetupPage } from "./pages/SetupPage";
 import { Sidebar } from "./components/layout/Sidebar";
 import { SidebarProvider, useSidebar } from "./context/SidebarContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 
 function AuthenticatedApp() {
@@ -156,9 +157,11 @@ function AppContent() {
 
 function App() {
     return (
-        <AuthProvider>
-            <AppContent />
-        </AuthProvider>
+        <ThemeProvider>
+            <AuthProvider>
+                <AppContent />
+            </AuthProvider>
+        </ThemeProvider>
     );
 }
 

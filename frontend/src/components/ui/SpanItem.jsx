@@ -126,7 +126,7 @@ export const SpanItem = ({ span, isFinalGenerator = false, showEvaluation = true
 
             {/* Expanded Details */}
             {showDetails && (
-                <div className="mt-2 space-y-3 bg-slate-900/50 border border-slate-800 rounded-lg p-3">
+                <div className="mt-2 space-y-3 bg-slate-900 border border-slate-800 rounded-lg p-3">
                     {/* Timing Information */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
@@ -179,7 +179,7 @@ export const SpanItem = ({ span, isFinalGenerator = false, showEvaluation = true
                     {span?.inputs && (
                         <div>
                             <p className="text-xs font-medium text-slate-400 mb-1">Inputs:</p>
-                            <div className="bg-slate-950/50 border border-slate-700 rounded p-2 h-60 resize-y overflow-y-auto">
+                            <div className="bg-slate-950 border border-slate-700 rounded p-2 h-60 resize-y overflow-y-auto">
                                 <ContentRenderer content={span.inputs} type="auto" className="text-xs" />
                             </div>
                         </div>
@@ -191,7 +191,7 @@ export const SpanItem = ({ span, isFinalGenerator = false, showEvaluation = true
                             <p className="text-xs font-medium text-slate-400 mb-1">
                                 Outputs:
                             </p>
-                            <div className="bg-slate-900/60 border border-slate-700 rounded p-3 h-60 resize-y overflow-y-auto">
+                            <div className="bg-slate-900 border border-slate-700 rounded p-3 h-60 resize-y overflow-y-auto">
                                 <ContentRenderer content={span.outputs} type="auto" className="text-sm" />
                             </div>
                         </div>

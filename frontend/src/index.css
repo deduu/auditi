@@ -1,14 +1,22 @@
 @import "tailwindcss";
 @source "../src/**/*.{js,jsx}";
 
+@theme {
+  --color-fixed-white: #ffffff;
+  --color-fixed-black: #000000;
+}
+
 :root {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: dark;
-  color: #f8fafc;
-  background-color: #020617; /* slate-950 */
+  color: var(--color-slate-100);
+  background-color: var(--color-slate-950);
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.7);
+  --modal-overlay-blur: 4px;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -27,19 +35,19 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--scrollbar-thumb, #334155);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--scrollbar-thumb-hover, #475569);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #020617;
+  background-color: var(--color-slate-950);
 }
 
 /* Reset default button styles that conflict with Tailwind */
@@ -57,4 +65,163 @@ button {
 img, video {
   max-width: 100%;
   height: auto;
+}
+
+/* ========================================
+   THEME OVERRIDES
+   ======================================== */
+
+/* Neutral Light — Clean, professional */
+[data-theme="neutral-light"] {
+  color-scheme: light;
+  --color-slate-950: #ffffff;
+  --color-slate-900: #f8fafc;
+  --color-slate-800: #f1f5f9;
+  --color-slate-700: #e2e8f0;
+  --color-slate-600: #cbd5e1;
+  --color-slate-500: #94a3b8;
+  --color-slate-400: #64748b;
+  --color-slate-300: #475569;
+  --color-slate-200: #334155;
+  --color-slate-100: #1e293b;
+  --color-slate-50: #0f172a;
+  --color-white: #0f172a;
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.35);
+  --modal-overlay-blur: 8px;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+
+  --color-emerald-400: #059669;
+  --color-emerald-300: #059669;
+  --color-amber-400: #d97706;
+  --color-rose-400: #e11d48;
+  --color-green-400: #16a34a;
+  --color-red-400: #dc2626;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #9333ea;
+}
+
+/* Soft Light — Warm, gentle tones */
+[data-theme="soft-light"] {
+  color-scheme: light;
+  --color-slate-950: #fffbf5;
+  --color-slate-900: #faf8f5;
+  --color-slate-800: #f5f0eb;
+  --color-slate-700: #e8e0d8;
+  --color-slate-600: #d4ccc4;
+  --color-slate-500: #a39e98;
+  --color-slate-400: #78716c;
+  --color-slate-300: #57534e;
+  --color-slate-200: #44403c;
+  --color-slate-100: #292524;
+  --color-slate-50: #1c1917;
+  --color-white: #1c1917;
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.3);
+  --modal-overlay-blur: 8px;
+  --scrollbar-thumb: #d4ccc4;
+  --scrollbar-thumb-hover: #a39e98;
+
+  --color-emerald-400: #059669;
+  --color-emerald-300: #059669;
+  --color-amber-400: #d97706;
+  --color-rose-400: #e11d48;
+  --color-green-400: #16a34a;
+  --color-red-400: #dc2626;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #9333ea;
+}
+
+/* Monochrome Minimal — Pure B&W, high contrast */
+[data-theme="monochrome"] {
+  color-scheme: light;
+  --color-slate-950: #ffffff;
+  --color-slate-900: #fafafa;
+  --color-slate-800: #f5f5f5;
+  --color-slate-700: #e5e5e5;
+  --color-slate-600: #d4d4d4;
+  --color-slate-500: #a3a3a3;
+  --color-slate-400: #737373;
+  --color-slate-300: #404040;
+  --color-slate-200: #262626;
+  --color-slate-100: #171717;
+  --color-slate-50: #000000;
+  --color-white: #0a0a0a;
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.35);
+  --modal-overlay-blur: 8px;
+  --scrollbar-thumb: #d4d4d4;
+  --scrollbar-thumb-hover: #a3a3a3;
+
+  --color-emerald-400: #059669;
+  --color-emerald-300: #059669;
+  --color-amber-400: #d97706;
+  --color-rose-400: #e11d48;
+  --color-green-400: #16a34a;
+  --color-red-400: #dc2626;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #9333ea;
+}
+
+/* Low-Contrast Light — Easy on eyes, reduced contrast */
+[data-theme="low-contrast"] {
+  color-scheme: light;
+  --color-slate-950: #f9fafb;
+  --color-slate-900: #f3f4f6;
+  --color-slate-800: #f0f1f3;
+  --color-slate-700: #e5e7eb;
+  --color-slate-600: #d1d5db;
+  --color-slate-500: #9ca3af;
+  --color-slate-400: #6b7280;
+  --color-slate-300: #6b7280;
+  --color-slate-200: #4b5563;
+  --color-slate-100: #4b5563;
+  --color-slate-50: #374151;
+  --color-white: #374151;
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.3);
+  --modal-overlay-blur: 8px;
+  --scrollbar-thumb: #d1d5db;
+  --scrollbar-thumb-hover: #9ca3af;
+
+  --color-emerald-400: #059669;
+  --color-emerald-300: #059669;
+  --color-amber-400: #d97706;
+  --color-rose-400: #e11d48;
+  --color-green-400: #16a34a;
+  --color-red-400: #dc2626;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #9333ea;
+}
+
+/* Gray-Based Light — Gray foundation, not white */
+[data-theme="gray-based"] {
+  color-scheme: light;
+  --color-slate-950: #e5e7eb;
+  --color-slate-900: #eef0f3;
+  --color-slate-800: #f3f4f6;
+  --color-slate-700: #d1d5db;
+  --color-slate-600: #c0c5cc;
+  --color-slate-500: #9ca3af;
+  --color-slate-400: #6b7280;
+  --color-slate-300: #4b5563;
+  --color-slate-200: #374151;
+  --color-slate-100: #1f2937;
+  --color-slate-50: #111827;
+  --color-white: #111827;
+
+  --modal-overlay-bg: rgba(0, 0, 0, 0.35);
+  --modal-overlay-blur: 8px;
+  --scrollbar-thumb: #c0c5cc;
+  --scrollbar-thumb-hover: #9ca3af;
+
+  --color-emerald-400: #059669;
+  --color-emerald-300: #059669;
+  --color-amber-400: #d97706;
+  --color-rose-400: #e11d48;
+  --color-green-400: #16a34a;
+  --color-red-400: #dc2626;
+  --color-purple-300: #7e22ce;
+  --color-purple-400: #9333ea;
 }
