@@ -46,6 +46,11 @@ from app.schemas import (
 router = APIRouter(tags=["conversations"], dependencies=[Depends(get_current_user)])
 
 
+def _is_standalone_trace(trace: Trace) -> bool:
+    """Check if a trace is a standalone auto-instrumented trace (not an agent turn)."""
+    return isinstance(trace.tags, list) and "standalone" in trace.tags
+
+
 def extract_models_from_spans(spans: List[Span]) -> List[str]:
     """Extract unique model names from spans."""
     models = set()
@@ -208,8 +213,11 @@ def get_conversations(
 
     results = []
     for c in convs:
-        # Aggregate stats per conversation
-        traces = list(c.traces)
+        # Filter out standalone traces (auto-instrumented LLM calls)
+        traces = [t for t in c.traces if not _is_standalone_trace(t)]
+        if not traces:
+            continue
+
         pass_count = sum(1 for t in traces if t.status == "pass")
         fail_count = sum(1 for t in traces if t.status == "fail")
         scores = [t.score for t in traces if t.score is not None]
@@ -267,7 +275,8 @@ def get_conversation_detail(conversation_id: str, db: Session = Depends(get_db))
     if not c:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    traces = list(c.traces)
+    # Filter out standalone traces (auto-instrumented LLM calls)
+    traces = [t for t in c.traces if not _is_standalone_trace(t)]
     # Sort traces by start time
     traces.sort(key=lambda t: t.start_time)
 
