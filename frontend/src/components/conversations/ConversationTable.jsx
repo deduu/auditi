@@ -186,9 +186,9 @@ export const ConversationTable = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span
-                    className={`text-sm font-bold ${session.avgScore >= 8
+                    className={`text-sm font-bold ${session.avgScore >= 0.8
                       ? "text-emerald-400"
-                      : session.avgScore >= 6
+                      : session.avgScore >= 0.5
                         ? "text-amber-400"
                         : "text-rose-400"
                       }`}
