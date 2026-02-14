@@ -22,11 +22,10 @@
 
 """Conversations API routes with proper schema validation."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import desc, or_
+from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 
 from app.database import get_db
@@ -170,10 +169,24 @@ def get_conversations(
     status: Optional[str] = None,
     model: Optional[str] = None,
     range: Optional[str] = None,
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Get paginated list of conversations with aggregated stats."""
     query = db.query(Conversation)
+
+    # Search across conversation fields and related trace content
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Conversation.objective.ilike(pattern),
+                Conversation.user_id.ilike(pattern),
+                Conversation.id.ilike(pattern),
+                Conversation.traces.any(Trace.user_input.ilike(pattern)),
+                Conversation.traces.any(Trace.assistant_output.ilike(pattern)),
+            )
+        )
 
     # Filter by range
     if range:

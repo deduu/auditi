@@ -8,7 +8,14 @@ import client from "./client";
  * @param {Object} filters - Filter parameters
  */
 export function getConversations(filters = {}, options = {}) {
-  return client.get("/conversations", filters, options);
+  const params = {};
+  if (filters.status && filters.status !== 'all') params.status = filters.status;
+  if (filters.model && filters.model !== 'all') params.model = filters.model;
+  if (filters.range) params.range = filters.range;
+  if (filters.search) params.search = filters.search;
+  if (filters.skip) params.skip = filters.skip;
+  if (filters.limit) params.limit = filters.limit;
+  return client.get("/conversations", params, options);
 }
 
 /**

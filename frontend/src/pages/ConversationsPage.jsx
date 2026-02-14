@@ -15,6 +15,7 @@ import {
   Shield,
   Trash2,
   ChevronDown,
+  Search,
 } from "lucide-react";
 import { useConversations } from "../hooks/useConversations";
 import { useModels } from "../hooks/useModels";
@@ -38,6 +39,7 @@ export const ConversationsPage = ({ onSelectConversation }) => {
   const { models } = useModels();
   const { metrics } = useMetrics(filters); // Fetch metrics
   const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch] = useState("");
 
   // Toast for new conversations and evaluation completions
   const [evalToast, setEvalToast] = useState(null);
@@ -165,12 +167,20 @@ export const ConversationsPage = ({ onSelectConversation }) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearch(value);
+    setCurrentPage(1);
+    setFilters((prev) => ({ ...prev, search: value || undefined }));
+  };
+
   const clearFilters = () => {
     setFilters({});
+    setSearch("");
   };
 
   const activeFilterCount = Object.keys(filters).filter(
-    (k) => filters[k],
+    (k) => k !== 'search' && filters[k],
   ).length;
 
   return (
@@ -300,6 +310,18 @@ export const ConversationsPage = ({ onSelectConversation }) => {
 
       {/* Metrics Section */}
       <MetricsOverview filters={filters} />
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        <input
+          type="text"
+          placeholder="Search conversations by objective, user ID, or content..."
+          value={search}
+          onChange={handleSearchChange}
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
 
       {/* Sessions Section */}
       <Card className="p-0 overflow-hidden border-slate-800 bg-slate-900/50">
