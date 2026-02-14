@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
 import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle, AlertCircle, TrendingUp, BarChart3, Target, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, AlertCircle, TrendingUp, BarChart3, Target, AlertTriangle, Search } from "lucide-react";
 import api from "../api";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -30,6 +30,7 @@ export const EvaluationsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState("7d");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,6 +72,14 @@ export const EvaluationsPage = () => {
   const avgScore = evaluations.length > 0
     ? Math.round(evaluations.reduce((acc, e) => acc + e.score, 0) / evaluations.length)
     : 0;
+
+  const searchLower = search.toLowerCase();
+  const filteredEvaluations = search
+    ? evaluations.filter((e) => e.name?.toLowerCase().includes(searchLower))
+    : evaluations;
+  const filteredFailureModes = search
+    ? failureModes.filter((m) => m.name?.toLowerCase().includes(searchLower))
+    : failureModes;
 
   return (
     <div className="space-y-8">
@@ -162,6 +171,18 @@ export const EvaluationsPage = () => {
         </Card>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        <input
+          type="text"
+          placeholder="Search evaluations or failure modes..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Evaluation Criteria */}
         <Card className="bg-slate-900/50 border-slate-800 p-0 overflow-hidden">
@@ -169,7 +190,7 @@ export const EvaluationsPage = () => {
             <h2 className="text-lg font-semibold text-white">Evaluation Criteria & Metrics</h2>
           </div>
           <div className="divide-y divide-slate-800">
-            {evaluations.map((evaluation) => (
+            {filteredEvaluations.map((evaluation) => (
               <div key={evaluation.id} className="p-6 hover:bg-slate-800/30 transition-colors">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">
@@ -217,7 +238,7 @@ export const EvaluationsPage = () => {
             <span className="text-xs font-medium text-slate-400 bg-slate-800 px-2.5 py-1 rounded-full">Last 7 Days</span>
           </div>
           <div className="p-6 space-y-6">
-            {failureModes.map((mode) => (
+            {filteredFailureModes.map((mode) => (
               <div key={mode.id}>
                 <div className="flex justify-between items-center mb-1">
                   <div className="flex items-center">
@@ -235,7 +256,7 @@ export const EvaluationsPage = () => {
               </div>
             ))}
 
-            {failureModes.length === 0 && (
+            {filteredFailureModes.length === 0 && (
               <div className="text-center py-8 text-slate-500">
                 No failure modes detected in this period.
               </div>
