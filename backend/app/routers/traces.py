@@ -26,7 +26,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, cast, String
+from sqlalchemy import desc, cast, String, or_
 from typing import List
 
 from app.database import get_db
@@ -333,6 +333,7 @@ def get_traces(
     model: Optional[str] = None,
     name: Optional[str] = None,
     standalone_only: bool = False,
+    search: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -346,6 +347,17 @@ def get_traces(
         standalone_only: If True, returns only traces NOT linked to a conversation.
     """
     query = db.query(Trace)
+
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Trace.name.ilike(pattern),
+                Trace.user_input.ilike(pattern),
+                Trace.assistant_output.ilike(pattern),
+                Trace.eval_reason.ilike(pattern),
+            )
+        )
 
     if standalone_only:
         # Filter strictly for traces marked as standalone (vs just no conversation_id)
