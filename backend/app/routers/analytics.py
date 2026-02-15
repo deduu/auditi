@@ -352,7 +352,7 @@ def get_score_distribution(
 def get_low_scoring_traces(
     time_range: str = Query("7d", alias="timeRange"),
     threshold: float = Query(50.0),  # Expected as 0-100
-    limit: int = Query(10),
+    limit: Optional[int] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Get traces with scores below a threshold."""
@@ -363,7 +363,7 @@ def get_low_scoring_traces(
 
     problem_filter = or_(Trace.score < db_threshold, Trace.status == "fail")
 
-    traces = (
+    query = (
         db.query(Trace)
         .filter(
             Trace.start_time >= start_date,
@@ -371,9 +371,10 @@ def get_low_scoring_traces(
             problem_filter,
         )
         .order_by(Trace.score.asc())
-        .limit(limit)
-        .all()
     )
+    if limit is not None:
+        query = query.limit(limit)
+    traces = query.all()
 
     # Get total count
     total = (

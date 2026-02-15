@@ -118,6 +118,13 @@ class TraceSummary(APIModel):
     user_id: Optional[str] = Field(None, alias="userId")
 
 
+class PaginatedTraceResponse(APIModel):
+    """Paginated wrapper for trace list responses."""
+
+    items: List[TraceSummary]
+    total: int
+
+
 class TraceDetail(TraceSummary):
     """Detailed view of a trace including full content and spans."""
 

@@ -165,7 +165,7 @@ def build_conversation_turn(trace: Trace) -> ConversationTurn:
 @router.get("/v1/conversations", response_model=List[ConversationSummary])
 def get_conversations(
     skip: int = 0,
-    limit: int = 20,
+    limit: Optional[int] = None,
     status: Optional[str] = None,
     model: Optional[str] = None,
     range: Optional[str] = None,
@@ -224,9 +224,10 @@ def get_conversations(
             )
         )
 
-    convs = (
-        query.order_by(desc(Conversation.updated_at)).offset(skip).limit(limit).all()
-    )
+    query = query.order_by(desc(Conversation.updated_at)).offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+    convs = query.all()
 
     results = []
     for c in convs:

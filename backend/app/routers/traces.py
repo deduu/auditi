@@ -195,7 +195,7 @@ from sqlalchemy import desc
 from typing import List, Optional
 from fastapi import HTTPException, Query
 from fastapi.responses import StreamingResponse
-from app.schemas.trace import TraceSummary, TraceDetail
+from app.schemas.trace import TraceSummary, TraceDetail, PaginatedTraceResponse
 from app.schemas.span import SpanDetail, SpanEvaluation
 
 
@@ -330,11 +330,11 @@ def export_traces(
     )
 
 
-@router.get("/traces", response_model=List[TraceSummary])
-@router.get("/v1/traces", response_model=List[TraceSummary])
+@router.get("/traces", response_model=PaginatedTraceResponse)
+@router.get("/v1/traces", response_model=PaginatedTraceResponse)
 def get_traces(
     skip: int = 0,
-    limit: int = 20,
+    limit: Optional[int] = None,
     status: Optional[str] = None,
     trace_type: Optional[str] = None,
     model: Optional[str] = None,
@@ -401,8 +401,14 @@ def get_traces(
     if date_to:
         query = query.filter(Trace.start_time < datetime.fromisoformat(date_to))
 
-    # Order by start_time desc
-    traces = query.order_by(desc(Trace.start_time)).offset(skip).limit(limit).all()
+    # Get total count before pagination
+    total = query.count()
+
+    # Order by start_time desc, then paginate
+    query = query.order_by(desc(Trace.start_time)).offset(skip)
+    if limit is not None:
+        query = query.limit(limit)
+    traces = query.all()
 
     results = []
     for t in traces:
@@ -434,7 +440,7 @@ def get_traces(
                 userId=t.user_id,
             )
         )
-    return results
+    return PaginatedTraceResponse(items=results, total=total)
 
 
 @router.get("/traces/{trace_id}", response_model=TraceDetail)
