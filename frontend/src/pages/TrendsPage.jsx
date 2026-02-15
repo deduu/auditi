@@ -639,8 +639,9 @@ export const TrendsPage = () => {
         setDrillDownTraces([]);
 
         try {
-            const traces = await api.getTraces({ date_from, date_to, limit: 20 });
-            setDrillDownTraces(traces || []);
+            const data = await api.getTraces({ date_from, date_to });
+            const traces = data?.items ?? data ?? [];
+            setDrillDownTraces(traces);
         } catch (err) {
             console.error("Failed to fetch drill-down traces:", err);
             setDrillDownTraces([]);

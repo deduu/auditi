@@ -96,7 +96,7 @@ export const useConversations = (initialFilters = {}) => {
     try {
       if (!isPoll) setLoading(true);
       // Pass signal to api call to actually cancel the request if component unmounts
-      const data = await api.getConversations({ ...filters, limit: 500 }, { signal });
+      const data = await api.getConversations({ ...filters }, { signal });
 
       if (!signal || !signal.aborted) {
         // Map backend fields to frontend display format

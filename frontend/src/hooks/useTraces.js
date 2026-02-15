@@ -7,6 +7,7 @@ const POLL_INTERVAL_SLOW = 15000; // 15s baseline for new trace discovery
 
 export const useTraces = (initialFilters = {}) => {
   const [traces, setTraces] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
@@ -17,7 +18,11 @@ export const useTraces = (initialFilters = {}) => {
       const data = await api.getTraces(filters, { signal: abortController.signal });
 
       if (!abortController.signal.aborted) {
-        setTraces(data);
+        // Backend returns { items, total } paginated response
+        const items = Array.isArray(data) ? data : data.items || [];
+        const total = Array.isArray(data) ? data.length : data.total ?? items.length;
+        setTraces(items);
+        setTotalCount(total);
         setError(null);
       }
     } catch (err) {
@@ -57,7 +62,7 @@ export const useTraces = (initialFilters = {}) => {
 
   const refetch = () => fetchTraces(new AbortController());
 
-  return { traces, loading, error, filters, setFilters, refetch };
+  return { traces, totalCount, loading, error, filters, setFilters, refetch };
 };
 
 export const useTraceDetail = (traceId) => {

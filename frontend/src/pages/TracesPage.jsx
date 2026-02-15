@@ -18,7 +18,7 @@ import { TraceDetailPage } from "./TraceDetailPage";
 // ... other imports
 
 export const TracesPage = ({ onSelectTrace }) => {
-    const { traces, loading, filters, setFilters, refetch } = useTraces({
+    const { traces, totalCount, loading, filters, setFilters, refetch } = useTraces({
         status: 'all',
         trace_type: 'all',
         model: 'all',
@@ -158,7 +158,12 @@ export const TracesPage = ({ onSelectTrace }) => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white">
-                        {filters.standalone_only ? "Standalone Traces" : "All Traces"}
+                        {filters.standalone_only ? "Standalone Traces" : filters.ask_auditi_only ? "Ask Auditi Traces" : "All Traces"}
+                        {!loading && (
+                            <span className="ml-3 text-lg font-normal text-slate-400">
+                                ({totalCount.toLocaleString()})
+                            </span>
+                        )}
                     </h1>
                     <p className="mt-1 text-slate-400">
                         {filters.standalone_only

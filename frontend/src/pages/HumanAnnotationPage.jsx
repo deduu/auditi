@@ -734,8 +734,9 @@ const AddTracesModal = ({ isOpen, onClose, queue, onSave }) => {
   const loadTraces = async () => {
     setLoading(true);
     try {
-      const data = await tracesApi.getTraces({ limit: 100 });
-      setTraces(data || []);
+      const resp = await tracesApi.getTraces({});
+      const data = resp?.items ?? resp ?? [];
+      setTraces(data);
     } catch (error) {
       console.error("Failed to load traces:", error);
     } finally {

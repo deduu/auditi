@@ -319,7 +319,7 @@ export const ScoresPage = () => {
                 const [trendsData, distData, lowScoreData, insightsData] = await Promise.all([
                     api.getTrends(timeRange),
                     api.getScoreDistribution(timeRange),
-                    api.getLowScoringTraces({ timeRange, threshold: 50, limit: 50 }),
+                    api.getLowScoringTraces({ timeRange, threshold: 50 }),
                     api.getInsights(timeRange)
                 ]);
                 setTrends(trendsData);
@@ -390,7 +390,8 @@ export const ScoresPage = () => {
         if (!evalTracesMap[name]) {
             setEvalTracesLoadingMap(prev => ({ ...prev, [name]: true }));
             try {
-                const traces = await api.getTraces({ name });
+                const data = await api.getTraces({ name });
+                const traces = data?.items ?? data ?? [];
                 setEvalTracesMap(prev => ({ ...prev, [name]: traces }));
             } catch (err) {
                 console.error("Failed to fetch traces for evaluation:", err);

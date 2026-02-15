@@ -21,8 +21,10 @@ export function getScoreDistribution(timeRange = "7d") {
  * @param {number} params.limit - Max number of traces to return
  * @returns {Promise<{traces: Array, total: number}>}
  */
-export function getLowScoringTraces({ timeRange = "7d", threshold = 50, limit = 10 } = {}) {
-  return client.get("/analytics/low-scoring-traces", { timeRange, threshold, limit });
+export function getLowScoringTraces({ timeRange = "7d", threshold = 50, limit } = {}) {
+  const params = { timeRange, threshold };
+  if (limit != null) params.limit = limit;
+  return client.get("/analytics/low-scoring-traces", params);
 }
 
 /**

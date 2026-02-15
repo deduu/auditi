@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
 import React, { useState } from "react";
-import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp, Zap } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp, Zap, List, GitBranch, GanttChart, ArrowDownUp, LayoutDashboard } from "lucide-react";
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -11,6 +11,18 @@ import ContentRenderer from "../components/ui/ContentRenderer";
 import { formatDateTime } from "@utils/formatters";
 import { EvaluationBadge } from "../components/ui/EvaluationBadge";
 import { SpanItem } from "../components/ui/SpanItem";
+import { TraceFlowView } from "../components/traces/TraceFlowView";
+import { TraceTimelineView } from "../components/traces/TraceTimelineView";
+import { TraceSequenceView } from "../components/traces/TraceSequenceView";
+import { TraceSummaryView } from "../components/traces/TraceSummaryView";
+
+const TRACE_TABS = [
+    { id: "detail", label: "Detail", icon: List },
+    { id: "flow", label: "Flow", icon: GitBranch },
+    { id: "timeline", label: "Timeline", icon: GanttChart },
+    { id: "sequence", label: "Sequence", icon: ArrowDownUp },
+    { id: "summary", label: "Summary", icon: LayoutDashboard },
+];
 
 const EvalCard = ({ evalId, evalData }) => {
     const [expanded, setExpanded] = useState(false);
@@ -88,6 +100,7 @@ const EvalBreakdown = ({ evaluations }) => (
 
 export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
     const { trace, loading, error, justEvaluated } = useTraceDetail(traceId);
+    const [activeTab, setActiveTab] = useState("detail");
 
     if (loading) {
         return (
@@ -150,8 +163,34 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                 </div>
             </div>
 
-            {/* Evaluation Result */}
-            {/* Trace Content Stack */}
+            {/* Tab Bar (only show when spans exist) */}
+            {trace.spans && trace.spans.length > 0 && (
+                <div className="border-b border-slate-800">
+                    <nav className="flex space-x-1">
+                        {TRACE_TABS.map((tab) => {
+                            const Icon = tab.icon;
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`pb-2.5 px-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                                        isActive
+                                            ? "border-blue-500 text-blue-400"
+                                            : "border-transparent text-slate-500 hover:text-slate-300"
+                                    }`}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </nav>
+                </div>
+            )}
+
+            {/* Detail Tab (default) */}
+            {activeTab === "detail" && (
             <div className="space-y-6">
                 {/* Input Card */}
                 <Card className="p-0 border-slate-800 overflow-hidden">
@@ -243,6 +282,13 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                     <EvalBreakdown evaluations={trace.evalMetadata.evaluations} />
                 )}
             </div>
+            )}
+
+            {/* Visualization Tabs */}
+            {activeTab === "flow" && <TraceFlowView trace={trace} />}
+            {activeTab === "timeline" && <TraceTimelineView trace={trace} />}
+            {activeTab === "sequence" && <TraceSequenceView trace={trace} />}
+            {activeTab === "summary" && <TraceSummaryView trace={trace} />}
 
             {justEvaluated && getNotificationsEnabled() && (
                 <Toast
