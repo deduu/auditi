@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
 import React, { useState } from "react";
-import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp, Zap } from "lucide-react";
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -133,6 +133,12 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                                 <Database className="w-3.5 h-3.5 mr-1.5" />
                                 {trace.modelName || "Unknown Model"}
                             </span>
+                            {trace.spans && trace.spans.length > 0 && (
+                                <span className="flex items-center">
+                                    <Zap className="w-3.5 h-3.5 mr-1.5" />
+                                    {trace.spans.length} {trace.spans.length === 1 ? "step" : "steps"}
+                                </span>
+                            )}
                             {(trace.cost > 0) && (
                                 <span className="flex items-center text-slate-400">
                                     <DollarSign className="w-3.5 h-3.5 mr-1" />
@@ -177,6 +183,9 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                         <div className="bg-slate-950/30 px-4 py-2 border-b border-slate-800/50">
                             <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                                 Execution Path (Trace)
+                                <span className="ml-2 px-1.5 py-0.5 bg-slate-700/50 text-slate-400 rounded-full text-xs font-medium normal-case">
+                                    {trace.spans.length} {trace.spans.length === 1 ? "step" : "steps"}
+                                </span>
                             </p>
                         </div>
                         <div className="divide-y divide-slate-800/50">

@@ -140,6 +140,12 @@ const TurnCard = ({ turn, turnNumber }) => {
           </span>
           <span className="text-xs text-slate-600">|</span>
           <span className="text-xs text-slate-400">{latencyLabel}</span>
+          {Array.isArray(turn?.spans) && turn.spans.length > 0 && (
+            <>
+              <span className="text-xs text-slate-600">|</span>
+              <span className="text-xs text-slate-400">{turn.spans.length} steps</span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center space-x-3">
@@ -176,6 +182,9 @@ const TurnCard = ({ turn, turnNumber }) => {
             <div className="py-2 bg-slate-950/30 border-b border-slate-800/50">
               <p className="px-4 text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
                 Execution Path
+                <span className="ml-2 px-1.5 py-0.5 bg-slate-700/50 text-slate-400 rounded-full text-xs font-medium normal-case">
+                  {turn.spans.length} {turn.spans.length === 1 ? "step" : "steps"}
+                </span>
               </p>
               {turn.spans.map((span, index) => (
                 <SpanItem
