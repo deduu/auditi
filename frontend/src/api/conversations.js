@@ -12,6 +12,7 @@ export function getConversations(filters = {}, options = {}) {
   if (filters.status && filters.status !== 'all') params.status = filters.status;
   if (filters.model && filters.model !== 'all') params.model = filters.model;
   if (filters.range) params.range = filters.range;
+  if (filters.exclude_ask_auditi !== undefined) params.exclude_ask_auditi = filters.exclude_ask_auditi;
   if (filters.search) params.search = filters.search;
   if (filters.skip) params.skip = filters.skip;
   if (filters.limit) params.limit = filters.limit;

@@ -225,3 +225,12 @@ img, video {
   --color-purple-300: #7e22ce;
   --color-purple-400: #9333ea;
 }
+
+/* NL Query Panel slide-in animation */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}

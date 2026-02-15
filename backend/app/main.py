@@ -52,6 +52,7 @@ from app.routers import (
     pricing_router,
     auth_router,
     api_keys_router,
+    nl_query_router,
 )
 from app.routers.evaluation_jobs import router as evaluation_jobs_router
 from app.services.eval_worker import run_eval_worker
@@ -162,6 +163,7 @@ app.include_router(annotations_router, prefix="/api/v1")
 app.include_router(analytics_router, prefix="/api/v1")
 app.include_router(datasets_router, prefix="/api/v1")
 app.include_router(pricing_router, prefix="/api/v1")
+app.include_router(nl_query_router, prefix="/api/v1")
 
 
 @app.get("/")

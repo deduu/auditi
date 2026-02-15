@@ -285,6 +285,10 @@ async def process_evaluation(
             logger.warning(f"Trace {job.trace_id} not found, skipping evaluation")
             return
 
+        if isinstance(trace.tags, list) and "ask_auditi" in trace.tags:
+            logger.debug(f"Trace {job.trace_id} is an Ask Auditi self-trace, skipping")
+            return
+
         if trace.status not in ("pending", "review", None):
             logger.debug(
                 f"Trace {job.trace_id} already evaluated (status={trace.status})"

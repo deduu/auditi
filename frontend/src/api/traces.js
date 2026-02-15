@@ -15,6 +15,8 @@ export const getTraces = async (filters = {}, options = {}) => {
   if (filters.name) params.name = filters.name;
   if (filters.search) params.search = filters.search;
   if (filters.standalone_only !== undefined) params.standalone_only = filters.standalone_only;
+  if (filters.exclude_ask_auditi !== undefined) params.exclude_ask_auditi = filters.exclude_ask_auditi;
+  if (filters.ask_auditi_only !== undefined) params.ask_auditi_only = filters.ask_auditi_only;
   if (filters.date_from) params.date_from = filters.date_from;
   if (filters.date_to) params.date_to = filters.date_to;
 
@@ -44,6 +46,8 @@ export const exportTraces = async (filters = {}) => {
   if (filters.trace_type && filters.trace_type !== 'all') params.trace_type = filters.trace_type;
   if (filters.model && filters.model !== 'all') params.model = filters.model;
   if (filters.standalone_only !== undefined) params.standalone_only = filters.standalone_only;
+  if (filters.exclude_ask_auditi !== undefined) params.exclude_ask_auditi = filters.exclude_ask_auditi;
+  if (filters.ask_auditi_only !== undefined) params.ask_auditi_only = filters.ask_auditi_only;
   if (filters.date_from) params.date_from = filters.date_from;
   if (filters.date_to) params.date_to = filters.date_to;
 

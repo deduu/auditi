@@ -170,23 +170,33 @@ export const TracesPage = ({ onSelectTrace }) => {
                     {/* View Toggle */}
                     <div className="flex items-center bg-slate-900 rounded-xl p-1 border border-slate-700 mr-4 gap-1">
                         <button
-                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${filters.standalone_only
+                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${filters.standalone_only && !filters.ask_auditi_only
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
                                 : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
                                 }`}
-                            onClick={() => setFilters(prev => ({ ...prev, standalone_only: true }))}
+                            onClick={() => setFilters(prev => ({ ...prev, standalone_only: true, ask_auditi_only: false, exclude_ask_auditi: true }))}
                         >
                             Standalone
                         </button>
                         <div className="w-px h-5 bg-slate-700" />
                         <button
-                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${!filters.standalone_only
+                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${!filters.standalone_only && !filters.ask_auditi_only
                                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
                                 : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
                                 }`}
-                            onClick={() => setFilters(prev => ({ ...prev, standalone_only: false }))}
+                            onClick={() => setFilters(prev => ({ ...prev, standalone_only: false, ask_auditi_only: false, exclude_ask_auditi: false }))}
                         >
                             All Traces
+                        </button>
+                        <div className="w-px h-5 bg-slate-700" />
+                        <button
+                            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ${filters.ask_auditi_only
+                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
+                                : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
+                                }`}
+                            onClick={() => setFilters(prev => ({ ...prev, standalone_only: false, ask_auditi_only: true, exclude_ask_auditi: false }))}
+                        >
+                            Ask Auditi
                         </button>
                     </div>
 

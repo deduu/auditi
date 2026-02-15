@@ -281,6 +281,22 @@ export const ConversationsPage = ({ onSelectConversation }) => {
                     <option value="90d">Last 90 Days</option>
                   </select>
                 </div>
+
+                <div className="pt-2 border-t border-slate-800">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={filters.exclude_ask_auditi === false}
+                      onChange={(e) =>
+                        handleFilterChange("exclude_ask_auditi", e.target.checked ? false : undefined)
+                      }
+                      className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-400 group-hover:text-slate-300">
+                      Show Ask Auditi sessions
+                    </span>
+                  </label>
+                </div>
               </div>
 
               <div className="mt-6 flex items-center justify-between space-x-3">

@@ -254,6 +254,8 @@ def export_traces(
     trace_type: Optional[str] = None,
     model: Optional[str] = None,
     standalone_only: bool = False,
+    exclude_ask_auditi: bool = True,
+    ask_auditi_only: bool = False,
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -261,6 +263,11 @@ def export_traces(
 ):
     """Export all matching traces as CSV with full (non-truncated) content."""
     query = db.query(Trace)
+
+    if ask_auditi_only:
+        query = query.filter(cast(Trace.tags, String).like('%"ask_auditi"%'))
+    elif exclude_ask_auditi:
+        query = query.filter(~cast(Trace.tags, String).like('%"ask_auditi"%'))
 
     if standalone_only:
         query = query.filter(cast(Trace.tags, String).like('%"standalone"%'))
@@ -333,6 +340,8 @@ def get_traces(
     model: Optional[str] = None,
     name: Optional[str] = None,
     standalone_only: bool = False,
+    exclude_ask_auditi: bool = True,
+    ask_auditi_only: bool = False,
     search: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
@@ -347,6 +356,12 @@ def get_traces(
         standalone_only: If True, returns only traces NOT linked to a conversation.
     """
     query = db.query(Trace)
+
+    # Ask Auditi self-trace filtering
+    if ask_auditi_only:
+        query = query.filter(cast(Trace.tags, String).like('%"ask_auditi"%'))
+    elif exclude_ask_auditi:
+        query = query.filter(~cast(Trace.tags, String).like('%"ask_auditi"%'))
 
     if search:
         pattern = f"%{search}%"

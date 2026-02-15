@@ -15,6 +15,7 @@ from .datasets import router as datasets_router
 from .pricing import router as pricing_router
 from .auth import router as auth_router
 from .api_keys import router as api_keys_router
+from .nl_query import router as nl_query_router
 
 __all__ = [
     "traces_router",
@@ -32,4 +33,5 @@ __all__ = [
     "pricing_router",
     "auth_router",
     "api_keys_router",
+    "nl_query_router",
 ]

@@ -47,11 +47,13 @@ import { SidebarProvider, useSidebar } from "./context/SidebarContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import ErrorBoundary from "./components/common/ErrorBoundary";
+import { NLQueryPanel } from "./components/nl-query/NLQueryPanel";
 
 function AuthenticatedApp() {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [selectedTrace, setSelectedTrace] = useState(null);
+    const [nlQueryOpen, setNlQueryOpen] = useState(false);
     const { sidebarWidth } = useSidebar();
 
     const renderPage = () => {
@@ -113,7 +115,7 @@ function AuthenticatedApp() {
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-blue-500/30">
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} onToggleNLQuery={() => setNlQueryOpen((v) => !v)} />
 
             <main
                 style={{ marginLeft: `${sidebarWidth}px` }}
@@ -125,6 +127,8 @@ function AuthenticatedApp() {
                     </ErrorBoundary>
                 </div>
             </main>
+
+            <NLQueryPanel isOpen={nlQueryOpen} onClose={() => setNlQueryOpen(false)} />
         </div>
     );
 }

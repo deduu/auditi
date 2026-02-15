@@ -169,11 +169,15 @@ def get_conversations(
     status: Optional[str] = None,
     model: Optional[str] = None,
     range: Optional[str] = None,
+    exclude_ask_auditi: bool = True,
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Get paginated list of conversations with aggregated stats."""
     query = db.query(Conversation)
+
+    if exclude_ask_auditi:
+        query = query.filter(~Conversation.id.like("ask_auditi_%"))
 
     # Search across conversation fields and related trace content
     if search:
