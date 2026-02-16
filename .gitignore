@@ -81,3 +81,5 @@ tests/uat/
 # Agents
 .agentt
 .claude
+
+backup_db.txt
