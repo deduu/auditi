@@ -1,18 +1,18 @@
-<table><tr>
-  <td><img src="assets/logo.png" alt="Auditi" width="140"></td>
-  <td>
-    <h1>Auditi</h1>
-    <p><b>AI Agent Evaluation and Observability Platform</b></p>
-  </td>
-</tr></table>
+<p align="center">
+  <img src="assets/logo.png" alt="Auditi" width="480">
+</p>
 
-Auditi is a comprehensive platform for evaluating, monitoring, and improving AI agents and LLM applications. It provides automatic trace capture, LLM-as-a-judge evaluation, human annotation workflows, and detailed analytics to help you build better AI systems.
+<p align="center">
+  <b>Open-Source AI Agent Evaluation & Observability Platform</b><br>
+  Trace, evaluate, and improve your LLM applications with automated LLM-as-a-judge evaluation, human annotation workflows, and advanced analytics.
+</p>
 
-<p>
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.8+-blue.svg" alt="Python"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python"></a>
   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.104+-green.svg" alt="FastAPI"></a>
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-blue.svg" alt="React"></a>
+  <a href="https://github.com/deduu/auditi"><img src="https://img.shields.io/github/stars/deduu/auditi?style=social" alt="GitHub Stars"></a>
   <a href="https://github.com/deduu/auditi/discussions"><img src="https://img.shields.io/badge/discussions-join%20us-blue?logo=github" alt="Discussions"></a>
   <a href="https://github.com/deduu/auditi/actions/workflows/ci.yml"><img src="https://github.com/deduu/auditi/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
