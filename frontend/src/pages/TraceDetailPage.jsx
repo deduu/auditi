@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Auditi Contributors. Licensed under the BSL 1.1 (see LICENSES/BSL-1.1.md).
  */
 import React, { useState } from "react";
-import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp, Zap, List, GitBranch, GanttChart, ArrowDownUp, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, Clock, DollarSign, Database, AlertCircle, CheckCircle, HelpCircle, User, Bot, Target, Shield, ChevronDown, ChevronUp, Zap, List, LayoutDashboard } from "lucide-react";
 import { useTraceDetail } from "../hooks/useTraces";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -18,10 +18,7 @@ import { TraceSummaryView } from "../components/traces/TraceSummaryView";
 
 const TRACE_TABS = [
     { id: "detail", label: "Detail", icon: List },
-    { id: "flow", label: "Flow", icon: GitBranch },
-    { id: "timeline", label: "Timeline", icon: GanttChart },
-    { id: "sequence", label: "Sequence", icon: ArrowDownUp },
-    { id: "summary", label: "Summary", icon: LayoutDashboard },
+    { id: "visualize", label: "Visualize", icon: LayoutDashboard },
 ];
 
 const EvalCard = ({ evalId, evalData }) => {
@@ -174,10 +171,10 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`pb-2.5 px-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                                    className={`pb-2.5 px-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 rounded-t ${
                                         isActive
-                                            ? "border-blue-500 text-blue-400"
-                                            : "border-transparent text-slate-500 hover:text-slate-300"
+                                            ? "border-blue-500 text-blue-400 bg-blue-500/10"
+                                            : "border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
                                     }`}
                                 >
                                     <Icon className="w-3.5 h-3.5" />
@@ -284,11 +281,15 @@ export const TraceDetailPage = ({ traceId, onBack, inPanel = false }) => {
             </div>
             )}
 
-            {/* Visualization Tabs */}
-            {activeTab === "flow" && <TraceFlowView trace={trace} />}
-            {activeTab === "timeline" && <TraceTimelineView trace={trace} />}
-            {activeTab === "sequence" && <TraceSequenceView trace={trace} />}
-            {activeTab === "summary" && <TraceSummaryView trace={trace} />}
+            {/* Visualize Tab — all views stacked */}
+            {activeTab === "visualize" && (
+                <div className="space-y-6">
+                    <TraceSummaryView trace={trace} />
+                    <TraceFlowView trace={trace} />
+                    <TraceTimelineView trace={trace} />
+                    <TraceSequenceView trace={trace} />
+                </div>
+            )}
 
             {justEvaluated && getNotificationsEnabled() && (
                 <Toast

@@ -194,23 +194,21 @@ export const TraceSummaryView = ({ trace }) => {
       {/* I/O Preview */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <p className="text-xs text-slate-500 mb-1">Input Preview</p>
-          <p className="text-xs text-slate-400 font-mono line-clamp-3 bg-slate-800/50 rounded p-2 whitespace-pre-wrap">
+          <p className="text-xs text-slate-500 mb-1">Input</p>
+          <p className="text-xs text-slate-400 font-mono bg-slate-800/50 rounded p-2 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
             {typeof trace.userInput === "string"
-              ? trace.userInput.slice(0, 200)
-              : JSON.stringify(trace.userInput || "").slice(0, 200)}
-            {(trace.userInput || "").length > 200 && "..."}
+              ? trace.userInput
+              : JSON.stringify(trace.userInput || "", null, 2)}
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-500 mb-1">Output Preview</p>
-          <p className="text-xs text-slate-400 font-mono line-clamp-3 bg-slate-800/50 rounded p-2 whitespace-pre-wrap">
+          <p className="text-xs text-slate-500 mb-1">Output</p>
+          <p className="text-xs text-slate-400 font-mono bg-slate-800/50 rounded p-2 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
             {trace.assistantOutput
               ? (typeof trace.assistantOutput === "string"
-                  ? trace.assistantOutput.slice(0, 200)
-                  : JSON.stringify(trace.assistantOutput).slice(0, 200))
+                  ? trace.assistantOutput
+                  : JSON.stringify(trace.assistantOutput, null, 2))
               : "No output"}
-            {(trace.assistantOutput || "").length > 200 && "..."}
           </p>
         </div>
       </div>
