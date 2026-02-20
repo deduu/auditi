@@ -30,6 +30,7 @@ import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
 import { PaginationFooter } from "../components/ui/PaginationFooter";
 import { datasetsApi, annotationsApi } from "../api";
+import { ImportChatGPTModal } from "../components/datasets/ImportChatGPTModal";
 
 export const DatasetsPage = () => {
   const [datasets, setDatasets] = useState([]);
@@ -53,6 +54,7 @@ export const DatasetsPage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showImportChatGPTModal, setShowImportChatGPTModal] = useState(false);
   const [datasetForAction, setDatasetForAction] = useState(null);
 
   useEffect(() => {
@@ -214,6 +216,10 @@ export const DatasetsPage = () => {
               Publish from Queue
             </Button>
           )}
+          <Button variant="secondary" onClick={() => setShowImportChatGPTModal(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Import ChatGPT
+          </Button>
           <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
             New Dataset
@@ -251,6 +257,15 @@ export const DatasetsPage = () => {
                   <div>
                     <div className="font-medium text-white">Publish from Annotations</div>
                     <div className="text-sm text-slate-400">Convert completed annotation queues to datasets</div>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-bold shrink-0">
+                    3
+                  </div>
+                  <div>
+                    <div className="font-medium text-white">Import from ChatGPT</div>
+                    <div className="text-sm text-slate-400">Upload your ChatGPT export data as a dataset</div>
                   </div>
                 </div>
               </div>
@@ -422,6 +437,15 @@ export const DatasetsPage = () => {
           setDatasetForAction(null);
         }}
       />
+
+      <ImportChatGPTModal
+        isOpen={showImportChatGPTModal}
+        onClose={() => setShowImportChatGPTModal(false)}
+        onSuccess={() => {
+          loadData();
+          setShowImportChatGPTModal(false);
+        }}
+      />
     </div>
   );
 };
@@ -432,6 +456,7 @@ const DatasetCard = ({ dataset, onView, onExport, onDelete, onEdit }) => {
     manual: "Manual",
     annotation_queue: "From Annotations",
     import: "Imported",
+    chatgpt_import: "ChatGPT Import",
   };
 
   return (
@@ -449,6 +474,8 @@ const DatasetCard = ({ dataset, onView, onExport, onDelete, onEdit }) => {
               </span>
               <span className={`text-xs px-2 py-0.5 rounded ${dataset.source_type === "annotation_queue"
                   ? "bg-emerald-500/20 text-emerald-400"
+                  : dataset.source_type === "chatgpt_import"
+                  ? "bg-purple-500/20 text-purple-400"
                   : "bg-slate-700 text-slate-400"
                 }`}>
                 {sourceLabel[dataset.source_type] || dataset.source_type}

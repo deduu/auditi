@@ -216,3 +216,65 @@ class DatasetStats(BaseModel):
     avg_input_length: Optional[float] = None
     created_at: datetime
     last_updated: datetime
+
+
+# =============================================================================
+# ChatGPT Import Schemas
+# =============================================================================
+
+
+class ChatGPTImportFilterConfig(BaseModel):
+    """Filtering options for ChatGPT import preview."""
+
+    skip_system_messages: bool = Field(True, description="Skip system/tool messages")
+    model_filter: Optional[str] = Field(
+        None, description="Only include this model slug (e.g. 'gpt-4')"
+    )
+    date_from: Optional[str] = Field(
+        None, description="ISO date string: only conversations after this date"
+    )
+    date_to: Optional[str] = Field(
+        None, description="ISO date string: only conversations before this date"
+    )
+    min_message_length: int = Field(
+        1, ge=0, description="Minimum message character length"
+    )
+    max_conversations: Optional[int] = Field(
+        None, ge=1, description="Max conversations to import"
+    )
+
+
+class ChatGPTImportPreviewResponse(BaseModel):
+    """Response from the preview endpoint."""
+
+    total_conversations_in_file: int
+    filtered_conversations: int
+    total_items: int
+    skipped_reasons: Dict[str, int]
+    sample_items: List[Dict[str, Any]]
+    model_slugs_found: List[str]
+    date_range: Optional[Dict[str, str]] = None
+
+
+class ChatGPTImportCommitRequest(BaseModel):
+    """Request body for the commit endpoint (sent as JSON string in form field)."""
+
+    dataset_name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = None
+    skip_system_messages: bool = True
+    model_filter: Optional[str] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    min_message_length: int = Field(1, ge=0)
+    max_conversations: Optional[int] = Field(None, ge=1)
+
+
+class ChatGPTImportCommitResponse(BaseModel):
+    """Response from the commit endpoint."""
+
+    dataset_id: str
+    dataset_name: str
+    items_created: int
+    conversations_imported: int
+    version: int
+    message: str

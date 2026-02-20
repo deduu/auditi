@@ -241,6 +241,36 @@ export async function exportDataset(datasetId, options = {}) {
   return { success: true, filename };
 }
 
+// =============================================================================
+// ChatGPT Import API
+// =============================================================================
+
+/**
+ * Preview a ChatGPT export file before importing
+ * @param {File} file - The uploaded file (ZIP or JSON)
+ * @param {Object} filterConfig - Filtering options
+ * @returns {Promise<Object>} Preview data with counts and sample items
+ */
+export function previewChatGPTImport(file, filterConfig = {}) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("config", JSON.stringify(filterConfig));
+  return client.postForm("/datasets/import/chatgpt/preview", formData);
+}
+
+/**
+ * Commit a ChatGPT import - creates dataset and items
+ * @param {File} file - The uploaded file (ZIP or JSON)
+ * @param {Object} importConfig - Import config including dataset_name
+ * @returns {Promise<Object>} Created dataset info
+ */
+export function commitChatGPTImport(file, importConfig) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("config", JSON.stringify(importConfig));
+  return client.postForm("/datasets/import/chatgpt/commit", formData);
+}
+
 export default {
   // Datasets
   getDatasets,
@@ -260,4 +290,7 @@ export default {
   publishFromQueue,
   // Export
   exportDataset,
+  // ChatGPT Import
+  previewChatGPTImport,
+  commitChatGPTImport,
 };

@@ -15,7 +15,7 @@ import json
 import csv
 import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -44,6 +44,15 @@ from ..schemas.dataset import (
     PublishFromQueueRequest,
     PublishFromQueueResponse,
     DatasetStats,
+    ChatGPTImportFilterConfig,
+    ChatGPTImportPreviewResponse,
+    ChatGPTImportCommitRequest,
+    ChatGPTImportCommitResponse,
+)
+from ..services.chatgpt_parser import (
+    extract_conversations_json,
+    parse_conversations,
+    ChatGPTImportConfig,
 )
 
 router = APIRouter(
@@ -639,6 +648,227 @@ def publish_from_annotation_queue(
         items_created=items_created,
         version=db_dataset.version,
         message=f"Successfully published {items_created} items to dataset '{request.dataset_name}'",
+    )
+
+
+# =============================================================================
+# ChatGPT Import Endpoints
+# =============================================================================
+
+
+def _iso_to_timestamp(iso_str: Optional[str]) -> Optional[float]:
+    """Convert an ISO date string to Unix timestamp, or return None."""
+    if not iso_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
+        return dt.timestamp()
+    except ValueError:
+        return None
+
+
+@router.post("/import/chatgpt/preview", response_model=ChatGPTImportPreviewResponse)
+async def preview_chatgpt_import(
+    file: UploadFile = File(
+        ..., description="ChatGPT export ZIP or conversations.json"
+    ),
+    config: str = Form("{}", description="JSON string of filter config"),
+):
+    """
+    Preview a ChatGPT data export before importing.
+
+    Accepts either a ZIP file (ChatGPT data export) or a raw conversations.json file.
+    Returns statistics and sample items without creating any database records.
+    """
+    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413, detail="File too large. Maximum size is 50MB."
+        )
+
+    # Parse filter config from JSON string
+    try:
+        filter_dict = json.loads(config)
+        filter_config = ChatGPTImportFilterConfig(**filter_dict)
+    except (json.JSONDecodeError, Exception) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid filter config: {e}")
+
+    # Convert ISO dates to Unix timestamps
+    import_config = ChatGPTImportConfig(
+        skip_system_messages=filter_config.skip_system_messages,
+        model_filter=filter_config.model_filter,
+        date_from=_iso_to_timestamp(filter_config.date_from),
+        date_to=_iso_to_timestamp(filter_config.date_to),
+        min_message_length=filter_config.min_message_length,
+        max_conversations=filter_config.max_conversations,
+    )
+
+    # Extract and parse
+    try:
+        conversations_data = extract_conversations_json(contents)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        result = parse_conversations(conversations_data, import_config)
+    except Exception as e:
+        logger.error(f"Failed to parse ChatGPT export: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=400, detail=f"Failed to parse conversations: {e}"
+        )
+
+    # Collect unique model slugs
+    model_slugs = set()
+    for conv in result.conversations:
+        if conv.model_slug:
+            model_slugs.add(conv.model_slug)
+
+    # Determine date range
+    date_range = None
+    create_times = [c.created_at for c in result.conversations if c.created_at]
+    if create_times:
+        earliest = datetime.fromtimestamp(min(create_times), tz=timezone.utc)
+        latest = datetime.fromtimestamp(max(create_times), tz=timezone.utc)
+        date_range = {
+            "earliest": earliest.isoformat(),
+            "latest": latest.isoformat(),
+        }
+
+    return ChatGPTImportPreviewResponse(
+        total_conversations_in_file=result.total_conversations_in_file,
+        filtered_conversations=result.filtered_conversations,
+        total_items=result.total_items,
+        skipped_reasons=result.skipped_reasons,
+        sample_items=[item.model_dump() for item in result.sample_items],
+        model_slugs_found=sorted(model_slugs),
+        date_range=date_range,
+    )
+
+
+@router.post("/import/chatgpt/commit", response_model=ChatGPTImportCommitResponse)
+async def commit_chatgpt_import(
+    file: UploadFile = File(
+        ..., description="ChatGPT export ZIP or conversations.json"
+    ),
+    config: str = Form(..., description="JSON string of import config with dataset_name"),
+    db: Session = Depends(get_db),
+):
+    """
+    Import ChatGPT conversations and create a new dataset.
+
+    Re-parses the file with the provided config and creates the Dataset + DatasetItems.
+    """
+    MAX_FILE_SIZE = 50 * 1024 * 1024
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413, detail="File too large. Maximum size is 50MB."
+        )
+
+    # Parse commit config
+    try:
+        config_dict = json.loads(config)
+        commit_config = ChatGPTImportCommitRequest(**config_dict)
+    except (json.JSONDecodeError, Exception) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid config: {e}")
+
+    # Check for duplicate dataset name
+    existing = (
+        db.query(Dataset)
+        .filter(
+            Dataset.name == commit_config.dataset_name, Dataset.is_archived == False
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Dataset with name '{commit_config.dataset_name}' already exists",
+        )
+
+    # Build parser config
+    import_config = ChatGPTImportConfig(
+        skip_system_messages=commit_config.skip_system_messages,
+        model_filter=commit_config.model_filter,
+        date_from=_iso_to_timestamp(commit_config.date_from),
+        date_to=_iso_to_timestamp(commit_config.date_to),
+        min_message_length=commit_config.min_message_length,
+        max_conversations=commit_config.max_conversations,
+    )
+
+    # Extract and parse
+    try:
+        conversations_data = extract_conversations_json(contents)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        result = parse_conversations(conversations_data, import_config)
+    except Exception as e:
+        logger.error(f"Failed to parse ChatGPT export: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=400, detail=f"Failed to parse conversations: {e}"
+        )
+
+    if result.total_items == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid conversation pairs found with the given filters.",
+        )
+
+    # Create dataset
+    db_dataset = Dataset(
+        id=str(uuid.uuid4()),
+        name=commit_config.dataset_name,
+        description=commit_config.description
+        or f"Imported from ChatGPT export ({result.filtered_conversations} conversations)",
+        source_type="chatgpt_import",
+        meta={
+            "import_source": "chatgpt_export",
+            "total_conversations_in_file": result.total_conversations_in_file,
+            "filtered_conversations": result.filtered_conversations,
+            "skipped_reasons": result.skipped_reasons,
+            "model_slugs": list(
+                {c.model_slug for c in result.conversations if c.model_slug}
+            ),
+            "imported_at": datetime.now(timezone.utc).isoformat(),
+            "filters_applied": import_config.model_dump(),
+        },
+    )
+    db.add(db_dataset)
+
+    # Create dataset items in batch
+    items_created = 0
+    for conv in result.conversations:
+        for item in conv.items:
+            db_item = DatasetItem(
+                id=str(uuid.uuid4()),
+                dataset_id=db_dataset.id,
+                input=item.input,
+                expected_output=item.expected_output,
+                meta=item.metadata,
+                version_added=1,
+            )
+            db.add(db_item)
+            items_created += 1
+
+    db_dataset.item_count = items_created
+
+    db.commit()
+    db.refresh(db_dataset)
+
+    logger.info(
+        f"Imported {items_created} items from ChatGPT export into dataset '{commit_config.dataset_name}'"
+    )
+
+    return ChatGPTImportCommitResponse(
+        dataset_id=db_dataset.id,
+        dataset_name=db_dataset.name,
+        items_created=items_created,
+        conversations_imported=result.filtered_conversations,
+        version=db_dataset.version,
+        message=f"Successfully imported {items_created} items from {result.filtered_conversations} conversations",
     )
 
 

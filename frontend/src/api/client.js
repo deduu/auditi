@@ -134,6 +134,34 @@ export const client = {
     return request(url, { ...options, method: "DELETE" });
   },
 
+  postForm: (endpoint, formData) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+    return fetch(url, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+      // Do NOT set Content-Type header — browser sets multipart/form-data with boundary
+    }).then(async (response) => {
+      if (!response.ok) {
+        if (response.status === 401 && !endpoint.startsWith('/auth/')) {
+          window.dispatchEvent(new Event('auth:unauthorized'));
+        }
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) errorMessage = errorData.detail;
+          else if (errorData.message) errorMessage = errorData.message;
+        } catch {
+          // Ignore JSON parse errors
+        }
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        throw error;
+      }
+      return response.json();
+    });
+  },
+
   getBlob: (endpoint, params = {}, options = {}) => {
     const queryString = new URLSearchParams(params).toString();
     const url = queryString ? `${endpoint}?${queryString}` : endpoint;
