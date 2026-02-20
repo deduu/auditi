@@ -33,16 +33,17 @@ class EvalJob:
 
     trace_id: str
     api_key: Optional[str] = None
+    force: bool = False
 
 
 eval_queue: Queue[EvalJob] = Queue()
 
 
-def enqueue_evaluation(trace_id: str, api_key: Optional[str] = None) -> None:
+def enqueue_evaluation(trace_id: str, api_key: Optional[str] = None, force: bool = False) -> None:
     """Add a trace to the evaluation queue."""
-    job = EvalJob(trace_id=trace_id, api_key=api_key)
+    job = EvalJob(trace_id=trace_id, api_key=api_key, force=force)
     eval_queue.put(job)
-    logger.debug(f"Enqueued trace {trace_id} for evaluation")
+    logger.debug(f"Enqueued trace {trace_id} for evaluation (force={force})")
 
 
 def check_auto_eval_ready(db: Session) -> dict:
@@ -285,8 +286,8 @@ async def process_evaluation(
             logger.warning(f"Trace {job.trace_id} not found, skipping evaluation")
             return
 
-        if isinstance(trace.tags, list) and "ask_auditi" in trace.tags:
-            logger.debug(f"Trace {job.trace_id} is an Ask Auditi self-trace, skipping")
+        if not job.force and isinstance(trace.tags, list) and "ask_auditi" in trace.tags:
+            logger.debug(f"Trace {job.trace_id} is an Ask Auditi self-trace, skipping auto-eval")
             return
 
         if trace.status not in ("pending", "review", None):

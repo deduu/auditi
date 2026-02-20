@@ -376,7 +376,7 @@ def run_batch_evaluation(job_id: str):
             logger.debug(
                 "Enqueueing trace %d/%d: %s", i + 1, len(job["trace_ids"]), trace_id
             )
-            enqueue_evaluation(trace_id)
+            enqueue_evaluation(trace_id, force=True)
             job["evaluated_count"] += 1
 
         job["status"] = "completed"
