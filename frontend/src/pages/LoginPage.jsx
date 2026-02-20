@@ -28,9 +28,7 @@ export function LoginPage() {
         <div className="min-h-screen bg-slate-950 flex items-center justify-center px-4">
             <div className="w-full max-w-md">
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 mb-4">
-                        <span className="text-white font-bold text-xl">A</span>
-                    </div>
+                    <img src="/logo-cropped.png" alt="Auditi" className="h-28 mx-auto mb-4" />
                     <h1 className="text-2xl font-bold text-white">Welcome back</h1>
                     <p className="text-slate-400 mt-1">Sign in to your Auditi dashboard</p>
                 </div>
