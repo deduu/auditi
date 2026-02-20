@@ -225,6 +225,26 @@ def _extract_core_fields(
         str(recommended_action) if recommended_action else None
     )
 
+    # === Enforce status-score consistency ===
+    # The LLM may return contradictory status/score pairs (e.g. score=0.75 with status="fail").
+    # Override using the same thresholds documented in the evaluation prompt:
+    #   pass:   score >= 0.7
+    #   review: 0.5 <= score < 0.7
+    #   fail:   score < 0.5
+    score = core_fields["score"]
+    expected_status = "pass" if score >= 0.7 else "fail" if score < 0.5 else "review"
+    if core_fields["status"] != expected_status:
+        warnings.append(
+            f"Status-score inconsistency: LLM returned status='{core_fields['status']}' "
+            f"with score={score:.2f}. Overriding status to '{expected_status}' "
+            f"per threshold rules (pass>=0.7, fail<0.5, review otherwise)."
+        )
+        core_fields["status"] = expected_status
+
+        # Clear failure_mode when status is overridden to pass
+        if expected_status == "pass" and core_fields.get("failure_mode"):
+            core_fields["failure_mode"] = None
+
     # === Additional trace evaluation fields ===
     core_fields["step_quality_summary"] = response.get("step_quality_summary")
     core_fields["efficiency_summary"] = response.get("efficiency_summary")
