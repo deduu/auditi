@@ -5,7 +5,7 @@ from openai import OpenAI
 load_dotenv()  # Load environment variables from .env file
 
 # Initialize and auto-instrument all LLM libraries
-auditi.init(user_id="user_12345")
+auditi.init(api_key= os.getenv("AUDITI_API_KEY"),user_id="user_xxx")
 auditi.instrument()
 
 # Your existing code works unchanged!
@@ -16,9 +16,14 @@ client = OpenAI(base_url=os.getenv("OPENAI_API_BASE_URL"), api_key=os.getenv("OP
 # )
 # print(response)
 
-response = client.responses.create(
+stream = client.responses.create(
     model="gpt-4o",
-    input="What is integration testing?"
+    input="How to learn programming GPU kernels?",
+    stream=True,
 )
 
-print(response.output_text)
+for event in stream:
+    if hasattr(event, 'delta') and event.delta:
+        print(event.delta, end="", flush=True)
+
+# print(response.output_text)
