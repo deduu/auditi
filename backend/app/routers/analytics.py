@@ -83,6 +83,13 @@ def get_time_bucket(time_range: str) -> str:
         return "week"
 
 
+# Exclude Ask Auditi self-observation traces from all analytics (mirrors traces.py default)
+EXCLUDE_ASK_AUDITI_TRACE = or_(
+    Trace.tags.is_(None),
+    ~cast(Trace.tags, String).like('%"ask_auditi"%')
+)
+
+
 # ============== Endpoints ==============
 
 
@@ -108,7 +115,7 @@ def get_dashboard_kpis(
     # - Agent traces: do NOT have "standalone" in tags
     # - Standalone traces: have "standalone" in tags
     trace_query = db.query(Trace.name, func.count(Trace.id).label("count")).filter(
-        Trace.start_time >= start_date, Trace.name != None
+        Trace.start_time >= start_date, Trace.name != None, EXCLUDE_ASK_AUDITI_TRACE
     )
 
     if trace_type == "agent":
@@ -132,7 +139,7 @@ def get_dashboard_kpis(
     ]
 
     total_traces_query = db.query(func.count(Trace.id)).filter(
-        Trace.start_time >= start_date
+        Trace.start_time >= start_date, EXCLUDE_ASK_AUDITI_TRACE
     )
     if trace_type == "agent":
         total_traces_query = total_traces_query.filter(
@@ -147,7 +154,7 @@ def get_dashboard_kpis(
 
     # Compute counts by trace type for tab badges
     all_count = (
-        db.query(func.count(Trace.id)).filter(Trace.start_time >= start_date).scalar()
+        db.query(func.count(Trace.id)).filter(Trace.start_time >= start_date, EXCLUDE_ASK_AUDITI_TRACE).scalar()
         or 0
     )
 
@@ -155,6 +162,7 @@ def get_dashboard_kpis(
         db.query(func.count(Trace.id))
         .filter(
             Trace.start_time >= start_date,
+            EXCLUDE_ASK_AUDITI_TRACE,
             func.coalesce(func.cast(Trace.tags, String), "[]").contains('"standalone"'),
         )
         .scalar()
@@ -170,6 +178,9 @@ def get_dashboard_kpis(
     }
 
     # 2. Model costs with tokens
+    _ask_auditi_ids = db.query(Trace.id).filter(
+        cast(Trace.tags, String).like('%"ask_auditi"%')
+    ).subquery()
     model_costs_data = (
         db.query(
             Span.model,
@@ -177,7 +188,8 @@ def get_dashboard_kpis(
             func.sum(Span.cost).label("total_cost"),
         )
         .filter(
-            Span.span_type == "llm", Span.model != None, Span.start_time >= start_date
+            Span.span_type == "llm", Span.model != None, Span.start_time >= start_date,
+            ~Span.trace_id.in_(_ask_auditi_ids),
         )
         .group_by(Span.model)
         .order_by(desc("total_cost"))
@@ -195,7 +207,7 @@ def get_dashboard_kpis(
     ]
     total_cost = (
         db.query(func.sum(Span.cost))
-        .filter(Span.span_type == "llm", Span.start_time >= start_date)
+        .filter(Span.span_type == "llm", Span.start_time >= start_date, ~Span.trace_id.in_(_ask_auditi_ids))
         .scalar()
         or 0.0
     )
@@ -262,14 +274,17 @@ def get_observations_by_level(
         date_trunc_col = func.date_trunc("week", Span.start_time)
         date_format = func.to_char(date_trunc_col, 'YYYY-"W"IW')
 
-    # Query spans grouped by time and type
+    # Query spans grouped by time and type (exclude Ask Auditi self-traces)
+    _ask_auditi_ids = db.query(Trace.id).filter(
+        cast(Trace.tags, String).like('%"ask_auditi"%')
+    ).subquery()
     results = (
         db.query(
             date_format.label("period"),
             Span.span_type,
             func.count(Span.id).label("count"),
         )
-        .filter(Span.start_time >= start_date)
+        .filter(Span.start_time >= start_date, ~Span.trace_id.in_(_ask_auditi_ids))
         .group_by(date_trunc_col, Span.span_type)
         .order_by(date_trunc_col)
         .all()
@@ -435,7 +450,7 @@ def get_trends(
             func.count(Trace.id).label("volume"),
             func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
         )
-        .filter(Trace.start_time >= start_date)
+        .filter(Trace.start_time >= start_date, EXCLUDE_ASK_AUDITI_TRACE)
         .group_by(date_trunc_col)
         .order_by(date_trunc_col)
         .all()
@@ -450,7 +465,7 @@ def get_trends(
             func.count(Trace.id).label("volume"),
             func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
         )
-        .filter(Trace.start_time >= prev_start, Trace.start_time < start_date)
+        .filter(Trace.start_time >= prev_start, Trace.start_time < start_date, EXCLUDE_ASK_AUDITI_TRACE)
         .first()
     )
 
@@ -463,7 +478,7 @@ def get_trends(
             func.count(Trace.id).label("volume"),
             func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
         )
-        .filter(Trace.start_time >= start_date)
+        .filter(Trace.start_time >= start_date, EXCLUDE_ASK_AUDITI_TRACE)
         .first()
     )
 
@@ -566,7 +581,7 @@ def get_model_comparison(
             func.sum(case((Trace.status == "fail", 1), else_=0)).label("failures"),
             func.sum(func.coalesce(Trace.total_tokens, 0)).label("total_tokens"),
         )
-        .filter(Trace.start_time >= start_date, Trace.model_name != None)
+        .filter(Trace.start_time >= start_date, Trace.model_name != None, EXCLUDE_ASK_AUDITI_TRACE)
         .group_by(Trace.model_name)
         .all()
     )
@@ -582,6 +597,7 @@ def get_model_comparison(
                 Trace.start_time >= start_date,
                 Trace.model_name == row.model_name,
                 Trace.latency != None,
+                EXCLUDE_ASK_AUDITI_TRACE,
             )
             .all()
         )
@@ -1240,6 +1256,11 @@ def get_latency_percentiles_time_series(
         span_trunc = func.date_trunc("week", Span.start_time)
         span_fmt = func.to_char(span_trunc, 'YYYY-"W"IW')
 
+    # Subquery to exclude spans from Ask Auditi traces
+    _ask_auditi_ids = db.query(Trace.id).filter(
+        cast(Trace.tags, String).like('%"ask_auditi"%')
+    ).subquery()
+
     # 1) Trace latency percentiles
     trace_rows = (
         db.query(
@@ -1249,7 +1270,7 @@ def get_latency_percentiles_time_series(
             func.percentile_cont(0.95).within_group(Trace.latency.asc()).label("p95"),
             func.percentile_cont(0.99).within_group(Trace.latency.asc()).label("p99"),
         )
-        .filter(Trace.start_time >= start_date, Trace.latency.isnot(None))
+        .filter(Trace.start_time >= start_date, Trace.latency.isnot(None), EXCLUDE_ASK_AUDITI_TRACE)
         .group_by(trace_trunc)
         .order_by(trace_trunc)
         .all()
@@ -1276,6 +1297,7 @@ def get_latency_percentiles_time_series(
             Span.start_time >= start_date,
             Span.processing_time.isnot(None),
             Span.span_type == "llm",
+            ~Span.trace_id.in_(_ask_auditi_ids),
         )
         .group_by(span_trunc)
         .order_by(span_trunc)
@@ -1299,7 +1321,7 @@ def get_latency_percentiles_time_series(
             .within_group(Span.processing_time.asc())
             .label("p99"),
         )
-        .filter(Span.start_time >= start_date, Span.processing_time.isnot(None))
+        .filter(Span.start_time >= start_date, Span.processing_time.isnot(None), ~Span.trace_id.in_(_ask_auditi_ids))
         .group_by(span_trunc)
         .order_by(span_trunc)
         .all()
@@ -1345,10 +1367,10 @@ def get_user_consumption(
     else:
         agg_func = func.count(Trace.id)
 
-    # Step 1: Find top N users by total metric
+    # Step 1: Find top N users by total metric (exclude Ask Auditi system user)
     top_users_q = (
         db.query(user_col.label("uid"), agg_func.label("total"))
-        .filter(Trace.start_time >= start_date)
+        .filter(Trace.start_time >= start_date, EXCLUDE_ASK_AUDITI_TRACE, Trace.user_id != "__auditi_system__")
         .group_by(user_col)
         .order_by(desc("total"))
         .limit(limit)
@@ -1378,7 +1400,7 @@ def get_user_consumption(
             user_col.label("uid"),
             agg_func.label("value"),
         )
-        .filter(Trace.start_time >= start_date, user_col.in_(top_user_ids))
+        .filter(Trace.start_time >= start_date, EXCLUDE_ASK_AUDITI_TRACE, user_col.in_(top_user_ids))
         .group_by(date_trunc_col, user_col)
         .order_by(date_trunc_col)
         .all()
