@@ -83,3 +83,6 @@ tests/uat/
 .claude
 
 backup_db.txt
+
+# Local nested checkout (contains unpublished history)
+/src/auditi/
