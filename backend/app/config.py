@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Database
-    database_url: str = "postgresql://postgres:postgres@localhost:5434/audit_db"
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5435/audit_db"
 
     # Server
     debug: bool = False

@@ -83,6 +83,19 @@ docker-compose up -d
 
 > **Important:** `ENCRYPTION_KEY` encrypts LLM API keys in the database. `JWT_SECRET` signs user session tokens. Without these, ephemeral keys are generated on each restart. See [Installation Guide](docs/getting-started/installation.md) for details.
 
+On Windows, after creating `.env`, you can use the PowerShell launcher to avoid
+occupied ports automatically:
+
+```powershell
+.\start.ps1
+# Reuse existing images without rebuilding:
+.\start.ps1 -NoBuild
+```
+
+The launcher prefers ports `5173` (frontend), `8000` (backend), and `5435`
+(PostgreSQL), and selects the next available port when needed. Use the addresses
+printed by the launcher to open the platform and configure SDK connections.
+
 ### 2. Authenticate
 
 1. Open `http://localhost:5173` and create your admin account
